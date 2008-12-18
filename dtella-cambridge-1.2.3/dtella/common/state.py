@@ -280,6 +280,22 @@ class Persistent(LoadSaver):
         self.packValue(d, 'B', bool(state.persistent))
 
 
+#Added 18/12/2008 by andyhhp - support for newstuff functionality
+class Newitems_Notify(LoadSaver):
+	
+	key = 'newitems_notify'
+	
+	def load(self, state, d):
+		try:
+			state.newitems_notify = bool(self.unpackValue(d, 'B'))
+		except StateError:
+			state.newitems_notify = False
+	
+	
+	def save(self, state, d):
+		self.packValue(d, 'B', bool(state.newitems_notify))
+
+
 
 class LocalSearch(LoadSaver):
 
@@ -411,6 +427,7 @@ class DNSPkHashes(LoadSaver):
 
 
 client_loadsavers = [Persistent(),
+					 Newitems_Notify(),
                      LocalSearch(),
                      UDPPort(),
                      IPCache(),
