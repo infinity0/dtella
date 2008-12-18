@@ -3,7 +3,7 @@ Dtella - DirectConnect Interface Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: dc.py 545 2008-11-10 08:57:36Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -178,7 +178,7 @@ class AbortTransfer_In(BaseDCProtocol):
     def __init__(self, nick, dch):
 
         self.nick = nick
-        
+
         # Steal connection from the DCHandler
         self.factory = dch.factory
         self.makeConnection(dch.transport)
@@ -247,7 +247,7 @@ class DCHandler(BaseDCProtocol):
         self.addDispatch('$KillDtella',     0, self.d_KillDtella)
 
         self.addDispatch('$MyNick',         1, self.d_MyNick)
-        
+
         # Chat messages waiting to be sent
         self.chatq = []
         self.chat_counter = 99999
@@ -300,9 +300,9 @@ class DCHandler(BaseDCProtocol):
 
     def d_MyNick(self, nick):
         # This is a fake RevConnect that we should terminate.
-        
+
         dcall_discard(self, 'init_dcall')
-        
+
         if self.state != 'login_1':
             self.fatalError("$MyNick not expected.")
             return
@@ -357,7 +357,7 @@ class DCHandler(BaseDCProtocol):
 
         if n.dcinfo:
             self.pushInfo(n.nick, n.dcinfo)
-        
+
 
     def d_GetNickList(self):
 
@@ -500,7 +500,7 @@ class DCHandler(BaseDCProtocol):
                 suffix = self.main.state.suffix
                 if suffix:
                     loc = '%s|%s' % (loc, suffix)
-                
+
                 info[2] = loc + info[2][-1:]
 
         info = '$'.join(info)
@@ -530,7 +530,7 @@ class DCHandler(BaseDCProtocol):
 
         packet.append(struct.pack('!B', len(search_string)))
         packet.append(search_string)
-        
+
         osm.mrm.newMessage(''.join(packet), tries=4)
 
         # If local searching is enabled, send the search to myself
@@ -541,7 +541,7 @@ class DCHandler(BaseDCProtocol):
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
 
         text = remove_dc_escapes(text)
-        
+
         if nick == self.bot.nick:
 
             # No ! is needed for commands in the private message context
@@ -551,7 +551,7 @@ class DCHandler(BaseDCProtocol):
             def out(text):
                 if text is not None:
                     self.bot.say(text)
-            
+
             self.bot.commandInput(out, text)
             return
 
@@ -704,7 +704,7 @@ class DCHandler(BaseDCProtocol):
 
                 if out_text is not None:
                     self.pushStatus(out_text)
-            
+
             if self.bot.commandInput(out, text[1:], '!'):
                 return
 
@@ -786,7 +786,7 @@ class DCHandler(BaseDCProtocol):
 
 
     def pushRevConnectToMe(self, nick):
-        self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
+        self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))
 
 
     def pushSearchRequest(self, ipp, search_string):
@@ -809,7 +809,7 @@ class DCHandler(BaseDCProtocol):
 
         def cb():
             self.chatRate_dcall = reactor.callLater(1.0, cb)
-           
+
             if self.chatq:
                 args = self.chatq.pop(0)
                 self.broadcastChatMessage(*args)
@@ -956,7 +956,7 @@ class DCHandler(BaseDCProtocol):
     def event_AddNick(self, n):
         if not self.isProtectedNick(n.nick):
             self.pushHello(n.nick)
-    
+
 
     def event_RemoveNick(self, n, reason):
         if not self.isProtectedNick(n.nick):
@@ -983,11 +983,11 @@ verifyClass(IDtellaStateObserver, DCHandler)
 
 
 class DCFactory(ServerFactory):
-    
+
     def __init__(self, main, listen_port):
         self.main = main
         self.listen_port = listen_port # spliced into search results
-        
+
     def buildProtocol(self, addr):
         if addr.host != '127.0.0.1':
             return None
@@ -1040,7 +1040,7 @@ class DtellaBot(object):
         if not local.use_locations:
             if cmd[0] in self.location_cmds:
                 return False
-            
+
         if cmd[0] in self.freeform_cmds:
             try:
                 text = line.split(' ', 1)[1]
@@ -1048,7 +1048,7 @@ class DtellaBot(object):
                 text = None
 
             f(out, text, prefix)
-            
+
         else:
             def wrapped_out(line):
                 for l in word_wrap(line):
@@ -1056,7 +1056,7 @@ class DtellaBot(object):
                         out(l)
                     else:
                         out(" ")
-           
+
             f(wrapped_out, cmd[1:], prefix)
 
         return True
@@ -1073,11 +1073,12 @@ class DtellaBot(object):
         out("Type '%sHELP %s' for more information." % (prefix, key))
 
 
-    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG'])
+#''' BEGIN NEWITEMS MOD #
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','IHAVE'])
 
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','IHAVE','NEWITEMS'])
 
-    
+
     minihelp = [
         ("--",         "ACTIONS"),
         ("REJOIN",     "Hop back online after a kick or collision"),
@@ -1085,19 +1086,23 @@ class DtellaBot(object):
         ("INVITE",     "Show your current IP and port to give to a friend"),
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
+        ("IHAVE",      "Annnounce new items that you're now sharing."),
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
         ("UDP",        "Change Dtella's peer communication port"),
         ("LOCALSEARCH","View or toggle local search results."),
         ("PERSISTENT", "View or toggle persistent mode"),
+        ("NOTIFY",     "View or toggle notifications of new items"),
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
+        ("NEWITEMS",   "Show the newest item announcements from users."),
         ("USERS",      "Show how many users exist at each location"),
         ("SHARED",     "Show how many bytes are shared at each location"),
         ("DENSE",      "Show the bytes/user density for each location"),
         ("RANK",       "Compare your share size with everyone else"),
         ]
+# END NEWITEMS MOD '''#
 
 
     bighelp = {
@@ -1121,6 +1126,31 @@ class DtellaBot(object):
             "the topic to prevent changes."
             ),
 
+#''' BEGIN NEWITEMS MOD #
+        "IHAVE":(
+            "<text>",
+            "Announce to the network a short description of a new item that "
+            "you think people will want."
+            ),
+
+        "NEWITEMS":(
+            "<NUM | DAY> <a> [<b>]",
+            "If NUM is used, displays the <a>-th to <b>-th latest* items. "
+            "If DAY is used, displays items from <a> to <b> days ago. If <b> "
+            "is omitted, uses the range 0 to <a> (ie. latest item to <a>). "
+            "If no argument is provided, this command will display the "
+            "default list of new items based on the network settings. "
+            "(*0th is the latest)"
+            ),
+
+        "NOTIFY":(
+            "<ON | OFF>",
+            "Set whether you wish to be notified by *Dtella when someone "
+            "makes a new item announcement. To see whether you are currently "
+            "receiving notifications, use the command with no arguments."
+            ),
+
+# END NEWITEMS MOD '''#
         "SUFFIX":(
             "<suffix>",
             "This command appends a suffix to your location name, which "
@@ -1164,20 +1194,20 @@ class DtellaBot(object):
             "This will list all the known locations, and show how many "
             "bytes of data are being shared from each."
             ),
-        
+
         "DENSE":(
             "",
             "This will list all the known locations, and show the calculated "
             "share density (bytes-per-user) for each."
             ),
-        
+
         "RANK":(
             "<nick>",
             "Compare your share size with everyone else in the network, and "
             "show which place you're currently in.  If <nick> is provided, "
             "this will instead display the ranking of the user with that nick."
             ),
-        
+
         "UDP":(
             "<port>",
             "Specify a port number between 1-65536 to change the UDP port "
@@ -1193,7 +1223,7 @@ class DtellaBot(object):
             "can use this command to manually add the address of an existing "
             "node that you know about."
             ),
-            
+
         "INVITE":(
             "",
             "If you wish to invite another user to join the network using the "
@@ -1237,7 +1267,7 @@ class DtellaBot(object):
                 if not local.use_locations:
                     if command in self.location_cmds:
                         continue
-                
+
                 if command == "--":
                     out("")
                     out("  --%s--" % description)
@@ -1260,9 +1290,9 @@ class DtellaBot(object):
                 if not local.use_locations:
                     if key in self.location_cmds:
                         raise KeyError
-                    
+
                 (head, body) = self.bighelp[key]
-                
+
             except KeyError:
                 out("Sorry, no help available for '%s'." % key)
 
@@ -1299,7 +1329,7 @@ class DtellaBot(object):
                 out("Changing UDP port to: %d" % port)
                 self.main.changeUDPPort(port)
                 return
-            
+
         self.syntaxHelp(out, 'UDP', prefix)
 
 
@@ -1313,7 +1343,7 @@ class DtellaBot(object):
             else:
                 if not ad.port:
                     out("Port number must be nonzero.")
-                    
+
                 elif ad.auth('sx', self.main):
                     self.main.state.refreshPeer(ad, 0)
                     out("Added to peer cache: %s" % ad.getTextIPPort())
@@ -1326,10 +1356,10 @@ class DtellaBot(object):
                 return
 
         self.syntaxHelp(out, 'ADDPEER', prefix)
-        
-    
+
+
     def handleCmd_INVITE(self, out, args, prefix):
-        
+
         if len(args) == 0:
             osm = self.main.osm
             if osm:
@@ -1343,9 +1373,9 @@ class DtellaBot(object):
                 out("You cannot invite someone until you are connected to the "
                     "network yourself.")
             return
-        
+
         self.syntaxHelp(out, 'INVITE', prefix)
-        
+
 
     def handleCmd_PERSISTENT(self, out, args, prefix):
         if len(args) == 0:
@@ -1414,7 +1444,7 @@ class DtellaBot(object):
             out("Rejoining...")
             self.dch.doRejoin()
             return
-        
+
         self.syntaxHelp(out, 'REJOIN', prefix)
 
 
@@ -1423,7 +1453,7 @@ class DtellaBot(object):
         if not self.dch.isOnline():
             out("You must be online to use %sUSERS." % prefix)
             return
-        
+
         self.showStats(
             out,
             "User Counts",
@@ -1438,7 +1468,7 @@ class DtellaBot(object):
         if not self.dch.isOnline():
             out("You must be online to use %sSHARED." % prefix)
             return
-        
+
         self.showStats(
             out,
             "Bytes Shared",
@@ -1459,7 +1489,7 @@ class DtellaBot(object):
                 return (b/u, u)
             except ZeroDivisionError:
                 return (0, u)
-        
+
         self.showStats(
             out,
             "Share Density",
@@ -1493,7 +1523,7 @@ class DtellaBot(object):
         else:
             self.syntaxHelp(out, 'RANK', prefix)
             return
-        
+
         if target is osm.me:
             who = "You are"
         else:
@@ -1523,9 +1553,9 @@ class DtellaBot(object):
         out("%s %s %d%s place, with a share size of %s." %
             (who, tie, rank, suffix, format_bytes(target.shared))
             )
-        
+
     def handleCmd_TOPIC(self, out, topic, prefix):
-        
+
         if not self.dch.isOnline():
             out("You must be online to use %sTOPIC." % prefix)
             return
@@ -1549,13 +1579,23 @@ class DtellaBot(object):
 
         self.main.state.suffix = text
         self.main.state.saveState()
-        
+
         out("Set location suffix to \"%s\"" % text)
 
         osm = self.main.osm
         if osm:
             osm.updateMyInfo()
 
+#''' BEGIN NEWITEMS MOD #
+	def handleCmd_IHAVE(self, out):
+		pass
+
+	def handleCmd_NOTIFY(self):
+		pass
+
+	def handleCmd_NEWITEMS(self):
+		pass
+# END NEWITEMS MOD '''#
 
     def showStats(self, out, title, compute, format, peers_only):
 
@@ -1570,7 +1610,7 @@ class DtellaBot(object):
 
             if peers_only and not n.is_peer:
                 continue
-            
+
             try:
                 ucount[n.location] += 1
                 bcount[n.location] += n.shared
@@ -1632,7 +1672,7 @@ class DtellaBot(object):
     def handleCmd_DEBUG(self, out, text, prefix):
 
         out(None)
-        
+
         if not text:
             return
 

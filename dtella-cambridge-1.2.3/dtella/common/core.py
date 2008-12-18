@@ -3,7 +3,7 @@ Dtella - Core P2P Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: core.py 545 2008-11-10 08:57:36Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -181,7 +181,7 @@ class NickManager(object):
             return
 
         lnick = n.nick.lower()
-        
+
         if lnick in self.nickmap:
             raise NickError("collision")
 
@@ -341,7 +341,7 @@ class PeerHandler(DatagramProtocol):
                 data = self.main.pk_enc.decrypt(rawdata)
             except ValueError, e:
                 raise BadPacketError("Decrypt Failed: " + str(e))
-            
+
             if len(data) < 2:
                 raise BadPacketError("Too Short")
 
@@ -372,7 +372,7 @@ class PeerHandler(DatagramProtocol):
 
         except (BadPacketError, BadTimingError), e:
             self.main.logPacket("Bad Packet/Timing: %s" % str(e))
-        
+
 
     def decodePacket(self, fmt, data):
 
@@ -506,7 +506,7 @@ class PeerHandler(DatagramProtocol):
         # Check if we've seen this message before.
         ack_key = osm.mrm.generateKey(data)
         if osm.mrm.pokeMessage(ack_key, nb_ipp):
-            
+
             # Ack and skip the rest
             self.sendAckPacket(nb_ipp, ACK_BROADCAST, ack_flags, ack_key)
             return
@@ -527,7 +527,7 @@ class PeerHandler(DatagramProtocol):
 
         except BadBroadcast, e:
             self.main.logPacket("Bad Broadcast: %s" % str(e))
-            
+
             # Mark that we've seen this message, but don't forward it.
             osm.mrm.newMessage(data, tries=0, nb_ipp=nb_ipp)
 
@@ -541,7 +541,7 @@ class PeerHandler(DatagramProtocol):
                 # If this is from a neighbor, just set the flag.
                 # We'll send the ack later.
                 ack_flags |= ACK_REJECT_BIT
-                
+
             elif not (flags & REJECT_BIT):
                 # Not from a neighbor, so send a reject packet immediately.
                 self.sendAckPacket(
@@ -554,10 +554,10 @@ class PeerHandler(DatagramProtocol):
         if hop > 0:
             # Start with the broadcast header
             packet = osm.mrm.broadcastHeader(kind, src_ipp, hop-1, flags)
-           
+
             # Keep the rest of the message intact
             packet.append(rest)
-        
+
             # Pass this message to MessageRoutingManager, so it will be
             # forwarded to all of my neighbors.
             osm.mrm.newMessage(''.join(packet), tries=2, nb_ipp=nb_ipp)
@@ -586,7 +586,7 @@ class PeerHandler(DatagramProtocol):
         try:
             # Make sure src_ipp agrees with the sender's IP
             self.checkSource(src_ipp, ad)
-            
+
             # Make sure we're ready to receive it
             dch = self.main.getOnlineDCH()
             if not dch:
@@ -599,10 +599,10 @@ class PeerHandler(DatagramProtocol):
 
             if not n.expire_dcall:
                 raise Reject("Not online")
-            
+
             if src_nhash != n.nickHash():
                 raise Reject("Source nickhash mismatch")
-            
+
             if dst_nhash != osm.me.nickHash():
                 raise Reject("Dest nickhash mismatch")
 
@@ -638,7 +638,7 @@ class PeerHandler(DatagramProtocol):
         if n.bridge_data:
             # Don't allow updates for a bridge node
             return True
-        
+
         if n.status_pktnum is None:
             # Don't have a pktnum yet, can't be outdated
             return False
@@ -653,7 +653,7 @@ class PeerHandler(DatagramProtocol):
     def isMyStatus(self, src_ipp, pktnum, sendfull):
         # This makes corrections to any stray messages on the network that
         # would have an adverse effect on my current state.
-        
+
         osm = self.main.osm
 
         # If it's not for me, nothing's wrong.
@@ -701,7 +701,7 @@ class PeerHandler(DatagramProtocol):
         # src_ad is supposed to be the sender node's "true external IPPort"
         src_ad = Ad()
         src_ad.port = port
-        
+
         if ad.isPrivate() and my_ad.auth('sx', self.main):
             # If the request came from a private IP address, but was sent
             # toward a public IP address, then assume the sender node also
@@ -735,7 +735,7 @@ class PeerHandler(DatagramProtocol):
             # For invalid IPs, send no neighbors, and a small peercache
             # just so they can try for a second opinion.
             IR_LEN = IC_LEN
-        
+
         elif osm and osm.syncd:
             # Add in some online nodes
             node_ipps = [n.ipp for n in osm.nodes if n.expire_dcall]
@@ -824,7 +824,7 @@ class PeerHandler(DatagramProtocol):
         if ad.orig_ip:
             ad.ip = ad.orig_ip
         self.sendPacket(''.join(packet), ad.getAddrTuple())
-        
+
 
         # === IR response packet ===
         packet = ['IR']
@@ -928,11 +928,11 @@ class PeerHandler(DatagramProtocol):
 
             if not (5 <= expire <= 30*60):
                 raise BadPacketError("Expire time out of range")
-            
+
             # Make sure this isn't about me
             if self.isMyStatus(src_ipp, pktnum, sendfull=True):
                 raise BadBroadcast("Impersonating me")
-            
+
             if self.isOutdatedStatus(src_n, pktnum):
                 raise BadBroadcast("Outdated")
 
@@ -959,7 +959,7 @@ class PeerHandler(DatagramProtocol):
 
             if not (5 <= expire <= 30*60):
                 raise BadPacketError("Expire time out of range")
-           
+
             # Make sure this isn't about me
             if self.isMyStatus(src_ipp, pktnum, sendfull=True):
                 raise BadBroadcast("Impersonating me")
@@ -976,11 +976,11 @@ class PeerHandler(DatagramProtocol):
                     src_n.status_pktnum = pktnum
                     osm.scheduleNodeExpire(src_n, expire + NODE_EXPIRE_EXTEND)
                     return
-                
+
                 else:
                     # Syncd, and we don't recognize it
                     raise Reject
-            
+
             else:
                 if not (src_n and src_n.expire_dcall):
                     # Not syncd, don't know enough about this node yet,
@@ -993,7 +993,7 @@ class PeerHandler(DatagramProtocol):
                     src_n.status_pktnum = pktnum
                     osm.scheduleNodeExpire(src_n, expire + NODE_EXPIRE_EXTEND)
                     return
-                
+
                 else:
                     # Not syncd, but we know the infohash is wrong.
                     raise Reject
@@ -1049,14 +1049,14 @@ class PeerHandler(DatagramProtocol):
 
             (pktnum, sesid,
              ) = self.decodePacket('!I4s', rest)
-            
+
             # Make sure this isn't about me
             if self.isMyStatus(src_ipp, pktnum, sendfull=False):
                 raise BadBroadcast("I'm not dead!")
 
             if not (src_n and src_n.expire_dcall):
                 raise BadBroadcast("Nonexistent node")
-            
+
             if src_n.sesid != sesid:
                 raise BadBroadcast("Wrong session ID")
 
@@ -1089,10 +1089,10 @@ class PeerHandler(DatagramProtocol):
                 raise KeyError
         except KeyError:
             raise BadTimingError("PF received for not-online node")
-        
+
         if n.sesid != sesid:
             raise BadTimingError("PF has the wrong session ID")
-        
+
         if self.isOutdatedStatus(n, pktnum):
             raise BadTimingError("PF is outdated")
 
@@ -1176,7 +1176,7 @@ class PeerHandler(DatagramProtocol):
                 raise Reject
 
         self.handleBroadcast(ad, data, check_cb)
-        
+
 
     def handlePacket_SQ(self, ad, data):
         # Broadcast: Search Request
@@ -1230,7 +1230,7 @@ class PeerHandler(DatagramProtocol):
 
         if mode == ACK_PRIVATE:
             # Handle a private message ack
-            
+
             if not osm.syncd:
                 raise BadTimingError("Not ready for PM AK packet")
 
@@ -1290,9 +1290,9 @@ class PeerHandler(DatagramProtocol):
         def cb(dch, n, rest):
 
             flags, rest = self.decodePacket('!B+', rest)
-            
+
             text, rest = self.decodeString2(rest)
-            
+
             if rest:
                 raise BadPacketError("Extra data")
 
@@ -1373,7 +1373,7 @@ class PeerHandler(DatagramProtocol):
             raise BadPacketError("Invalid source IP")
 
         timedout = bool(flags & TIMEDOUT_BIT)
-        
+
         if not 0 <= hop <= 2:
             raise BadPacketError("Bad hop count")
 
@@ -1455,17 +1455,17 @@ class InitialContactManager(DatagramProtocol):
     class PeerInfo(object):
         __lt__ = lambda self,other: self.seen >  other.seen
         __le__ = lambda self,other: self.seen >= other.seen
-        
+
         def __init__(self, ipp, seen):
             self.ipp = ipp
             self.seen = seen
             self.inheap = True
             self.timeout_dcall = None
-            
+
             self.alt_reply = False
             self.bad_code = False
 
-    
+
     def __init__(self, main, cb):
         self.main = main
         self.done_callback = cb
@@ -1513,7 +1513,7 @@ class InitialContactManager(DatagramProtocol):
         else:
             if seen > p.seen:
                 p.seen = seen
-                
+
                 # Bubble it up the heap.
                 # This takes O(n) and uses an undocumented heapq function...
                 if p.inheap:
@@ -1557,7 +1557,7 @@ class InitialContactManager(DatagramProtocol):
                 pass
             else:
                 self.schedulePeerContactTimeout(p)
-            
+
             self.initrequest_dcall = reactor.callLater(0.05, cb)
 
         self.initrequest_dcall = reactor.callLater(0, cb)
@@ -1568,14 +1568,14 @@ class InitialContactManager(DatagramProtocol):
         CHECK(p not in self.waitreply)
 
         self.waitreply.add(p)
-        
+
         def cb(p):
             p.timeout_dcall = None
             self.waitreply.remove(p)
 
             if p.alt_reply:
                 self.recordResultType('dead_port')
-            
+
             self.checkStatus()
 
         p.timeout_dcall = reactor.callLater(5.0, cb, p)
@@ -1613,7 +1613,7 @@ class InitialContactManager(DatagramProtocol):
                 return
 
             p.alt_reply = True
-            
+
         else:
             # IR packet
 
@@ -1813,7 +1813,7 @@ class Node(object):
         self.shared = 0
 
         self.dttag = ""
-        
+
         self.infohash = None
 
         self.uptime = 0.0
@@ -1834,7 +1834,7 @@ class Node(object):
 
     def nickHash(self):
         # Return a 4-byte hash to prevent a transient nick mismapping
-        
+
         if self.nick:
             return md5(self.ipp + self.sesid + self.nick).digest()[:4]
         else:
@@ -1862,7 +1862,7 @@ class Node(object):
         # receive _FROM_ this node.
 
         # Return True if this is a new key
-    
+
         try:
             self.msgkeys_in[ack_key].reset(60.0)
             return False
@@ -2033,7 +2033,7 @@ class Node(object):
         # Cancel all pending privmsg timeouts
         for dcall in self.msgkeys_in.itervalues():
             dcall.cancel()
-        
+
         for dcall in self.msgkeys_out.itervalues():
             dcall.cancel()
 
@@ -2041,7 +2041,7 @@ class Node(object):
         self.msgkeys_out.clear()
 
         osm.cms.clearQueue(self)
-        
+
         # Bridge stuff
         if osm.bsm:
             osm.bsm.nickRemoved(self)
@@ -2052,7 +2052,7 @@ class Node(object):
         dcall_discard(self, 'rcWindow_dcall')
 
         self.nickRemoved(main)
-        
+
         if self.bridge_data:
             self.bridge_data.shutdown()
 
@@ -2062,7 +2062,7 @@ verifyClass(IDtellaNickNode, Node)
 class MeNode(Node):
 
     info_out = ""
-    
+
     def event_PrivateMessage(self, main, text, fail_cb):
         dch = main.getOnlineDCH()
         if dch:
@@ -2135,7 +2135,7 @@ class SyncManager(object):
         elif done < 0 and s.in_done:
             s.in_done = False
             self.stats_done -= 1
-            
+
         if total > 0 and not s.in_total:
             s.in_total = True
             self.stats_total += 1
@@ -2184,7 +2184,7 @@ class SyncManager(object):
             self.request_limit = 5
 
         while self.waitcount < self.request_limit:
-            
+
             try:
                 # Grab an arbitrary (semi-pseudorandom) uncontacted node.
                 ipp = self.uncontacted.pop()
@@ -2206,7 +2206,7 @@ class SyncManager(object):
             # Send the sync request
             packet = osm.mrm.broadcastHeader('YQ', osm.me.ipp, hops, flags)
             packet.append(osm.me.sesid)
-            
+
             ad = Ad().setRawIPPort(s.ipp)
             ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
@@ -2275,7 +2275,7 @@ class SyncManager(object):
         # Keep track of NAT stats
         if s.proxy_request:
             s.proxy_request = False
-            
+
             if s.fail_limit == 2:
                 self.proxy_success += 1
             elif s.fail_limit == 1:
@@ -2323,7 +2323,7 @@ class SyncManager(object):
     def cancelSyncTimeout(self, s):
         if not s.timeout_dcall:
             return
-        
+
         dcall_discard(s, 'timeout_dcall')
         self.waitcount -= 1
         self.advanceQueue()
@@ -2338,7 +2338,7 @@ class SyncManager(object):
 
 
 ##############################################################################
-        
+
 
 class OnlineStateManager(object):
 
@@ -2383,7 +2383,7 @@ class OnlineStateManager(object):
 
         # Init all these when sync is established:
         self.yqrm = None        # SyncRequestRoutingManager
-        
+
         self.sendStatus_dcall = None
 
         # Keep track of outbound status rate limiting
@@ -2430,7 +2430,7 @@ class OnlineStateManager(object):
             else:
                 # No longer an outbound node
                 self.pgm.removeOutboundLink(n)
- 
+
         self.nodes = nodes
         self.nodes.sort()
 
@@ -2540,7 +2540,7 @@ class OnlineStateManager(object):
             del self.nodes[bisect.bisect_left(self.nodes, n)]
         else:
             self.nodes.remove(n)
-        
+
         n.inlist = False
 
         # Tell the TopicManager this node is leaving
@@ -2566,7 +2566,7 @@ class OnlineStateManager(object):
         # Maybe get more outbound links
         self.pgm.scheduleMakeNewLinks()
 
-        
+
     def scheduleNodeExpire(self, n, when):
         # Schedule a timer for the given node to expire from the network
 
@@ -2612,7 +2612,7 @@ class OnlineStateManager(object):
             if self.syncd:
                 self.bsm.sendState()
             return
-        
+
         dch = self.main.getOnlineDCH()
 
         me = self.me
@@ -2678,7 +2678,7 @@ class OnlineStateManager(object):
             # Choose an expiration time so that the network handles
             # approximately 1 status update per second, but set bounds of
             # about 1-15 minutes
-            
+
             expire = max(60.0, min(900.0, len(self.nodes)))
             expire *= random.uniform(0.9, 1.1)
 
@@ -2743,7 +2743,7 @@ class OnlineStateManager(object):
     def sendLoginEcho(self):
         # Send a packet to myself, in order to determine how my router
         # (if any) reacts to loopback'd packets.
-        
+
         def cb():
             self.loginEcho_dcall = None
             self.loginEcho_rand = None
@@ -2792,7 +2792,7 @@ class OnlineStateManager(object):
 
 
     def shutdown(self):
-        
+
         # Cancel all the dcalls here
         dcall_discard(self, 'sendStatus_dcall')
         dcall_discard(self, 'statusLimit_dcall')
@@ -2947,9 +2947,9 @@ class PingManager(object):
                 # We've got a REQ to send out in a very short time, so
                 # send it out early with this packet we're sending already.
                 return True
-                
+
             return False
-        
+
         if i_req():
             # Send a ping with ACK requesting + retransmits
             self.pingWithRetransmit(n, tries=4, later=False, ack_key=req_key)
@@ -3032,7 +3032,7 @@ class PingManager(object):
     def initPingNeighbor(self, n):
         # To conserve RAM, this state is only attached to ping neighbors.
         # Normal nodes just keep the class-level defaults
-        
+
         if not n.is_ping_nb:
             n.is_ping_nb = True
             n.ping_reqs = {}           # {ack_key: time sent}
@@ -3070,7 +3070,7 @@ class PingManager(object):
 
         self.inbound.discard(n)
         self.outbound.discard(n)
-        
+
         self.cancelInactiveLink(n)
 
         if iwant:
@@ -3166,7 +3166,7 @@ class PingManager(object):
             # Make sure the K closest nonbroken nodes are marked as outbound
             n_alive = 0
             for n in osm.nodes:
-                
+
                 if n not in self.outbound:
 
                     if n not in self.inbound:
@@ -3200,7 +3200,7 @@ class PingManager(object):
     def scheduleChopExcessLinks(self):
         # Call this whenever a link goes from a connecting state to an
         # active state.
-        
+
         # This never needs to run more than once per reactor loop
         if self.chopExcessLinks_dcall:
             return
@@ -3215,7 +3215,7 @@ class PingManager(object):
             n_alive = 0
 
             for i,n in enumerate(osm.nodes):
-                
+
                 if n not in self.outbound:
                     # We ran out of nodes before hitting the target number
                     # of strongly connected nodes.  That means stuff's still
@@ -3228,7 +3228,7 @@ class PingManager(object):
 
                         # Chop off the excess outbound links
                         excess = self.outbound.difference(osm.nodes[:i+1])
-                        
+
                         for n in excess:
                             self.removeOutboundLink(n)
 
@@ -3299,7 +3299,7 @@ class PingManager(object):
                  (nblist and NBLIST_BIT)     |
                  (offline and OFFLINE_BIT)
                  )
-        
+
         packet.append(struct.pack('!B', flags))
 
         if i_req:
@@ -3388,7 +3388,7 @@ class MessageRoutingManager(object):
 
         def sendToNeighbor(self, nb_ipp, ph):
             # Pass this current message to the given neighbor
-           
+
             if nb_ipp in self.nbs:
                 # This neighbor has already seen our message
                 return
@@ -3422,7 +3422,7 @@ class MessageRoutingManager(object):
 
         def forgetTimeouts(self):
             # Cancel any pending retransmits
-            
+
             for d in self.nbs.itervalues():
                 if d:
                     d.cancel()
@@ -3451,7 +3451,7 @@ class MessageRoutingManager(object):
 
         def cb():
             self.send_dcall = None
-            
+
             osm = self.main.osm
 
             # Get my current neighbors who we know to be alive.  We don't
@@ -3505,7 +3505,7 @@ class MessageRoutingManager(object):
         except (KeyError, AttributeError):
             pass
         m.nbs[nb_ipp] = None
-        
+
         return True
 
 
@@ -3561,7 +3561,7 @@ class MessageRoutingManager(object):
 
         if m is self.rcollide_last_NS:
             # Remote nick collision might have occurred
-            
+
             self.rcollide_ipps.add(ipp)
 
             if len(self.rcollide_ipps) > 1:
@@ -3573,7 +3573,7 @@ class MessageRoutingManager(object):
                 # No more reports until next time
                 self.rcollide_last_NS = None
                 self.rcollide_ipps.clear()
-        
+
         if osm.me.status_pktnum == m.status_pktnum:
             # One of my hash-containing broadcasts has been rejected, so
             # send my full status to refresh everyone.
@@ -3636,9 +3636,9 @@ class MessageRoutingManager(object):
 
 
 class SyncRequestRoutingManager(object):
-    
+
     class Message(object):
-        
+
         def __init__(self):
             self.nbs = {}   # {ipp: max hop count}
             self.expire_dcall = None
@@ -3651,9 +3651,9 @@ class SyncRequestRoutingManager(object):
 
             def cb(msgs, key):
                 del msgs[key]
-            
+
             self.expire_dcall = reactor.callLater(180.0, cb, msgs, key)
-            
+
 
     def __init__(self, main):
         self.main = main
@@ -3661,7 +3661,7 @@ class SyncRequestRoutingManager(object):
 
 
     def receivedSyncRequest(self, nb_ipp, src_ipp, sesid, hop, timedout):
-        
+
         osm = self.main.osm
         ph  = self.main.ph
 
@@ -3697,7 +3697,7 @@ class SyncRequestRoutingManager(object):
             packet = osm.mrm.broadcastHeader('YQ', src_ipp, hop-1)
             packet.append(sesid)
             packet = ''.join(packet)
-            
+
             # Contacted/Uncontacted lists
             cont = []
             uncont = []
@@ -3746,7 +3746,7 @@ class SyncRequestRoutingManager(object):
         # If we send a YR which is almost expired, followed closely by
         # an NH with an extended expire time, then a race condition exists,
         # because the target could discard the NH before receiving the YR.
-        
+
         # So, if we're about to expire, go send a status update NOW so that
         # we'll have a big expire time to give to the target.
 
@@ -3790,7 +3790,7 @@ class SyncRequestRoutingManager(object):
 
 
 ##############################################################################
-        
+
 
 class ChatMessageSequencer(object):
     # If chat messages arrive out-of-order, this will delay
@@ -3886,7 +3886,7 @@ class ChatMessageSequencer(object):
         # Let the gap survive for 2 seconds total.
         when = max(0, n.chatq[0] + 2.0 - seconds())
         n.chatq_dcall = reactor.callLater(when, cb, n)
-    
+
 
     def flushQueue(self, n):
         # Send all the messages in the queue, in order
@@ -4023,7 +4023,7 @@ class TopicManager(object):
         dch = self.main.getOnlineDCH()
         if not dch:
             return True
-        
+
         # If it's changed, push it to the title bar
         if topic != old_topic:
             dch.pushTopic(topic)
@@ -4048,7 +4048,7 @@ class TopicManager(object):
 
         # Update topic locally
         if not self.updateTopic(osm.me, osm.me.nick, topic, changed=True):
-            
+
             # Topic is controlled by a bridge node
             self.topic_node.bridge_data.sendTopicChange(topic)
             return
@@ -4086,14 +4086,174 @@ class TopicManager(object):
         if self.topic_node is n:
             self.updateTopic(None, "", "", changed=False)
 
+#''' BEGIN NEWITEMS MOD #
 
-##############################################################################            
+##############################################################################
 
-        
+
+class NewitemsManager(object):
+
+    def __init__(self, main):
+        self.main = main
+        self.newitems = [] # list of (timestamp, nick,
+        self.waiting = True
+
+
+    def receivedSyncNewitems(self, n, newitems):
+        # Newitems arrived from a YR packet
+        if not self.waiting: return
+
+        for line in newitems.split("\n"):
+        	if not line: continue
+
+			item = line.split(" ", 2);
+
+			# make sure timestamp is correct
+			try: item[0] = int(item[0])
+			except ValueError:
+				raise BadPacketError("Bad timestamp")
+
+			self.newitems.append(tuple(item))
+
+        self.waiting = False
+
+        # Without DC, there's nothing to say
+        dch = self.main.getOnlineDCH()
+        if not dch: return True
+
+        # If notify is true, tell the user how many new items there are
+        # TODO: notify = some user preference
+        if notify:
+            dch.pushStatus("%i new items" % len(self.newitems))
+
+
+    def insertNewItem(self, n, newitem):
+
+    	removeOldItems()
+
+        # Store stuff
+		item = line.split(" ", 1);
+
+		# make sure timestamp is correct
+		try: item[0] = int(item[0])
+		except ValueError:
+			raise BadPacketError("Bad timestamp")
+
+		self.newitems.insert(0, tuple(item[0], n.nick, item[1]))
+
+        # Without DC, there's nothing to say
+        dch = self.main.getOnlineDCH()
+        if not dch:
+            return True
+
+        # If notify is true, tell the user that there's a newitem.
+        # TODO: notify = some user preference
+        if notify:
+            dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
+
+        return True
+
+
+    def broadcastNewItem(self, item):
+        osm = self.main.osm
+
+        if len(item) > 255:
+            item = item[:255]
+
+        newitem = int(time.time()) + " " + item
+
+        # Update newitem locally
+        self.insertNewItem(osm.me, newitem):
+
+        packet = osm.mrm.broadcastHeader('TP', osm.me.ipp)
+        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
+
+        packet.append(osm.me.nickHash())
+        packet.append(struct.pack('!B', len(topic)))
+        packet.append(newitem)
+
+        osm.mrm.newMessage(''.join(packet), tries=4)
+
+
+    def getFormattedItems(self, type=False, a, b=None):
+		# returns all the items as a human-readable string
+		# this data is used for display with the !newitems command
+
+		removeOldItems()
+
+		if type:
+			# days rather than counts
+			if b is None:
+				text = "New items from the last %i days" % a
+				b = a
+				a = 0
+			else:
+				text = "New items from %i days ago (inc) to %i days ago (exc)" % (a, b)
+				time_b = time_a = int(time.time());
+				time_a -= a * 86400
+				time_b -= b * 86400
+				tstate = False;
+				for i, item in enumerate(self.newitems)
+					if not tstate:
+						if time_b < item[0] <= time_a:
+							a = i
+							tstate = True
+					elif item[0] <= time_b
+						b = i
+						break
+		else:
+			if b is None:
+				text = "The lastest %i new items" % a
+				b = a
+				a = 0
+			else:
+				text = "New items #%i (inc) to #%i (exc)" % (a, b)
+		text += "\n"
+
+		for item in self.newitems[a:b]:
+			ts, nick, stuff = item;
+			text += time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)) + " " nick + " has " + stuff + "\n"
+
+        return text if text else "No items to display."
+
+
+    def getItems(self)
+    	# returns all the items as a string.
+    	# this data is sent when a sync request is made
+
+    	removeOldItems()
+
+		text = ""
+
+		for item in self.newitems[]:
+			text += "%i %s %s" % item + "\n"
+
+        return text
+
+
+    def removeOldItems(self):
+		# removes old items as defined in local_config
+
+        if len(self.newitem) > local.newitems_numlim:
+            self.newitem = self.newitem[:local.newitems_numlim]
+
+        lim = int(time.time()) - local.newitems_daylim * 86400;
+        if lim < self.newitem[-1][0]: return
+
+		i = -2;
+		while self.newitems[i][0] <= lim:
+			i = i - 1;
+		self.newitems = self.newitems[i+1]
+
+# END NEWITEMS MOD '''#
+
+##############################################################################
+
+
 class DtellaMain_Base(object):
 
     def __init__(self):
-       
+
         self.myip_reports = []
 
         self.reconnect_dcall = None
@@ -4190,7 +4350,7 @@ class DtellaMain_Base(object):
             "now on by typing !UDP followed by a number."
             % self.state.udp_port
             )
-        
+
         for line in word_wrap(text):
             self.showLoginStatus(line)
 
@@ -4201,11 +4361,11 @@ class DtellaMain_Base(object):
         # Determine my IP address and enable the osm
 
         CHECK(not (self.icm or self.osm))
-            
+
         # Reset the reconnect interval
         self.reconnect_interval = RECONNECT_RANGE[0]
         dcall_discard(self, 'reconnect_dcall')
-        
+
         # Get my address and port
         try:
             my_ipp = self.selectMyIP()
@@ -4301,7 +4461,7 @@ class DtellaMain_Base(object):
         def cb():
             self.reconnect_dcall = None
             self.startConnecting()
-            
+
         self.reconnect_dcall = reactor.callLater(when, cb)
 
 
@@ -4387,7 +4547,7 @@ class DtellaMain_Base(object):
 
         fromip = from_ad.getRawIP()
         myip = my_ad.getRawIP()
-        
+
         # If we already have a report from this fromip in the list, remove it.
         try:
             i = [r[0] for r in self.myip_reports].index(fromip)

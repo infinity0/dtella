@@ -73,6 +73,14 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
 ##    sheet_key = "..."
 ##    )
 
+#''' BEGIN NEWITEMS MOD #
+# Limits for !newitems storage. Individual users can override the limits for
+# display by using the commands !newitems daylim [days] | numlim [count]
+# but data for items will always be stored up to the smallest of these limits.
+newitems_daylim = 14
+newitems_numlim = 64
+# END NEWITEMS MOD '''#
+
 # Enable this if you can devise a meaningful mapping from a user's hostname
 # to their location.  Locations are displayed in the "Connection / Speed"
 # column of the DC client.
@@ -98,7 +106,7 @@ suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.private)?\.cam\.ac\.uk")
 
 suf_table = {
 	'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus',
-	'dar':'Darwin', 'dow':'Downing', 'emma':'Emmaneul', 'fitz':'Fitzwilliam',
+	'dar':'Darwin', 'dow':'Downing', 'emma':'Emmanuel', 'fitz':'Fitzwilliam',
 	'girton':'Girton', 'cai':'Gonville and Caius', 'homerton':'Homerton', 'jesus':'Jesus',
 	'kings':'King\'s', 'lucy-cav':'Lucy Cavendish', 'magd':'Magdalene', 'newn':'Newnham',
 	'pem':'Pembroke', 'quns':'Queens\'', 'robinson':'Robinson', 'sel':'Selwyn',
