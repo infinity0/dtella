@@ -4104,16 +4104,16 @@ class NewitemsManager(object):
         if not self.waiting: return
 
         for line in newitems.split("\n"):
-        	if not line: continue
+            if not line: continue
 
-			item = line.split(" ", 2);
+            item = line.split(" ", 2);
 
-			# make sure timestamp is correct
-			try: item[0] = int(item[0])
-			except ValueError:
-				raise BadPacketError("Bad timestamp")
+            # make sure timestamp is correct
+            try: item[0] = int(item[0])
+            except ValueError:
+                raise BadPacketError("Bad timestamp")
 
-			self.newitems.append(tuple(item))
+            self.newitems.append(tuple(item))
 
         self.waiting = False
 
@@ -4129,17 +4129,17 @@ class NewitemsManager(object):
 
     def insertNewItem(self, n, newitem):
 
-    	removeOldItems()
+        removeOldItems()
 
         # Store stuff
-		item = line.split(" ", 1);
+        item = line.split(" ", 1);
 
-		# make sure timestamp is correct
-		try: item[0] = int(item[0])
-		except ValueError:
-			raise BadPacketError("Bad timestamp")
+        # make sure timestamp is correct
+        try: item[0] = int(item[0])
+        except ValueError:
+            raise BadPacketError("Bad timestamp")
 
-		self.newitems.insert(0, tuple(item[0], n.nick, item[1]))
+        self.newitems.insert(0, tuple(item[0], n.nick, item[1]))
 
         # Without DC, there's nothing to say
         dch = self.main.getOnlineDCH()
@@ -4176,63 +4176,63 @@ class NewitemsManager(object):
 
 
     def getFormattedItems(self, type=False, a, b=None):
-		# returns all the items as a human-readable string
-		# this data is used for display with the !newitems command
+        # returns all the items as a human-readable string
+        # this data is used for display with the !newitems command
 
-		removeOldItems()
+        removeOldItems()
 
-		if type:
-			# days rather than counts
-			if b is None:
-				text = "New items from the last %i days" % a
-				b = a
-				a = 0
-			else:
-				text = "New items from %i days ago (inc) to %i days ago (exc)" % (a, b)
-				time_b = time_a = int(time.time());
-				time_a -= a * 86400
-				time_b -= b * 86400
-				tstate = False;
-				for i, item in enumerate(self.newitems)
-					if not tstate:
-						if time_b < item[0] <= time_a:
-							a = i
-							tstate = True
-					elif item[0] <= time_b
-						b = i
-						break
-		else:
-			if b is None:
-				text = "The lastest %i new items" % a
-				b = a
-				a = 0
-			else:
-				text = "New items #%i (inc) to #%i (exc)" % (a, b)
-		text += "\n"
+        if type:
+            # days rather than counts
+            if b is None:
+                text = "New items from the last %i days" % a
+                b = a
+                a = 0
+            else:
+                text = "New items from %i days ago (inc) to %i days ago (exc)" % (a, b)
+                time_b = time_a = int(time.time());
+                time_a -= a * 86400
+                time_b -= b * 86400
+                tstate = False;
+                for i, item in enumerate(self.newitems)
+                    if not tstate:
+                        if time_b < item[0] <= time_a:
+                            a = i
+                            tstate = True
+                    elif item[0] <= time_b
+                        b = i
+                        break
+        else:
+            if b is None:
+                text = "The lastest %i new items" % a
+                b = a
+                a = 0
+            else:
+                text = "New items #%i (inc) to #%i (exc)" % (a, b)
+        text += "\n"
 
-		for item in self.newitems[a:b]:
-			ts, nick, stuff = item;
-			text += time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)) + " " nick + " has " + stuff + "\n"
+        for item in self.newitems[a:b]:
+            ts, nick, stuff = item;
+            text += time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)) + " " nick + " has " + stuff + "\n"
 
         return text if text else "No items to display."
 
 
     def getItems(self)
-    	# returns all the items as a string.
-    	# this data is sent when a sync request is made
+        # returns all the items as a string.
+        # this data is sent when a sync request is made
 
-    	removeOldItems()
+        removeOldItems()
 
-		text = ""
+        text = ""
 
-		for item in self.newitems[]:
-			text += "%i %s %s" % item + "\n"
+        for item in self.newitems[]:
+            text += "%i %s %s" % item + "\n"
 
         return text
 
 
     def removeOldItems(self):
-		# removes old items as defined in local_config
+        # removes old items as defined in local_config
 
         if len(self.newitem) > local.newitems_numlim:
             self.newitem = self.newitem[:local.newitems_numlim]
@@ -4240,10 +4240,10 @@ class NewitemsManager(object):
         lim = int(time.time()) - local.newitems_daylim * 86400;
         if lim < self.newitem[-1][0]: return
 
-		i = -2;
-		while self.newitems[i][0] <= lim:
-			i = i - 1;
-		self.newitems = self.newitems[i+1]
+        i = -2;
+        while self.newitems[i][0] <= lim:
+            i = i - 1;
+        self.newitems = self.newitems[i+1]
 
 # END NEWITEMS MOD '''#
 

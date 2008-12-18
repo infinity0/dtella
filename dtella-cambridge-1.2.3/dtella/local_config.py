@@ -98,22 +98,22 @@ rdns_servers = ['131.111.8.42','131.111.12.20']
 
 # Customized data for our implementation of hostnameToLocation
 import re
-suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.private)?\.cam\.ac\.uk")
+suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.societies|\.private)?\.cam\.ac\.uk")
 #prefix_re = re.compile(r"^([a-z]{1,6}).*\.cam\.ac\.uk")
 
 #pre_table = {
 #    }
 
 suf_table = {
-	'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus',
-	'dar':'Darwin', 'dow':'Downing', 'emma':'Emmanuel', 'fitz':'Fitzwilliam',
-	'girton':'Girton', 'cai':'Gonville and Caius', 'homerton':'Homerton', 'jesus':'Jesus',
-	'kings':'King\'s', 'lucy-cav':'Lucy Cavendish', 'magd':'Magdalene', 'newn':'Newnham',
-	'pem':'Pembroke', 'quns':'Queens\'', 'robinson':'Robinson', 'sel':'Selwyn',
-	'sid':'Sidney Sussex', 'caths':'St Catharine\'s', 'st-edmunds':'St Edmund\'s', 'joh':'St John\'s',
-	'trin':'Trinity', 'wolfson':'Wolfson', 'clarehall':'Clare Hall', 'hughes':'Hughes Hall',
-	'newhall':'New Hall', 'trinhall':'Trinity Hall',
-	}
+    'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus',
+    'dar':'Darwin', 'dow':'Downing', 'emma':'Emmanuel', 'fitz':'Fitzwilliam',
+    'girton':'Girton', 'cai':'Gonville and Caius', 'homerton':'Homerton', 'jesus':'Jesus',
+    'kings':'King\'s', 'lucy-cav':'Lucy Cavendish', 'magd':'Magdalene', 'newn':'Newnham',
+    'pem':'Pembroke', 'quns':'Queens\'', 'robinson':'Robinson', 'sel':'Selwyn',
+    'sid':'Sidney Sussex', 'caths':'St Catharine\'s', 'st-edmunds':'St Edmund\'s', 'joh':'St John\'s',
+    'trin':'Trinity', 'wolfson':'Wolfson', 'clarehall':'Clare Hall', 'hughes':'Hughes Hall',
+    'newhall':'New Hall', 'trinhall':'Trinity Hall', 'srcf':'SRCF',
+    }
 
 def hostnameToLocation(hostname):
     # Convert a hostname into a human-readable location name.

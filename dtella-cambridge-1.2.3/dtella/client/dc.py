@@ -1587,14 +1587,14 @@ class DtellaBot(object):
             osm.updateMyInfo()
 
 #''' BEGIN NEWITEMS MOD #
-	def handleCmd_IHAVE(self, out):
-		pass
+    def handleCmd_IHAVE(self, out):
+        pass
 
-	def handleCmd_NOTIFY(self):
-		pass
+    def handleCmd_NOTIFY(self):
+        pass
 
-	def handleCmd_NEWITEMS(self):
-		pass
+    def handleCmd_NEWITEMS(self):
+        pass
 # END NEWITEMS MOD '''#
 
     def showStats(self, out, title, compute, format, peers_only):
