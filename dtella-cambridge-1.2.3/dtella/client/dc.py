@@ -1135,11 +1135,10 @@ class DtellaBot(object):
 
         "NEWITEMS":(
             "<NUM | DAY> <a> [<b>]",
+            "By default, displays items from the last 3 days. "
             "If NUM is used, displays the <a>-th to <b>-th latest* items. "
             "If DAY is used, displays items from <a> to <b> days ago. If <b> "
             "is omitted, uses the range 0 to <a> (ie. latest item to <a>). "
-            "If no argument is provided, this command will display the "
-            "default list of new items based on the network settings. "
             "(*0th is the latest)"
             ),
 
@@ -1587,14 +1586,68 @@ class DtellaBot(object):
             osm.updateMyInfo()
 
 #''' BEGIN NEWITEMS MOD #
-    def handleCmd_IHAVE(self, out):
-        pass
 
-    def handleCmd_NOTIFY(self):
-        pass
+    def handleCmd_IHAVE(self, out, desc, prefix):
 
-    def handleCmd_NEWITEMS(self):
-        pass
+        if not self.dch.isOnline():
+            out("You must be online to use %sIHAVE." % prefix)
+            return
+
+        nitm = self.main.osm.nitm
+
+        if desc is None:
+            self.syntaxHelp(out, 'IHAVE', prefix)
+        else:
+            out(None)
+            tm.broadcastNewItem(desc)
+
+
+    def handleCmd_NOTIFY(self, out, args, prefix):
+        if len(args) == 0:
+            if self.main.state.newitems_notify:
+                out("Notification of new items is currently ON.")
+            else:
+                out("Notification of new items is currently OFF.")
+            return
+
+        if len(args) == 1:
+            if args[0] == 'ON':
+                out("Set notifications to ON.")
+                self.main.state.newitems_notify = True
+                self.main.state.saveState()
+                return
+
+            elif args[0] == 'OFF':
+                out("Set notifications to OFF.")
+                self.main.state.newitems_notify = False
+                self.main.state.saveState()
+                return
+
+        self.syntaxHelp(out, 'NOTIFY', prefix)
+
+
+    def handleCmd_NEWITEMS(self, out, args, prefix):
+        if len(args) == 0:
+            args[0] = 'DAY'
+            args[1] = '3'
+
+        if len(args) == 1:
+            self.syntaxHelp(out, 'NEWITEMS', prefix)
+            return
+
+        if args[0] == 'NUM':
+            type = False
+
+        elif args[0] == 'DAY':
+            type = True
+
+        else:
+            self.syntaxHelp(out, 'NEWITEMS', prefix)
+            return
+
+        nitm = self.main.osm.nitm
+        out(nitm.getFormattedItems(type, *args[1:3]))
+
 # END NEWITEMS MOD '''#
 
     def showStats(self, out, title, compute, format, peers_only):

@@ -4148,7 +4148,7 @@ class NewitemsManager(object):
 
         # If notify is true, tell the user that there's a newitem.
         # TODO: notify = some user preference
-        if notify:
+        if notify or n.nick == self.main.osm.me.nick:
             dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
 
         return True
@@ -4175,7 +4175,7 @@ class NewitemsManager(object):
         osm.mrm.newMessage(''.join(packet), tries=4)
 
 
-    def getFormattedItems(self, type=False, a, b=None):
+    def getFormattedItems(self, type, a, b=None):
         # returns all the items as a human-readable string
         # this data is used for display with the !newitems command
 
@@ -4189,7 +4189,7 @@ class NewitemsManager(object):
                 a = 0
             else:
                 text = "New items from %i days ago (inc) to %i days ago (exc)" % (a, b)
-                time_b = time_a = int(time.time());
+                time_b = time_a = int(time.time())
                 time_a -= a * 86400
                 time_b -= b * 86400
                 tstate = False;
