@@ -1429,6 +1429,72 @@ class PeerHandler(DatagramProtocol):
 
         osm.sm.receivedSyncReply(src_ipp, c_nbs, u_nbs)
 
+#''' BEGIN NEWITEMS MOD #
+
+    def handlePacket_WR(self, ad, data):
+        # SyncNewitems Reply
+
+        osm = self.main.osm
+        if not (osm and osm.sm):
+            raise BadTimingError("Not ready for sync reply")
+
+        (kind, src_ipp, pktnum, rest
+         ) = self.decodePacket('!2s6sI+', data)
+
+        self.checkSource(src_ipp, ad)
+
+        newitems, rest = self.decodeString1(rest)
+
+        if rest:
+            raise BadPacketError("Extra data")
+
+        try:
+            n = osm.lookup_ipp[src_ipp]
+        except KeyError:
+            n = None
+
+        if self.isFromBridgeNode(n, src_ipp):
+            raise BadPacketError("Bridge can't use WR")
+
+        osm.nitm.receivedSyncTopic(n, newitems)
+
+
+    def handlePacket_WN(self, ad, data):
+        # Broadcast: New item
+
+        osm = self.main.osm
+
+        def check_cb(src_n, src_ipp, rest):
+
+            (pktnum, nhash, rest
+             ) = self.decodePacket('!I4s+', rest)
+
+            newitem, rest = self.decodeString1(rest)
+            if rest:
+                raise BadPacketError("Extra data")
+
+            if src_ipp == osm.me.ipp:
+                # Possibly a spoofed newitem from me
+                if nhash == osm.me.nickHash():
+                    dch = self.main.getOnlineDCH()
+                    if dch:
+                        dch.pushStatus(
+                            "*** New item spoofing detected: %s" % topic)
+                raise BadBroadcast("Spoofed newitem")
+
+            if not osm.syncd:
+                # Not syncd, forward blindly
+                return None
+
+            if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
+                osm.nitm.insertNewItem(src_n, newitem)
+
+            else:
+                raise Reject
+
+        self.handleBroadcast(ad, data, check_cb)
+
+# END NEWITEMS MOD '''#
 
     def handlePacket_EC(self, ad, data):
         # Login echo
@@ -3731,6 +3797,9 @@ class SyncRequestRoutingManager(object):
 
         if isnew or timedout:
             self.sendSyncReply(src_ipp, cont, uncont)
+#''' BEGIN NEWITEMS MOD #
+            self.sendSyncNewitemsReply(src_ipp)
+# END NEWITEMS MOD '''#
 
 
     def sendSyncReply(self, src_ipp, cont, uncont):
@@ -3786,6 +3855,27 @@ class SyncRequestRoutingManager(object):
 
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
+#''' BEGIN NEWITEMS MOD #
+
+    def sendSyncNewitemsReply(self, src_ipp):
+        # Same as above but with different packet contents
+        ad = Ad().setRawIPPort(src_ipp)
+        osm = self.main.osm
+
+        CHECK(osm and osm.syncd)
+
+        # Build Packet
+        packet = ['WR']
+        packet.append(osm.me.ipp)
+        packet.append(struct.pack('!I', osm.me.status_pktnum))
+
+        newitems = osm.nitm.getItems
+        packet.append(struct.pack('!B', len(newitems)))
+        packet.append(newitems)
+
+        self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
+
+# END NEWITEMS MOD '''#
 
     def shutdown(self):
         # Cancel all timeouts
@@ -4105,7 +4195,7 @@ class NewitemsManager(object):
 
 
     def receivedSyncNewitems(self, n, newitems):
-        # Newitems arrived from a YR packet
+        # Newitems arrived from a WR packet
         if not self.waiting: return
 
         for line in newitems.split("\n"):
@@ -4143,7 +4233,7 @@ class NewitemsManager(object):
         except ValueError:
             raise BadPacketError("Bad timestamp")
 
-        self.newitems.insert(0, (item[0], "def", item[1]))
+        self.newitems.insert(0, (item[0], n.nick, item[1]))
 
         # Without DC, there's nothing to say
         dch = self.main.getOnlineDCH()
@@ -4152,7 +4242,7 @@ class NewitemsManager(object):
 
         # If notify is true or if it's the user's own update,
         # tell the user that there's a newitem.
-        if self.main.state.newitems_notify or n.nick == self.main.osm.me.nick:
+        if self.main.state.newitems_notify or n == self.main.osm.me:
             dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
 
         return True
@@ -4169,11 +4259,11 @@ class NewitemsManager(object):
         # Update newitem locally
         self.insertNewItem(osm.me, newitem)
 
-        packet = osm.mrm.broadcastHeader('TP', osm.me.ipp)
+        packet = osm.mrm.broadcastHeader('WN', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
 
         packet.append(osm.me.nickHash())
-        packet.append(struct.pack('!B', len(topic)))
+        packet.append(struct.pack('!B', len(newitem)))
         packet.append(newitem)
 
         osm.mrm.newMessage(''.join(packet), tries=4)
