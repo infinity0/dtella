@@ -4127,8 +4127,7 @@ class NewitemsManager(object):
         if not dch: return True
 
         # If notify is true, tell the user how many new items there are
-        # TODO: notify = some user preference
-        if notify:
+        if self.main.state.newitems_notify:
             dch.pushStatus("%i new items" % len(self.newitems))
 
 
@@ -4151,10 +4150,10 @@ class NewitemsManager(object):
         if not dch:
             return True
 
-        # If notify is true, tell the user that there's a newitem.
-        # TODO: notify = some user preference
-        #if notify or n.nick == self.main.osm.me.nick:
-        dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
+        # If notify is true or if it's the user's own update,
+        # tell the user that there's a newitem.
+        if self.main.state.newitems_notify or n.nick == self.main.osm.me.nick:
+            dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
 
         return True
 
