@@ -2368,6 +2368,11 @@ class OnlineStateManager(object):
         # TopicManager
         self.tm = TopicManager(main)
 
+#''' BEGIN NEWITEMS MOD #
+        # NewitemsManager
+        self.nitm = NewitemsManager(main)
+# END NEWITEMS MOD '''#
+
         # BanManager
         self.banm = BanManager(main)
 
@@ -4129,17 +4134,17 @@ class NewitemsManager(object):
 
     def insertNewItem(self, n, newitem):
 
-        removeOldItems()
+        self.removeOldItems()
 
         # Store stuff
-        item = line.split(" ", 1);
+        item = newitem.split(" ", 1);
 
         # make sure timestamp is correct
         try: item[0] = int(item[0])
         except ValueError:
             raise BadPacketError("Bad timestamp")
 
-        self.newitems.insert(0, tuple(item[0], n.nick, item[1]))
+        self.newitems.insert(0, (item[0], "def", item[1]))
 
         # Without DC, there's nothing to say
         dch = self.main.getOnlineDCH()
@@ -4148,8 +4153,8 @@ class NewitemsManager(object):
 
         # If notify is true, tell the user that there's a newitem.
         # TODO: notify = some user preference
-        if notify or n.nick == self.main.osm.me.nick:
-            dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
+        #if notify or n.nick == self.main.osm.me.nick:
+        dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
 
         return True
 
@@ -4160,10 +4165,10 @@ class NewitemsManager(object):
         if len(item) > 255:
             item = item[:255]
 
-        newitem = int(time.time()) + " " + item
+        newitem = str(int(time.time())) + " " + item
 
         # Update newitem locally
-        self.insertNewItem(osm.me, newitem):
+        self.insertNewItem(osm.me, newitem)
 
         packet = osm.mrm.broadcastHeader('TP', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
@@ -4179,53 +4184,67 @@ class NewitemsManager(object):
         # returns all the items as a human-readable string
         # this data is used for display with the !newitems command
 
-        removeOldItems()
+        self.removeOldItems()
 
+        a = int(a)
         if type:
             # days rather than counts
             if b is None:
-                text = "New items from the last %i days" % a
+                lines = ["New items from the last %i days:" % a]
                 b = a
                 a = 0
             else:
-                text = "New items from %i days ago (inc) to %i days ago (exc)" % (a, b)
-                time_b = time_a = int(time.time())
-                time_a -= a * 86400
-                time_b -= b * 86400
-                tstate = False;
-                for i, item in enumerate(self.newitems)
-                    if not tstate:
-                        if time_b < item[0] <= time_a:
-                            a = i
-                            tstate = True
-                    elif item[0] <= time_b
-                        b = i
-                        break
+                b = int(b)
+                lines = ["New items from %i days ago (inc) to %i days ago (exc):" % (a, b)]
+
+            if b > local.newitems_daylim:
+                lines[0] += " (items are only stored for %i days)" % local.newitems_daylim
+
+            time_b = time_a = int(time.time())
+            time_a -= a * 86400
+            time_b -= b * 86400
+            tstate = False;
+            a = 0
+            b = 0
+            for i, item in enumerate(self.newitems):
+                if not tstate:
+                    if time_b < item[0] <= time_a:
+                        a = i
+                        tstate = True
+                elif item[0] <= time_b:
+                    b = i
+                    break
+            if tstate:
+                b = len(self.newitems)
+
         else:
             if b is None:
-                text = "The lastest %i new items" % a
+                lines = ["The latest %i new items:" % a]
                 b = a
                 a = 0
             else:
-                text = "New items #%i (inc) to #%i (exc)" % (a, b)
-        text += "\n"
+                b = int(b)
+                lines = ["New items #%i (inc) to #%i (exc):" % (a, b)]
+
+            if b > local.newitems_numlim:
+                lines[0] += " (only %i items are stored)" % local.newitems_numlim
 
         for item in self.newitems[a:b]:
             ts, nick, stuff = item;
-            text += time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)) + " " nick + " has " + stuff + "\n"
+            lines.append(time.strftime("[%Y-%m-%d %H:%M:%S]", time.gmtime(ts)) + " " + nick + " has " + stuff)
 
-        return text if text else "No items to display."
+        return lines if len(lines) > 1 else ["No items to display."]
 
 
-    def getItems(self)
+    def getItems(self):
         # returns all the items as a string.
         # this data is sent when a sync request is made
 
-        removeOldItems()
+        self.removeOldItems()
 
         text = ""
 
-        for item in self.newitems[]:
+        for item in self.newitems:
             text += "%i %s %s" % item + "\n"
 
         return text
@@ -4234,16 +4253,18 @@ class NewitemsManager(object):
     def removeOldItems(self):
         # removes old items as defined in local_config
 
-        if len(self.newitem) > local.newitems_numlim:
-            self.newitem = self.newitem[:local.newitems_numlim]
+        if len(self.newitems) == 0:
+            return
+        if len(self.newitems) > local.newitems_numlim:
+            self.newitems = self.newitems[:local.newitems_numlim]
 
         lim = int(time.time()) - local.newitems_daylim * 86400;
-        if lim < self.newitem[-1][0]: return
+        if lim < self.newitems[-1][0]: return
 
         i = -2;
-        while self.newitems[i][0] <= lim:
+        while -i <= len(self.newitems) and self.newitems[i][0] <= lim:
             i = i - 1;
-        self.newitems = self.newitems[i+1]
+        self.newitems = self.newitems[:i+1]
 
 # END NEWITEMS MOD '''#
 

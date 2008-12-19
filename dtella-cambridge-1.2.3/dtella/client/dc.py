@@ -1593,13 +1593,11 @@ class DtellaBot(object):
             out("You must be online to use %sIHAVE." % prefix)
             return
 
-        nitm = self.main.osm.nitm
-
         if desc is None:
             self.syntaxHelp(out, 'IHAVE', prefix)
         else:
-            out(None)
-            tm.broadcastNewItem(desc)
+            nitm = self.main.osm.nitm
+            nitm.broadcastNewItem(desc)
 
 
     def handleCmd_NOTIFY(self, out, args, prefix):
@@ -1627,9 +1625,13 @@ class DtellaBot(object):
 
 
     def handleCmd_NEWITEMS(self, out, args, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sNEWITEMS." % prefix)
+            return
+
         if len(args) == 0:
-            args[0] = 'DAY'
-            args[1] = '3'
+            args = ['DAY', '3']
 
         if len(args) == 1:
             self.syntaxHelp(out, 'NEWITEMS', prefix)
@@ -1646,7 +1648,8 @@ class DtellaBot(object):
             return
 
         nitm = self.main.osm.nitm
-        out(nitm.getFormattedItems(type, *args[1:3]))
+        for line in nitm.getFormattedItems(type, *args[1:3]):
+            out(line)
 
 # END NEWITEMS MOD '''#
 
