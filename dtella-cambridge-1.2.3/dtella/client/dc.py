@@ -1076,7 +1076,7 @@ class DtellaBot(object):
 #''' BEGIN NEWITEMS MOD #
     freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','IHAVE'])
 
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','IHAVE','NEWITEMS'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','IHAVE','NEWSTUFF'])
 
 
     minihelp = [
@@ -1096,7 +1096,7 @@ class DtellaBot(object):
         ("NOTIFY",     "View or toggle notifications of new items"),
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
-        ("NEWITEMS",   "Show the newest item announcements from users."),
+        ("NEWSTUFF",   "Show the newest item announcements from users."),
         ("USERS",      "Show how many users exist at each location"),
         ("SHARED",     "Show how many bytes are shared at each location"),
         ("DENSE",      "Show the bytes/user density for each location"),
@@ -1133,7 +1133,7 @@ class DtellaBot(object):
             "you think people will want."
             ),
 
-        "NEWITEMS":(
+        "NEWSTUFF":(
             "<NUM | DAY> <a> [<b>]",
             "By default, displays items from the last 3 days. "
             "If NUM is used, displays the <a>-th to <b>-th latest* items. "
@@ -1624,17 +1624,17 @@ class DtellaBot(object):
         self.syntaxHelp(out, 'NOTIFY', prefix)
 
 
-    def handleCmd_NEWITEMS(self, out, args, prefix):
+    def handleCmd_NEWSTUFF(self, out, args, prefix):
 
         if not self.dch.isOnline():
-            out("You must be online to use %sNEWITEMS." % prefix)
+            out("You must be online to use %sNEWSTUFF." % prefix)
             return
 
         if len(args) == 0:
             args = ['DAY', '3']
 
         if len(args) == 1:
-            self.syntaxHelp(out, 'NEWITEMS', prefix)
+            self.syntaxHelp(out, 'NEWSTUFF', prefix)
             return
 
         if args[0] == 'NUM':
@@ -1644,7 +1644,7 @@ class DtellaBot(object):
             type = True
 
         else:
-            self.syntaxHelp(out, 'NEWITEMS', prefix)
+            self.syntaxHelp(out, 'NEWSTUFF', prefix)
             return
 
         nitm = self.main.osm.nitm

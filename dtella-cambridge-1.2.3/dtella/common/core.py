@@ -1441,10 +1441,11 @@ class PeerHandler(DatagramProtocol):
 
         self.checkSource(src_ipp, ad)
 
-        newitems, rest = self.decodeString1(rest)
-
-        if rest:
-            raise BadPacketError("Extra data")
+        newitems = []
+        while rest:
+            ts, ipp, rest = self.decodePacket('!I6s+', rest)
+            item, rest = self.decodeString1(rest)
+            newitems.append((ts, ipp, item))
 
         try:
             n = osm.lookup_ipp[src_ipp]
@@ -1464,8 +1465,8 @@ class PeerHandler(DatagramProtocol):
 
         def check_cb(src_n, src_ipp, rest):
 
-            (pktnum, nhash, rest
-             ) = self.decodePacket('!I4s+', rest)
+            (pktnum, nhash, ts, rest
+             ) = self.decodePacket('!I4sI+', rest)
 
             newitem, rest = self.decodeString1(rest)
             if rest:
@@ -1485,7 +1486,7 @@ class PeerHandler(DatagramProtocol):
                 return None
 
             if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
-                osm.nitm.insertNewItem(src_n, newitem)
+                osm.nitm.insertNewItem(src_n, ts, newitem)
 
             else:
                 raise Reject
@@ -3868,8 +3869,12 @@ class SyncRequestRoutingManager(object):
         packet.append(struct.pack('!I', osm.me.status_pktnum))
 
         newitems = osm.nitm.getItems()
-        packet.append(struct.pack('!B', len(newitems)))
-        packet.append(newitems)
+        for it in newitems:
+            ts, ipp, item = it
+            packet.append(struct.pack('!I', ts))
+            packet.append(ipp)
+            packet.append(struct.pack('!B', len(newitems)))
+            packet.append(newitems)
 
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
@@ -4196,17 +4201,8 @@ class NewitemsManager(object):
         # Newitems arrived from a WR packet
         if not self.waiting: return
 
-        for line in newitems.split("\n"):
-            if not line: continue
-
-            item = line.split(" ", 2);
-
-            # make sure timestamp is correct
-            try: item[0] = int(item[0])
-            except ValueError:
-                raise BadPacketError("Bad timestamp")
-
-            self.newitems.append(tuple(item))
+        for item in newitems:
+            self.newitems.append(item)
 
         self.waiting = False
 
@@ -4219,19 +4215,12 @@ class NewitemsManager(object):
             dch.pushStatus("%i new items" % len(self.newitems))
 
 
-    def insertNewItem(self, n, newitem):
+    def insertNewItem(self, n, ts, item):
 
         self.removeOldItems()
 
         # Store stuff
-        item = newitem.split(" ", 1);
-
-        # make sure timestamp is correct
-        try: item[0] = int(item[0])
-        except ValueError:
-            raise BadPacketError("Bad timestamp")
-
-        self.newitems.insert(0, (item[0], n.nick, item[1]))
+        self.newitems.insert(0, (ts, n.ipp, item))
 
         # Without DC, there's nothing to say
         dch = self.main.getOnlineDCH()
@@ -4252,17 +4241,17 @@ class NewitemsManager(object):
         if len(item) > 255:
             item = item[:255]
 
-        newitem = str(int(time.time())) + " " + item
+        ts = int(time.time())
 
         # Update newitem locally
-        self.insertNewItem(osm.me, newitem)
+        self.insertNewItem(osm.me, ts, newitem)
 
         packet = osm.mrm.broadcastHeader('WN', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
-
         packet.append(osm.me.nickHash())
-        packet.append(struct.pack('!B', len(newitem)))
-        packet.append(newitem)
+        packet.append(struct.pack('!I', ts))
+        packet.append(struct.pack('!B', len(item)))
+        packet.append(item)
 
         osm.mrm.newMessage(''.join(packet), tries=4)
 
@@ -4270,7 +4259,6 @@ class NewitemsManager(object):
     def getFormattedItems(self, type, a, b=None):
         # returns all the items as a human-readable string
         # this data is used for display with the !newitems command
-
         self.removeOldItems()
 
         a = int(a)
@@ -4316,8 +4304,13 @@ class NewitemsManager(object):
             if b > local.newitems_numlim:
                 lines[0] += " (only %i items are stored)" % local.newitems_numlim
 
+        osm = self.main.osm
         for item in self.newitems[a:b]:
-            ts, nick, stuff = item;
+            ts, ipp, stuff = item;
+            try:
+                nick = osm.lookup_ipp[ipp].nick
+            except KeyError:
+                nick = "[%i]" % Ad().setRawIPPort(ipp).getAddrTuple()
             lines.append(time.strftime("[%Y-%m-%d %H:%M:%S]", time.gmtime(ts)) + " " + nick + " has " + stuff)
 
         return lines if len(lines) > 1 else ["No items to display."]
@@ -4329,12 +4322,7 @@ class NewitemsManager(object):
 
         self.removeOldItems()
 
-        text = ""
-
-        for item in self.newitems:
-            text += "%i %s %s" % item + "\n"
-
-        return text
+        return self.newitems
 
 
     def removeOldItems(self):
