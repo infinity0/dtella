@@ -4244,7 +4244,7 @@ class NewitemsManager(object):
         ts = int(time.time())
 
         # Update newitem locally
-        self.insertNewItem(osm.me, ts, newitem)
+        self.insertNewItem(osm.me, ts, item)
 
         packet = osm.mrm.broadcastHeader('WN', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
@@ -4310,7 +4310,7 @@ class NewitemsManager(object):
             try:
                 nick = osm.lookup_ipp[ipp].nick
             except KeyError:
-                nick = "[%i]" % Ad().setRawIPPort(ipp).getAddrTuple()
+                nick = "[" + Ad().setRawIPPort(ipp).getAddrTuple() + "]"
             lines.append(time.strftime("[%Y-%m-%d %H:%M:%S]", time.gmtime(ts)) + " " + nick + " has " + stuff)
 
         return lines if len(lines) > 1 else ["No items to display."]
