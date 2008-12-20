@@ -1454,7 +1454,7 @@ class PeerHandler(DatagramProtocol):
         if self.isFromBridgeNode(n, src_ipp):
             raise BadPacketError("Bridge can't use WR")
 
-        osm.nitm.receivedSyncTopic(n, newitems)
+        osm.nitm.receivedSyncNewitems(n, newitems)
 
 
     def handlePacket_WN(self, ad, data):
