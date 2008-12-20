@@ -1435,8 +1435,6 @@ class PeerHandler(DatagramProtocol):
         # SyncNewitems Reply
 
         osm = self.main.osm
-        if not (osm and osm.sm):
-            raise BadTimingError("Not ready for sync reply")
 
         (kind, src_ipp, pktnum, rest
          ) = self.decodePacket('!2s6sI+', data)
@@ -3869,7 +3867,7 @@ class SyncRequestRoutingManager(object):
         packet.append(osm.me.ipp)
         packet.append(struct.pack('!I', osm.me.status_pktnum))
 
-        newitems = osm.nitm.getItems
+        newitems = osm.nitm.getItems()
         packet.append(struct.pack('!B', len(newitems)))
         packet.append(newitems)
 
