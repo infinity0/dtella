@@ -3873,8 +3873,8 @@ class SyncRequestRoutingManager(object):
             ts, ipp, item = it
             packet.append(struct.pack('!I', ts))
             packet.append(ipp)
-            packet.append(struct.pack('!B', len(newitems)))
-            packet.append(newitems)
+            packet.append(struct.pack('!B', len(item)))
+            packet.append(item)
 
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
@@ -4230,7 +4230,7 @@ class NewitemsManager(object):
         # If notify is true or if it's the user's own update,
         # tell the user that there's a newitem.
         if self.main.state.newitems_notify or n == self.main.osm.me:
-            dch.pushStatus("%s has new stuff: %s" % (n.nick, item[1]))
+            dch.pushStatus("%s has new stuff: %s" % (n.nick, item))
 
         return True
 
@@ -4310,8 +4310,8 @@ class NewitemsManager(object):
             try:
                 nick = osm.lookup_ipp[ipp].nick
             except KeyError:
-                nick = "[" + Ad().setRawIPPort(ipp).getAddrTuple() + "]"
-            lines.append(time.strftime("[%Y-%m-%d %H:%M:%S]", time.gmtime(ts)) + " " + nick + " has " + stuff)
+                nick = osm.me.nick if ipp == osm.me.ipp else "<offline>" # "[%s:%i]" % Ad().setRawIPPort(ipp).getAddrTuple()
+            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has " + stuff)
 
         return lines if len(lines) > 1 else ["No items to display."]
 
