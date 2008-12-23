@@ -1134,12 +1134,20 @@ class DtellaBot(object):
             ),
 
         "NEWSTUFF":(
-            "<NUM | DAY> <a> [<b>]",
-            "By default, displays items from the last 3 days. "
-            "If NUM is used, displays the <a>-th to <b>-th latest* items. "
-            "If DAY is used, displays items from <a> to <b> days ago. If <b> "
-            "is omitted, uses the range 0 to <a> (ie. latest item to <a>). "
-            "(*0th is the latest)"
+            "[Dx[:y]] [Nx[:y]] [CAT]",
+            "By default, displays items from the last 7 days.\n"
+            "If D is used, display items from the past x days or from the range\n"
+            "x-y days.  e.g.  '!newstuff d2'  or  '!newstuff d1:3'\n"
+            "If N is used, display the top x items or the top x-y entries.\n"
+            "e.g.  '!newstuff d2'  or  '!newstuff d1:3'\n"
+            "if a category or several are present, the search is restricted\n"
+            "to only items of that catagory\n"
+            "e.g. '!newstuff tv'      for only new tv items\n"
+            "     '!newstuff tv film' for items falling into either catagory\n"
+            "Currently accepted categories are UNCATEGORISED, OTHER, TV,\n"
+            "FILM, MUSIC, GAME and SOFTWARE.\n"
+            "Several options may be specified at once\n"
+            "e.g. !newstuff d2:5 n20 music tv\n"
             ),
 
         "NOTIFY":(
@@ -1624,32 +1632,45 @@ class DtellaBot(object):
         self.syntaxHelp(out, 'NOTIFY', prefix)
 
 
-    def handleCmd_NEWSTUFF(self, out, args, prefix):
-
+    def handleCmd_NEWSTUFF(self, out, userargs, prefix):
         if not self.dch.isOnline():
             out("You must be online to use %sNEWSTUFF." % prefix)
             return
-
-        if len(args) == 0:
-            args = ['DAY', '3']
-
-        if len(args) == 1:
-            self.syntaxHelp(out, 'NEWSTUFF', prefix)
-            return
-
-        if args[0] == 'NUM':
-            type = False
-
-        elif args[0] == 'DAY':
-            type = True
-
+        args = [ None, None, []]
+        if(len(userargs)) == 0:
+            args[0] = (0,7)
         else:
+            for arg in userargs:
+                if(arg[0] == 'D' and len(arg) > 1):
+                    t = arg[1:].split(':')
+                    if(len(t) > 1):
+                        args[0] = tuple(t[:2])
+                    else:
+                        args[0] = (t[0],)
+                    continue
+                
+                if(arg[0] == 'N' and len(arg) > 1):
+                    t = arg[1:].split(':')
+                    if(len(t) > 1):
+                        args[1] = tuple(t[:2])
+                    else:
+                        args[1] = (t[0],)
+                    continue
+                
+                args[2].append(arg)
+
+        if(len(args)) == 0:
             self.syntaxHelp(out, 'NEWSTUFF', prefix)
             return
 
-        nitm = self.main.osm.nitm
-        for line in nitm.getFormattedItems(type, *args[1:3]):
-            out(line)
+        try:
+            lines = self.main.osm.nitm.getFormattedItems(*args)
+            for line in lines:
+                out(line)
+            
+        except core.DtellaSyntaxError, serror:
+            out("Syntax Error:")
+            self.syntaxHelp(out, 'NEWSTUFF', prefix)
 
 # END NEWITEMS MOD '''#
 

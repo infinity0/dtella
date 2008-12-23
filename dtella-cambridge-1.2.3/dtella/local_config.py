@@ -64,7 +64,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "cambridge.config.dtella.org" # this doesn't work yet
+    hostname = "notcambridge.config.dtella.org" # this doesn't work yet
     )
 
 # -- Use Google Spreadsheet --

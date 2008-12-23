@@ -82,6 +82,12 @@ class NickError(Exception):
 class MessageCollisionError(Exception):
     pass
 
+#Create an Exception for Dtella Syntax Errors
+class DtellaSyntaxError(Exception):
+	def __init__(self, value):
+		self.value = value
+	def __str__(self):
+		return repr(self.value)
 
 # How many seconds our node will last without incoming pings
 ONLINE_TIMEOUT = 30.0
@@ -4195,7 +4201,7 @@ class NewitemsManager(object):
         self.main = main
         self.newitems = [] # list of (timestamp, nick,
         self.waiting = True
-
+        self.categories = ["UNCATEGORISED","OTHER","TV","FILM","MUSIC","GAME","SOFTWARE"]
 
     def receivedSyncNewitems(self, n, newitems):
         # Newitems arrived from a WR packet
@@ -4256,64 +4262,69 @@ class NewitemsManager(object):
         osm.mrm.newMessage(''.join(packet), tries=4)
 
 
-    def getFormattedItems(self, type, a, b=None):
+    def getFormattedItems(self,days,num,cats):
         # returns all the items as a human-readable string
         # this data is used for display with the !newitems command
         self.removeOldItems()
+        lines = ["New "]
 
-        a = int(a)
-        if type:
-            # days rather than counts
-            if b is None:
-                lines = ["New items from the last %i days:" % a]
-                b = a
-                a = 0
+        try:
+
+            if(days is not None):#try to sanitise the days parameter
+                t = int(time.time())
+                if(len(days) == 1):
+                    e = int(days[0])
+                    lines[0] += "items in the past %i day%s " % (e, 's' if e != 1 else '')
+                    tstart = t
+                    tend = t - e*86400
+                else:
+                    s,e = int(days[0]),int(days[1])
+                    if(s > e): s,e = e,s
+                    lines[0] += "items between %i and %i day%s ago " % (s, e, 's' if e != 1 else '')
+                    tstart = t - s*86400
+                    tend = t - e*86400
+
+            if(num is not None):#try to sanitise the range parameter if possible
+                if(days is not None): lines[0] += "and "
+                if(len(num) == 1):
+                    e = int(num[0])
+                    if(e<1): raise ValueError
+                    lines[0] += "items in the top %i entr%s " % (e, 'ies' if e != 1 else 'y')
+                    range = self.newitems[:e]
+                else:
+                    s,e = int(num[0]),int(num[1])
+                    if(s>e): s,e = e,s
+                    if( s<1 or s==e): raise ValueError
+                    lines[0] += "items in the top %i to %i entries " % (s, e)
+                    range = self.newitems[s-1:e-1]
             else:
-                b = int(b)
-                lines = ["New items from %i days ago (inc) to %i days ago (exc):" % (a, b)]
+                range = self.newitems
 
-            if b > local.newitems_daylim:
-                lines[0] += " (items are only stored for %i days)" % local.newitems_daylim
+            if(len(cats) >0):
+                if(days is not None or num is not None): lines[0] += "and "
+                lines[0] += "items from the categor%s: " % ('ies' if len(cats) > 1 else 'y' )
+                for c in cats:
+                    if( c not in self.categories ): raise DtellaSyntaxError("Invalid Catagory: "+c)
+                    temp = (c[0]+c[1:].lower()) + ' '
+                    lines[0] += temp
 
-            time_b = time_a = int(time.time())
-            time_a -= a * 86400
-            time_b -= b * 86400
-            tstate = False;
-            a = 0
-            b = 0
-            for i, item in enumerate(self.newitems):
-                if not tstate:
-                    if time_b < item[0] <= time_a:
-                        a = i
-                        tstate = True
-                elif item[0] <= time_b:
-                    b = i
-                    break
-            if tstate:
-                b = len(self.newitems)
-
-        else:
-            if b is None:
-                lines = ["The latest %i new items:" % a]
-                b = a
-                a = 0
-            else:
-                b = int(b)
-                lines = ["New items #%i (inc) to #%i (exc):" % (a, b)]
-
-            if b > local.newitems_numlim:
-                lines[0] += " (only %i items are stored)" % local.newitems_numlim
+        except (TypeError,ValueError), e:
+            raise DtellaSyntaxError(repr(e))
 
         osm = self.main.osm
-        for item in self.newitems[a:b]:
-            ts, ipp, stuff = item;
-            try:
-                nick = osm.lookup_ipp[ipp].nick
-            except KeyError:
-                nick = osm.me.nick if ipp == osm.me.ipp else "<offline>" # "[%s:%i]" % Ad().setRawIPPort(ipp).getAddrTuple()
-            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has " + stuff)
+        for item in range:
+            ts, ipp, stuff = item
+            cat = "TV"##for testing only
+            if((days is None or tend < ts <= tstart) and (len(cats) == 0 or cat in cats)):
+                try:
+                    nick = osm.lookup_ipp[ipp].nick
+                except KeyError:
+                    nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
 
-        return lines if len(lines) > 1 else ["No items to display."]
+                lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + "<" + cat + "> " + nick + " has " + stuff)
+
+        if len(lines) == 1: lines.append("No items to display.")
+        return lines
 
 
     def getItems(self):
