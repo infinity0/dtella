@@ -1128,16 +1128,17 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
         "IHAVE":(
-            "<text>",
+            "[@<category>] <text>",
             "Announce to the network a short description of a new item that "
-            "you think people will want."
+            "you think people will want, with an optional category to place "
+            "that item into. eg. IHAVE @FILM V for Vendetta"
             ),
 
         "NEWSTUFF":(
             "[filters]",
             "Displays the list of newstuff based on some filters. If no "
             "filters are provided, displays items from the last 7 days. To "
-            "the syntax for these filters, see !NEWSTUFF FILTERS."
+            "the syntax for these filters, see NEWSTUFF FILTERS."
             ),
 
         "NOTIFY":(
@@ -1593,8 +1594,23 @@ class DtellaBot(object):
 
         if desc is None:
             self.syntaxHelp(out, 'IHAVE', prefix)
+            return
+
+        nitm = self.main.osm.nitm
+
+        if desc[0] == '@':
+            try:
+                cat, desc = desc.split(' ',1)
+            except ValueError:
+                self.syntaxHelp(out, 'IHAVE', prefix)
+                return
+            cat = cat[1:].upper()
+            if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
+            try:
+                nitm.broadcastNewItem(desc, nitm.categories.index(cat))
+            except ValueError:
+                out("Invalid category: " + cat + ". Available categories are " + nitm.catlist + ".")
         else:
-            nitm = self.main.osm.nitm
             nitm.broadcastNewItem(desc)
 
 
@@ -1651,7 +1667,7 @@ class DtellaBot(object):
             out("Category filters [CAT]")
             out("  These filter entries according to their category as assigned "
                 "by the original announcer. Currently accepted categories are:")
-            out("  - OTHER, TV, FILM, MUSIC, GAME, SOFTWARE.")
+            out("  - " + self.main.osm.nitm.categorylist + ".")
             return
 
         else:
@@ -1662,9 +1678,9 @@ class DtellaBot(object):
                     i = 1
                 else:
                     # category filters
-                    if arg in self.main.osm.nitm.categories:
-                        args[2].append(arg)
-                    else:
+                    try:
+                        args[2].append(self.main.osm.nitm.categories.index(arg))
+                    except ValueError:
                         badfilters.append((arg, 'Category not available'))
                     continue
 

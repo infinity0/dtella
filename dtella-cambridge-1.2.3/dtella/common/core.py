@@ -1449,9 +1449,9 @@ class PeerHandler(DatagramProtocol):
 
         newitems = []
         while rest:
-            ts, ipp, rest = self.decodePacket('!I6s+', rest)
+            ts, ipp, cat, rest = self.decodePacket('!I6sB+', rest)
             item, rest = self.decodeString1(rest)
-            newitems.append((ts, ipp, item))
+            newitems.append((ts, ipp, cat, item))
 
         try:
             n = osm.lookup_ipp[src_ipp]
@@ -1471,8 +1471,8 @@ class PeerHandler(DatagramProtocol):
 
         def check_cb(src_n, src_ipp, rest):
 
-            (pktnum, nhash, ts, rest
-             ) = self.decodePacket('!I4sI+', rest)
+            (pktnum, nhash, ts, cat, rest
+             ) = self.decodePacket('!I4sIB+', rest)
 
             newitem, rest = self.decodeString1(rest)
             if rest:
@@ -1492,7 +1492,7 @@ class PeerHandler(DatagramProtocol):
                 return None
 
             if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
-                osm.nitm.insertNewItem(src_n, ts, newitem)
+                osm.nitm.insertNewItem(src_n, ts, cat, newitem)
 
             else:
                 raise Reject
@@ -3876,9 +3876,10 @@ class SyncRequestRoutingManager(object):
 
         newitems = osm.nitm.getItems()
         for it in newitems:
-            ts, ipp, item = it
+            ts, ipp, cat, item = it
             packet.append(struct.pack('!I', ts))
             packet.append(ipp)
+            packet.append(struct.pack('!B', cat))
             packet.append(struct.pack('!B', len(item)))
             packet.append(item)
 
@@ -4201,7 +4202,12 @@ class NewitemsManager(object):
         self.main = main
         self.newitems = [] # list of (timestamp, nick,
         self.waiting = True
-        self.categories = frozenset(["OTHER","TV","FILM","MUSIC","GAME","SOFTWARE"])
+        self.categories = ["OTHER","TV","FILM","MUSIC","GAME","SOFTWARE","DOCUMENT"]
+        self.catlen = len(self.categories)
+        self.catlist = ', '.join(self.categories)
+
+    def getCategory(self, cat, default="OTHER"):
+        return self.categories[cat] if 0 < cat < self.catlen else default
 
     def receivedSyncNewitems(self, n, newitems):
         # Newitems arrived from a WR packet
@@ -4221,12 +4227,12 @@ class NewitemsManager(object):
             dch.pushStatus("%i new items" % len(self.newitems))
 
 
-    def insertNewItem(self, n, ts, item):
+    def insertNewItem(self, n, ts, cat, item):
 
         self.removeOldItems()
 
         # Store stuff
-        self.newitems.insert(0, (ts, n.ipp, item))
+        self.newitems.insert(0, (ts, n.ipp, cat, item))
 
         # Without DC, there's nothing to say
         dch = self.main.getOnlineDCH()
@@ -4236,26 +4242,27 @@ class NewitemsManager(object):
         # If notify is true or if it's the user's own update,
         # tell the user that there's a newitem.
         if self.main.state.newitems_notify or n == self.main.osm.me:
-            dch.pushStatus("%s has new stuff: %s" % (n.nick, item))
+            dch.pushStatus("%s has new %s: %s" % (n.nick, self.getCategory(cat, 'stuff'), item))
 
         return True
 
 
-    def broadcastNewItem(self, item):
+    def broadcastNewItem(self, item, cat=0):
         osm = self.main.osm
 
-        if len(item) > 255:
-            item = item[:255]
+        if len(item) > 240:
+            item = item[:240]
 
         ts = int(time.time())
 
         # Update newitem locally
-        self.insertNewItem(osm.me, ts, item)
+        self.insertNewItem(osm.me, ts, cat, item)
 
         packet = osm.mrm.broadcastHeader('WN', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
         packet.append(osm.me.nickHash())
         packet.append(struct.pack('!I', ts))
+        packet.append(struct.pack('!B', cat))
         packet.append(struct.pack('!B', len(item)))
         packet.append(item)
 
@@ -4269,7 +4276,7 @@ class NewitemsManager(object):
 
         filtersummary = []
 
-        range = self.newitems
+        range = self.newitems[:]
         rangefilters = []
 
         if num:
@@ -4297,32 +4304,30 @@ class NewitemsManager(object):
         if rangefilters: filtersummary.append(rangefilters)
 
         if cats:
-            filtersummary.append("from the categor%s [" % ('ies' if len(cats) > 1 else 'y') +
-              ','.join(cats) + ']')
+            filtersummary.append("from categor%s [" % ('ies' if len(cats) > 1 else 'y') +
+              ', '.join(map(self.getCategory, cats)) + ']')
 
         filtersummary = ', '.join(filtersummary)
         lines = ['New items ' + filtersummary + ':' if filtersummary else 'New items:']
 
+        range.reverse()
         osm = self.main.osm
         for item in range:
-            ts, ipp, stuff = item
-            cat = "TV"##for testing only
+            ts, ipp, cat, stuff = item
             if cats and cat not in cats: continue
             try:
                 nick = osm.lookup_ipp[ipp].nick
             except KeyError:
                 nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
 
-            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + cat + ") " + stuff)
+            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + self.getCategory(cat) + ") " + stuff)
 
         if len(lines) == 1: lines.append('(No items to display.)')
         return lines
 
 
     def getItems(self):
-        # returns all the items as a string.
-        # this data is sent when a sync request is made
-
+        # returns all the items to be sent in response to a sync request
         self.removeOldItems()
 
         return self.newitems
