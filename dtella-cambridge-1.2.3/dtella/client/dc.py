@@ -1128,10 +1128,12 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
         "IHAVE":(
-            "[@<category>] <text>",
+            "[@<category>] <text> | <NOT> <num>",
             "Announce to the network a short description of a new item that "
             "you think people will want, with an optional category to place "
-            "that item into. eg. IHAVE @FILM V for Vendetta"
+            "that item into. eg. IHAVE @FILM V for Vendetta. Alternatively, "
+            "if the first word is \"NOT\", removes your latest entry, or the "
+            "<num>th entry made by yourself (0th being the latest)."
             ),
 
         "NEWSTUFF":(
@@ -1598,18 +1600,31 @@ class DtellaBot(object):
 
         nitm = self.main.osm.nitm
 
-        if desc[0] == '@':
+        if desc[0:3].upper() == 'NOT':
+            try:
+                desc = desc[4:]
+                th = int(desc) if desc else 0
+                nitm.broadcastRemItem(th, True)
+            except ValueError:
+                out("%sIHAVE NOT needs a numerical argument" % prefix)
+            except IndexError:
+                out("You don't have an item #%i" % th)
+
+        elif desc[0] == '@':
             try:
                 cat, desc = desc.split(' ',1)
             except ValueError:
                 self.syntaxHelp(out, 'IHAVE', prefix)
                 return
+
             cat = cat[1:].upper()
             if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
+
             try:
                 nitm.broadcastNewItem(desc, nitm.categories.index(cat))
             except ValueError:
                 out("Invalid category: " + cat + ". Available categories are " + nitm.catlist + ".")
+
         else:
             nitm.broadcastNewItem(desc)
 
@@ -1667,7 +1682,18 @@ class DtellaBot(object):
             out("Category filters [CAT]")
             out("  These filter entries according to their category as assigned "
                 "by the original announcer. Currently accepted categories are:")
-            out("  - " + self.main.osm.nitm.categorylist + ".")
+            out("  - " + self.main.osm.nitm.catlist + ".")
+            return
+
+        elif userargs[0] == 'REMOVE':
+            try:
+                th = int(userargs[1])
+                try:
+                    self.main.osm.nitm.broadcastRemItem(th)
+                except IndexError:
+                    out("Item #%i doesn't exist" % th)
+            except (ValueError, IndexError):
+                out("%sNEWSTUFF REMOVE needs a numerical argument" % prefix)
             return
 
         else:

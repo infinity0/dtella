@@ -1484,7 +1484,7 @@ class PeerHandler(DatagramProtocol):
                     dch = self.main.getOnlineDCH()
                     if dch:
                         dch.pushStatus(
-                            "*** New item spoofing detected: %s" % topic)
+                            "*** New item spoofing detected: %i %i %s" % (ts, cat, newitem))
                 raise BadBroadcast("Spoofed newitem")
 
             if not osm.syncd:
@@ -1493,6 +1493,42 @@ class PeerHandler(DatagramProtocol):
 
             if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
                 osm.nitm.insertNewItem(src_n, ts, cat, newitem)
+
+            else:
+                raise Reject
+
+        self.handleBroadcast(ad, data, check_cb)
+
+
+    def handlePacket_WO(self, ad, data):
+        # Broadcast: Rem item
+
+        osm = self.main.osm
+
+        def check_cb(src_n, src_ipp, rest):
+
+            (pktnum, nhash, ts, ipp, cat, rest
+             ) = self.decodePacket('!I4sI6sB+', rest)
+
+            remitem, rest = self.decodeString1(rest)
+            if rest:
+                raise BadPacketError("Extra data")
+
+            if src_ipp == osm.me.ipp:
+                # Possibly a spoofed newitem from me
+                if nhash == osm.me.nickHash():
+                    dch = self.main.getOnlineDCH()
+                    if dch:
+                        dch.pushStatus(
+                            "*** Rem item spoofing detected: %i %i %s" % (ts, cat, remitem))
+                raise BadBroadcast("Spoofed remitem")
+
+            if not osm.syncd:
+                # Not syncd, forward blindly
+                return None
+
+            if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
+                osm.nitm.removeNewItem(src_n, ts, ipp, cat, remitem)
 
             else:
                 raise Reject
@@ -4206,8 +4242,10 @@ class NewitemsManager(object):
         self.catlen = len(self.categories)
         self.catlist = ', '.join(self.categories)
 
+
     def getCategory(self, cat, default="OTHER"):
         return self.categories[cat] if 0 < cat < self.catlen else default
+
 
     def receivedSyncNewitems(self, n, newitems):
         # Newitems arrived from a WR packet
@@ -4247,6 +4285,38 @@ class NewitemsManager(object):
         return True
 
 
+    def removeNewItem(self, n, ts, ipp, cat, item):
+
+        self.removeOldItems()
+
+        # Remove stuff
+        try:
+            self.newitems.remove((ts, ipp, cat, item))
+        except ValueError:
+            return False
+
+        # Without DC, there's nothing to say
+        dch = self.main.getOnlineDCH()
+        if not dch:
+            return True
+
+        # If notify is true or if it's the user's own update,
+        # tell the user that there's no longer a newitem.
+        if self.main.state.newitems_notify or n == self.main.osm.me:
+            if n.ipp == ipp:
+                dch.pushStatus("%s no longer has %s: %s" % (n.nick, self.getCategory(cat, 'stuff'), item))
+
+            else:
+                osm = self.main.osm
+                try:
+                    tnick = osm.lookup_ipp[ipp].nick
+                except KeyError:
+                    tnick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
+                dch.pushStatus("%s has removed: %s/%s/%s" % (n.nick, tnick, self.getCategory(cat), item))
+
+        return True
+
+
     def broadcastNewItem(self, item, cat=0):
         osm = self.main.osm
 
@@ -4262,6 +4332,28 @@ class NewitemsManager(object):
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
         packet.append(osm.me.nickHash())
         packet.append(struct.pack('!I', ts))
+        packet.append(struct.pack('!B', cat))
+        packet.append(struct.pack('!B', len(item)))
+        packet.append(item)
+
+        osm.mrm.newMessage(''.join(packet), tries=4)
+
+
+    def broadcastRemItem(self, th, ownentriesonly=False):
+        osm = self.main.osm
+
+        # Update newitem locally
+
+        ts, ipp, cat, item = filter(lambda x: x[1] == osm.me.ipp, self.newitems)[th] if ownentriesonly else self.newitems[th]
+        # will throw IndexError if th is out of range
+
+        self.removeNewItem(osm.me, ts, ipp, cat, item)
+
+        packet = osm.mrm.broadcastHeader('WO', osm.me.ipp)
+        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
+        packet.append(osm.me.nickHash())
+        packet.append(struct.pack('!I', ts))
+        packet.append(ipp)
         packet.append(struct.pack('!B', cat))
         packet.append(struct.pack('!B', len(item)))
         packet.append(item)
@@ -4320,7 +4412,7 @@ class NewitemsManager(object):
             except KeyError:
                 nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
 
-            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + self.getCategory(cat) + ") " + stuff)
+            lines.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + self.getCategory(cat) + ") " + stuff)
 
         if len(lines) == 1: lines.append('(No items to display.)')
         return lines
