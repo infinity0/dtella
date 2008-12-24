@@ -4201,7 +4201,7 @@ class NewitemsManager(object):
         self.main = main
         self.newitems = [] # list of (timestamp, nick,
         self.waiting = True
-        self.categories = ["UNCATEGORISED","OTHER","TV","FILM","MUSIC","GAME","SOFTWARE"]
+        self.categories = frozenset(["OTHER","TV","FILM","MUSIC","GAME","SOFTWARE"])
 
     def receivedSyncNewitems(self, n, newitems):
         # Newitems arrived from a WR packet
@@ -4262,68 +4262,60 @@ class NewitemsManager(object):
         osm.mrm.newMessage(''.join(packet), tries=4)
 
 
-    def getFormattedItems(self,days,num,cats):
+    def getFormattedItems(self, num, days, cats):
         # returns all the items as a human-readable string
         # this data is used for display with the !newitems command
         self.removeOldItems()
-        lines = ["New "]
 
-        try:
+        filtersummary = []
 
-            if(days is not None):#try to sanitise the days parameter
-                t = int(time.time())
-                if(len(days) == 1):
-                    e = int(days[0])
-                    lines[0] += "items in the past %i day%s " % (e, 's' if e != 1 else '')
-                    tstart = t
-                    tend = t - e*86400
-                else:
-                    s,e = int(days[0]),int(days[1])
-                    if(s > e): s,e = e,s
-                    lines[0] += "items between %i and %i day%s ago " % (s, e, 's' if e != 1 else '')
-                    tstart = t - s*86400
-                    tend = t - e*86400
+        range = self.newitems
+        rangefilters = []
 
-            if(num is not None):#try to sanitise the range parameter if possible
-                if(days is not None): lines[0] += "and "
-                if(len(num) == 1):
-                    e = int(num[0])
-                    if(e<1): raise ValueError
-                    lines[0] += "items in the top %i entr%s " % (e, 'ies' if e != 1 else 'y')
-                    range = self.newitems[:e]
-                else:
-                    s,e = int(num[0]),int(num[1])
-                    if(s>e): s,e = e,s
-                    if( s<1 or s==e): raise ValueError
-                    lines[0] += "items in the top %i to %i entries " % (s, e)
-                    range = self.newitems[s-1:e-1]
-            else:
-                range = self.newitems
+        if num:
+            s, e = num if len(num) > 1 else (0, num[0])
+            if e > local.newitems_numlim: e = local.newitems_numlim
+            rangefilters.append("in the latest %i entr%s" % (e, 'ies' if e != 1 else 'y') if s == 0
+              else "between entries %i (inc) to %i (exc)" % (s, e))
 
-            if(len(cats) >0):
-                if(days is not None or num is not None): lines[0] += "and "
-                lines[0] += "items from the categor%s: " % ('ies' if len(cats) > 1 else 'y' )
-                for c in cats:
-                    if( c not in self.categories ): raise DtellaSyntaxError("Invalid Catagory: "+c)
-                    temp = (c[0]+c[1:].lower()) + ' '
-                    lines[0] += temp
+            range = range[s:e]
 
-        except (TypeError,ValueError), e:
-            raise DtellaSyntaxError(repr(e))
+        if days:
+            s, e = days if len(days) > 1 else (0, days[0])
+            if e > local.newitems_daylim: e = local.newitems_daylim
+            rangefilters.append("in the past %i day%s" % (e, 's' if e != 1 else '') if s == 0
+              else "between %i and %i day%s ago" % (s, e, 's' if e != 1 else ''))
+
+            t = int(time.time())
+            ts, te = t - s*86400, t - e*86400
+            s, e = 0, len(range)
+            while s < e and ts < range[s][0]: s += 1
+            while s < e and range[e-1][0] <= te: e -= 1
+            range = range[s:e]
+
+        rangefilters = ' and '.join(rangefilters)
+        if rangefilters: filtersummary.append(rangefilters)
+
+        if cats:
+            filtersummary.append("from the categor%s [" % ('ies' if len(cats) > 1 else 'y') +
+              ','.join(cats) + ']')
+
+        filtersummary = ', '.join(filtersummary)
+        lines = ['New items ' + filtersummary + ':' if filtersummary else 'New items:']
 
         osm = self.main.osm
         for item in range:
             ts, ipp, stuff = item
             cat = "TV"##for testing only
-            if((days is None or tend < ts <= tstart) and (len(cats) == 0 or cat in cats)):
-                try:
-                    nick = osm.lookup_ipp[ipp].nick
-                except KeyError:
-                    nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
+            if cats and cat not in cats: continue
+            try:
+                nick = osm.lookup_ipp[ipp].nick
+            except KeyError:
+                nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
 
-                lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + "<" + cat + "> " + nick + " has " + stuff)
+            lines.append(time.strftime("[%m-%d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + cat + ") " + stuff)
 
-        if len(lines) == 1: lines.append("No items to display.")
+        if len(lines) == 1: lines.append('(No items to display.)')
         return lines
 
 

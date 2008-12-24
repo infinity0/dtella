@@ -1134,20 +1134,10 @@ class DtellaBot(object):
             ),
 
         "NEWSTUFF":(
-            "[Dx[:y]] [Nx[:y]] [CAT]",
-            "By default, displays items from the last 7 days.\n"
-            "If D is used, display items from the past x days or from the range\n"
-            "x-y days.  e.g.  '!newstuff d2'  or  '!newstuff d1:3'\n"
-            "If N is used, display the top x items or the top x-y entries.\n"
-            "e.g.  '!newstuff d2'  or  '!newstuff d1:3'\n"
-            "if a category or several are present, the search is restricted\n"
-            "to only items of that catagory\n"
-            "e.g. '!newstuff tv'      for only new tv items\n"
-            "     '!newstuff tv film' for items falling into either catagory\n"
-            "Currently accepted categories are UNCATEGORISED, OTHER, TV,\n"
-            "FILM, MUSIC, GAME and SOFTWARE.\n"
-            "Several options may be specified at once\n"
-            "e.g. !newstuff d2:5 n20 music tv\n"
+            "[filters]",
+            "Displays the list of newstuff based on some filters. If no "
+            "filters are provided, displays items from the last 7 days. To "
+            "the syntax for these filters, see !NEWSTUFF FILTERS."
             ),
 
         "NOTIFY":(
@@ -1633,44 +1623,69 @@ class DtellaBot(object):
 
 
     def handleCmd_NEWSTUFF(self, out, userargs, prefix):
+
         if not self.dch.isOnline():
             out("You must be online to use %sNEWSTUFF." % prefix)
             return
-        args = [ None, None, []]
-        if(len(userargs)) == 0:
-            args[0] = (0,7)
-        else:
-            for arg in userargs:
-                if(arg[0] == 'D' and len(arg) > 1):
-                    t = arg[1:].split(':')
-                    if(len(t) > 1):
-                        args[0] = tuple(t[:2])
-                    else:
-                        args[0] = (t[0],)
-                    continue
-                
-                if(arg[0] == 'N' and len(arg) > 1):
-                    t = arg[1:].split(':')
-                    if(len(t) > 1):
-                        args[1] = tuple(t[:2])
-                    else:
-                        args[1] = (t[0],)
-                    continue
-                
-                args[2].append(arg)
 
-        if(len(args)) == 0:
-            self.syntaxHelp(out, 'NEWSTUFF', prefix)
+        args = [None, None, []]
+        badfilters = []
+
+        if len(userargs) == 0:
+            args[1] = (0,7)
+
+        elif userargs[0] == 'FILTERS':
+            out("NEWSTUFF filters")
+            out("There are two types of filters: range and category. An entry is "
+                "displayed if it satisfies ALL* range filters and AT LEAST ONE "
+                "category filter.")
+            out("")
+            out("Range filters [<D|N>x[:y]]")
+            out("  These are a single character followed by either two integers "
+                "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ")
+            out("  - Dx:y filters entries between x and y days ago. ")
+            out("  - Nx:y filters to the last xth to yth entries. ")
+            out("  *When multiple range filters of the same type are supplied, "
+                "only the last one is used.")
+            out("")
+            out("Category filters [CAT]")
+            out("  These filter entries according to their category as assigned "
+                "by the original announcer. Currently accepted categories are:")
+            out("  - OTHER, TV, FILM, MUSIC, GAME, SOFTWARE.")
             return
 
-        try:
-            lines = self.main.osm.nitm.getFormattedItems(*args)
-            for line in lines:
-                out(line)
-            
-        except core.DtellaSyntaxError, serror:
-            out("Syntax Error:")
-            self.syntaxHelp(out, 'NEWSTUFF', prefix)
+        else:
+            for arg in userargs:
+                if arg[0] == 'N':
+                    i = 0
+                elif arg[0] == 'D':
+                    i = 1
+                else:
+                    # category filters
+                    if arg in self.main.osm.nitm.categories:
+                        args[2].append(arg)
+                    else:
+                        badfilters.append((arg, 'Category not available'))
+                    continue
+
+                try:
+                    # range filters
+                    t = map(lambda x: int(x), arg[1:].split(':'))
+                    t.sort()
+                    if len(t) == 1 or len(t) == 2:
+                        args[i] = tuple(t)
+                    else:
+                        badfilters.append((arg, 'Need to specify one or two numbers'))
+                except ValueError:
+                    badfilters.append((arg, 'Badly formatted number'))
+
+        lines = self.main.osm.nitm.getFormattedItems(*args)
+        for line in lines:
+            out(line)
+        if badfilters:
+            out('Some filters were invalid and ignored:')
+            for f in badfilters:
+                out("  %s: %s" % f)
 
 # END NEWITEMS MOD '''#
 
