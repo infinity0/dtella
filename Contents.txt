@@ -1,6 +1,5 @@
 Currently contains:
 
-Dtella source version 1.2.3
-
+dtella-cambrdige is the dtella trunk repo with some cambridge mods that we have added
 
 
