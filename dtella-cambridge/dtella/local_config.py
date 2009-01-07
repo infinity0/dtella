@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 build_prefix = "dtella-cambridge-"
 
 # Dtella version number.
-version = "1.2.3"
+version = "1.2.3.1"
 
 # This is an arbitrary string which is used for encrypting packets.
 # It essentially defines the uniqueness of a Dtella network, so every
@@ -64,7 +64,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "notcambridge.config.dtella.org" # this doesn't work yet
+    hostname = "cambridge.config.dtella.org"
     )
 
 # -- Use Google Spreadsheet --
