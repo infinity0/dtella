@@ -744,7 +744,10 @@ class PeerHandler(DatagramProtocol):
 
         elif osm and osm.syncd:
             # Add in some online nodes
-            node_ipps = [n.ipp for n in osm.nodes if n.expire_dcall]
+            if n.expire_dcall:
+                node_ipps = [n.ipp for n in osm.nodes]
+            else:
+                node_ipps = []
 
             # Add myself
             node_ipps.append(osm.me.ipp)
@@ -4398,7 +4401,10 @@ class NewitemsManager(object):
             range = range[s:e]
 
         if days:
-            s, e = days if len(days) > 1 else (0, days[0])
+            if len(days) > 1:
+                s, e = days 
+            else:
+                s, e = (0, days[0])
             if e > local.newitems_daylim: e = local.newitems_daylim
             
             
