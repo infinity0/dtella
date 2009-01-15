@@ -4244,7 +4244,10 @@ class NewitemsManager(object):
 
 
     def getCategory(self, cat, default="OTHER"):
-        return self.categories[cat] if 0 < cat < self.catlen else default
+        if 0 < cat < self.catlen:
+            return self.categories[cat]
+        else:
+            return default
 
 
     def receivedSyncNewitems(self, n, newitems):
@@ -4311,7 +4314,10 @@ class NewitemsManager(object):
                 try:
                     tnick = osm.lookup_ipp[ipp].nick
                 except KeyError:
-                    tnick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
+                    if ipp == osm.me.ipp:
+                        tnick = osm.me.nick
+                    else:
+                        tnick = "<offline>"
                 dch.pushStatus("%s has removed: %s/%s/%s" % (n.nick, tnick, self.getCategory(cat), item))
 
         return True
@@ -4344,7 +4350,10 @@ class NewitemsManager(object):
 
         # Update newitem locally
 
-        ts, ipp, cat, item = filter(lambda x: x[1] == osm.me.ipp, self.newitems)[th] if ownentriesonly else self.newitems[th]
+        if ownentriesonly:
+            ts, ipp, cat, item = filter(lambda x: x[1] == osm.me.ipp, self.newitems)[th]
+        else:
+            ts, ipp, cat, item = self.newitems[th]
         # will throw IndexError if th is out of range
 
         self.removeNewItem(osm.me, ts, ipp, cat, item)
@@ -4372,18 +4381,37 @@ class NewitemsManager(object):
         rangefilters = []
 
         if num:
-            s, e = num if len(num) > 1 else (0, num[0])
+            if len(num) > 1:
+                s, e = num 
+            else:
+                s, e = (0, num[0])
+            
             if e > local.newitems_numlim: e = local.newitems_numlim
-            rangefilters.append("in the latest %i entr%s" % (e, 'ies' if e != 1 else 'y') if s == 0
-              else "between entries %i (inc) to %i (exc)" % (s, e))
+            if s == 0:
+                if e != 1:
+                    rangefilters.append("in the latest %i entries" % (e))
+                else:
+                    rangefilters.append("in the latest 1 entry")
+            else:
+                rangefilters.append("between entries %i (inc) to %i (exc)" % (s, e))
 
             range = range[s:e]
 
         if days:
             s, e = days if len(days) > 1 else (0, days[0])
             if e > local.newitems_daylim: e = local.newitems_daylim
-            rangefilters.append("in the past %i day%s" % (e, 's' if e != 1 else '') if s == 0
-              else "between %i and %i day%s ago" % (s, e, 's' if e != 1 else ''))
+            
+            
+            if s == 0:
+                if e != 1:
+                    rangefilters.append("in the past %i days" % (e))
+                else:
+                    rangefilters.append("in the past 1 day")
+            else:
+                if e != 1:
+                    rangefilters.append("between %i and %i days ago" % (s, e))
+                else:
+                    rangefilters.append("between %i and 1 day ago" % (s))
 
             t = int(time.time())
             ts, te = t - s*86400, t - e*86400
@@ -4396,11 +4424,16 @@ class NewitemsManager(object):
         if rangefilters: filtersummary.append(rangefilters)
 
         if cats:
-            filtersummary.append("from categor%s [" % ('ies' if len(cats) > 1 else 'y') +
-              ', '.join(map(self.getCategory, cats)) + ']')
+            if len(cats) > 1:
+                filtersummary.append("from categories [" +', '.join(map(self.getCategory, cats)) + ']')
+            else:
+                filtersummary.append("from category [" + ', '.join(map(self.getCategory, cats)) + ']')
 
         filtersummary = ', '.join(filtersummary)
-        lines = ['New items ' + filtersummary + ':' if filtersummary else 'New items:']
+        if filtersummary:
+            lines = ['New items ' + filtersummary + ':']
+        else:
+            lines = ['New items ' + filtersummary + 'New items:']
 
         range.reverse()
         osm = self.main.osm
@@ -4410,7 +4443,10 @@ class NewitemsManager(object):
             try:
                 nick = osm.lookup_ipp[ipp].nick
             except KeyError:
-                nick = osm.me.nick if ipp == osm.me.ipp else "<offline>"
+                if ipp == osm.ms.ipp:
+                    nick = osm.me.nick
+                else:
+                    nick = "<offline>"
 
             lines.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + self.getCategory(cat) + ") " + stuff)
 
@@ -4421,7 +4457,6 @@ class NewitemsManager(object):
     def getItems(self):
         # returns all the items to be sent in response to a sync request
         self.removeOldItems()
-
         return self.newitems
 
 
