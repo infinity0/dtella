@@ -744,10 +744,7 @@ class PeerHandler(DatagramProtocol):
 
         elif osm and osm.syncd:
             # Add in some online nodes
-            if n.expire_dcall:
-                node_ipps = [n.ipp for n in osm.nodes]
-            else:
-                node_ipps = []
+            node_ipps = [n.ipp for n in osm.nodes if n.expire_dcall]
 
             # Add myself
             node_ipps.append(osm.me.ipp)
