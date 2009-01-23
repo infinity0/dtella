@@ -1074,9 +1074,8 @@ class DtellaBot(object):
 
 
 #''' BEGIN NEWITEMS MOD #
-    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','IHAVE'])
-
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','IHAVE','NEWSTUFF'])
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF'])
 
 
     minihelp = [
@@ -1086,7 +1085,7 @@ class DtellaBot(object):
         ("INVITE",     "Show your current IP and port to give to a friend"),
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
-        ("IHAVE",      "Annnounce new items that you're now sharing."),
+        ("I",          "Add/remove stuff to the global items list."),
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
@@ -1096,7 +1095,7 @@ class DtellaBot(object):
         ("NOTIFY",     "View or toggle notifications of new items"),
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
-        ("NEWSTUFF",   "Show the newest item announcements from users."),
+        ("STUFF",      "View the global items list."),
         ("USERS",      "Show how many users exist at each location"),
         ("SHARED",     "Show how many bytes are shared at each location"),
         ("DENSE",      "Show the bytes/user density for each location"),
@@ -1127,19 +1126,18 @@ class DtellaBot(object):
             ),
 
 #''' BEGIN NEWITEMS MOD #
-        "IHAVE":(
-            "[@<category>] <text> | <NOT> <num>",
-            "Announce to the network a short description of a new item that "
-            "you think people will want, with an optional category to place "
-            "that item into. eg. IHAVE @FILM V for Vendetta. Alternatively, "
-            "if the first word is \"NOT\", removes your latest entry, or the "
-            "<num>th entry made by yourself (0th being the latest)."
+        "I":(
+            "<WANT|WANTNOT|HAVE|HAVENOT> [@<category>] <description>",
+            "Announce to the network an item that you have or want, with an "
+            "optional category to place that item into. eg. I HAVE @FILM V "
+            "for Vendetta. You can also use the NOT word to cancel a previous "
+            "submission. eg. I HAVENOT @FILM V for Vendetta."
             ),
 
-        "NEWSTUFF":(
+        "STUFF":(
             "[filters]",
-            "Displays the list of newstuff based on some filters. If no "
-            "filters are provided, displays items from the last 7 days. To "
+            "Displays the list of stuff based on some filters. If no "
+            "filters are provided, displays new items from the last week. To "
             "the syntax for these filters, see NEWSTUFF FILTERS."
             ),
 
@@ -1588,45 +1586,76 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
 
-    def handleCmd_IHAVE(self, out, desc, prefix):
+    def handleCmd_I(self, out, desc, prefix):
 
         if not self.dch.isOnline():
-            out("You must be online to use %sIHAVE." % prefix)
+            out("You must be online to use %sI." % prefix)
             return
 
         if desc is None:
-            self.syntaxHelp(out, 'IHAVE', prefix)
+            self.syntaxHelp(out, 'I', prefix)
             return
 
-        nitm = self.main.osm.nitm
+        itm = self.main.osm.itm
+        type, desc = desc.split(' ', 1)
+        type = type.upper()
+        src = []
 
-        if desc[0:3].upper() == 'NOT':
-            try:
-                desc = desc[4:]
-                th = int(desc) if desc else 0
-                nitm.broadcastRemItem(th, True)
-            except ValueError:
-                out("%sIHAVE NOT needs a numerical argument" % prefix)
-            except IndexError:
-                out("You don't have an item #%i" % th)
-
-        elif desc[0] == '@':
+        # retrieve category
+        if desc[0] == '@':
             try:
                 cat, desc = desc.split(' ',1)
             except ValueError:
-                self.syntaxHelp(out, 'IHAVE', prefix)
+                self.syntaxHelp(out, 'I', prefix)
                 return
 
             cat = cat[1:].upper()
             if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
 
             try:
-                nitm.broadcastNewItem(desc, nitm.categories.index(cat))
+                cat = itm.categories.index(cat)
             except ValueError:
-                out("Invalid category: " + cat + ". Available categories are " + nitm.catlist + ".")
+                out("Invalid category: " + cat + ". Available categories are " + itm.catlist + ".")
+                return
 
         else:
-            nitm.broadcastNewItem(desc)
+            cat = 0
+
+        # retrieve magnet links
+        if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
+            desc = desc.split(' ')
+            for (i, word) in enumerate(desc):
+                if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
+                    src.append(word)
+                    del desc[i]
+            desc = ' '.join(desc)
+
+        remove = False
+
+        if type == 'HAVE':
+            src.append(self.main.osm.me.nick)
+        elif type == 'WANT':
+            # note: if the description contain magnet links, that will be added to the sources
+            pass
+        elif type == 'HAVENOT':
+            remove = True
+            src.append(self.main.osm.me.nick)
+        elif type == 'WANTNOT':
+            remove = True
+            # we don't just test for emptylist, since we want !i wantnot [magnet link]
+            # to be able to reverse the effects of !i want [magnet link]
+            if itm.items[(cat, desc[:255])][0].difference(src):
+                # other people have that item
+                return
+        elif type == 'REMOVE':
+            remove = True
+            # force a remove, remove all sources
+            src = []
+        else:
+            self.syntaxHelp(out, 'I', prefix)
+            return
+
+        itm.broadcastSrcForItem(remove, cat, desc, src)
 
 
     def handleCmd_NOTIFY(self, out, args, prefix):
@@ -1653,23 +1682,23 @@ class DtellaBot(object):
         self.syntaxHelp(out, 'NOTIFY', prefix)
 
 
-    def handleCmd_NEWSTUFF(self, out, userargs, prefix):
+    def handleCmd_STUFF(self, out, text, prefix):
 
         if not self.dch.isOnline():
-            out("You must be online to use %sNEWSTUFF." % prefix)
+            out("You must be online to use %sSTUFF." % prefix)
             return
 
-        args = [None, None, []]
+        userargs = text.split(' ')
+        args = [None, None, [], []]
         badfilters = []
 
         if len(userargs) == 0:
-            args[1] = (0,7)
+            args = [(0,7), (0,16), [],[]]
 
-        elif userargs[0] == 'FILTERS':
-            out("NEWSTUFF filters")
-            out("There are two types of filters: range and category. An entry is "
-                "displayed if it satisfies ALL* range filters and AT LEAST ONE "
-                "category filter.")
+        elif userargs[0].upper() == 'FILTERS':
+            out("STUFF filters")
+            out("An entry is displayed if it satisfies ALL* range filters and "
+                "AT LEAST ONE category filter and AT LEAST ONE source filter.")
             out("")
             out("Range filters [<D|N>x[:y]]")
             out("  These are a single character followed by either two integers "
@@ -1679,35 +1708,39 @@ class DtellaBot(object):
             out("  *When multiple range filters of the same type are supplied, "
                 "only the last one is used.")
             out("")
-            out("Category filters [CAT]")
+            out("Category filters [@CAT]")
             out("  These filter entries according to their category as assigned "
                 "by the original announcer. Currently accepted categories are:")
-            out("  - " + self.main.osm.nitm.catlist + ".")
-            return
-
-        elif userargs[0] == 'REMOVE':
-            try:
-                th = int(userargs[1])
-                try:
-                    self.main.osm.nitm.broadcastRemItem(th)
-                except IndexError:
-                    out("Item #%i doesn't exist" % th)
-            except (ValueError, IndexError):
-                out("%sNEWSTUFF REMOVE needs a numerical argument" % prefix)
+            out("  - " + self.main.osm.itm.catlist + ".")
+            out("")
+            out("Source filters [~SRC|WANTED]")
+            out("  These filter entries according to their sources as advertised "
+                "by various people. WANTED is a special filter that matches "
+                "entries with no listed sources.")
             return
 
         else:
-            for arg in userargs:
+
+            for argv in userargs:
+                arg = argv.upper()
+
                 if arg[0] == 'N':
                     i = 0
                 elif arg[0] == 'D':
                     i = 1
-                else:
+                elif arg[0] == '@':
                     # category filters
                     try:
-                        args[2].append(self.main.osm.nitm.categories.index(arg))
+                        args[2].append(self.main.osm.itm.categories.index(arg[1:]))
                     except ValueError:
                         badfilters.append((arg, 'Category not available'))
+                    continue
+                elif arg[0] == '~' and args[3] is not None:
+                    # source filters
+                    args[3].append(argv[1:])
+                    continue
+                elif arg == 'WANTED':
+                    args[3] = None
                     continue
 
                 try:
@@ -1721,7 +1754,7 @@ class DtellaBot(object):
                 except ValueError:
                     badfilters.append((arg, 'Badly formatted number'))
 
-        lines = self.main.osm.nitm.getFormattedItems(*args)
+        lines = self.main.osm.itm.getFormattedItems(*args)
         for line in lines:
             out(line)
         if badfilters:

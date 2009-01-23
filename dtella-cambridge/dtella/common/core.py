@@ -29,6 +29,9 @@ import weakref
 import socket
 from binascii import hexlify
 from hashlib import md5
+#''' BEGIN NEWITEMS MOD #
+import bz2
+# END NEWITEMS MOD '''#
 
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet import reactor
@@ -82,12 +85,6 @@ class NickError(Exception):
 class MessageCollisionError(Exception):
     pass
 
-#Create an Exception for Dtella Syntax Errors
-class DtellaSyntaxError(Exception):
-	def __init__(self, value):
-		self.value = value
-	def __str__(self):
-		return repr(self.value)
 
 # How many seconds our node will last without incoming pings
 ONLINE_TIMEOUT = 30.0
@@ -143,6 +140,10 @@ CODE_IP_OK = 0
 CODE_IP_FOREIGN = 1
 CODE_IP_BANNED = 2
 
+#''' BEGIN NEWITEMS MOD #
+ITEMS_CATEGORY = 0xF
+ITEMS_REMOVE_BIT = 0x10
+# END NEWITEMS MOD '''#
 
 ##############################################################################
 
@@ -1437,21 +1438,54 @@ class PeerHandler(DatagramProtocol):
 
 #''' BEGIN NEWITEMS MOD #
 
-    def handlePacket_WR(self, ad, data):
-        # SyncNewitems Reply
+    def handlePacket_JQ(self, ad, data):
+        # SyncItems Request
 
-        osm = self.main.osm
-
-        (kind, src_ipp, pktnum, rest
-         ) = self.decodePacket('!2s6sI+', data)
+        (kind, src_ipp,
+         ) = self.decodePacket('!2s6s', data)
 
         self.checkSource(src_ipp, ad)
 
-        newitems = []
-        while rest:
-            ts, ipp, cat, rest = self.decodePacket('!I6sB+', rest)
-            item, rest = self.decodeString1(rest)
-            newitems.append((ts, ipp, cat, item))
+        itm = self.main.osm.itm
+        if len(self.main.osm.nodes) < 3: # small networks need all sync packets to be sent
+            itm.syncComplete()
+        elif time.time() > itm.syncStartTime + 30: # timeout
+            itm.syncComplete()
+
+        elif not (itm and itm.syncd):
+            raise BadTimingError("Not ready to handle a syncitems request")
+
+        # Hidden nodes shouldn't be getting sync requests.
+        if self.main.hide_node:
+            raise BadTimingError("Hidden node can't handle sync requests.")
+
+        itm.sendSyncItemsReply(src_ipp)
+
+
+    def handlePacket_JR(self, ad, data):
+        # SyncItems Reply
+
+        osm = self.main.osm
+
+        (kind, src_ipp, rest
+         ) = self.decodePacket('!2s6s+', data)
+
+        self.checkSource(src_ipp, ad)
+
+        stream, rest = self.decodeString2(rest)
+
+        if rest:
+            raise BadPacketError("Extra data")
+
+        stream = bz2.decompress(stream)
+
+        (ntime, stream) = self.decodePacket('!I+', stream)
+        items = []
+        while stream:
+            ts, cat, stream = self.decodePacket('!IB+', stream)
+            item, stream = self.decodeString1(stream)
+            src, stream = self.decodeString1(stream)
+            items.append((ts, cat, item, src))
 
         try:
             n = osm.lookup_ipp[src_ipp]
@@ -1459,81 +1493,59 @@ class PeerHandler(DatagramProtocol):
             n = None
 
         if self.isFromBridgeNode(n, src_ipp):
-            raise BadPacketError("Bridge can't use WR")
+            raise BadPacketError("Bridge can't use JR")
 
-        osm.nitm.receivedSyncNewitems(n, newitems)
+        osm.itm.receivedSyncItemsReply(n, ntime, items)
 
 
-    def handlePacket_WN(self, ad, data):
-        # Broadcast: New item
+    def handlePacket_JU(self, ad, data):
+        # Broadcast: Update item
 
         osm = self.main.osm
 
         def check_cb(src_n, src_ipp, rest):
 
-            (pktnum, nhash, ts, cat, rest
-             ) = self.decodePacket('!I4sIB+', rest)
+            (pktnum, nhash, flags, rest
+             ) = self.decodePacket('!I4sB+', rest)
 
-            newitem, rest = self.decodeString1(rest)
+            cat = flags & ITEMS_CATEGORY
+            remove = bool(flags & ITEMS_REMOVE_BIT)
+
+            item, rest = self.decodeString1(rest)
+            src, rest = self.decodeString1(rest)
+
             if rest:
                 raise BadPacketError("Extra data")
 
+            if src:
+                src = src.split('\x00')
+            else:
+                src = []
+
             if src_ipp == osm.me.ipp:
-                # Possibly a spoofed newitem from me
+                # Possibly a spoofed item from me
                 if nhash == osm.me.nickHash():
                     dch = self.main.getOnlineDCH()
                     if dch:
                         dch.pushStatus(
-                            "*** New item spoofing detected: %i %i %s" % (ts, cat, newitem))
-                raise BadBroadcast("Spoofed newitem")
+                            "*** Item spoofing detected: %i %s" % (cat, item))
+                raise BadBroadcast("Spoofed item")
 
             if not osm.syncd:
                 # Not syncd, forward blindly
                 return None
 
             if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
-                osm.nitm.insertNewItem(src_n, ts, cat, newitem)
+                if remove:
+                    osm.itm.removeSrcForItem(cat, item, src)
+                else:
+                    osm.itm.insertSrcForItem(cat, item, src)
 
             else:
                 raise Reject
 
         self.handleBroadcast(ad, data, check_cb)
 
-
-    def handlePacket_WO(self, ad, data):
-        # Broadcast: Rem item
-
-        osm = self.main.osm
-
-        def check_cb(src_n, src_ipp, rest):
-
-            (pktnum, nhash, ts, ipp, cat, rest
-             ) = self.decodePacket('!I4sI6sB+', rest)
-
-            remitem, rest = self.decodeString1(rest)
-            if rest:
-                raise BadPacketError("Extra data")
-
-            if src_ipp == osm.me.ipp:
-                # Possibly a spoofed newitem from me
-                if nhash == osm.me.nickHash():
-                    dch = self.main.getOnlineDCH()
-                    if dch:
-                        dch.pushStatus(
-                            "*** Rem item spoofing detected: %i %i %s" % (ts, cat, remitem))
-                raise BadBroadcast("Spoofed remitem")
-
-            if not osm.syncd:
-                # Not syncd, forward blindly
-                return None
-
-            if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
-                osm.nitm.removeNewItem(src_n, ts, ipp, cat, remitem)
-
-            else:
-                raise Reject
-
-        self.handleBroadcast(ad, data, check_cb)
 
 # END NEWITEMS MOD '''#
 
@@ -2476,8 +2488,8 @@ class OnlineStateManager(object):
         self.tm = TopicManager(main)
 
 #''' BEGIN NEWITEMS MOD #
-        # NewitemsManager
-        self.nitm = NewitemsManager(main)
+        # ItemsManager
+        self.itm = ItemsManager(main)
 # END NEWITEMS MOD '''#
 
         # BanManager
@@ -2562,6 +2574,10 @@ class OnlineStateManager(object):
         self.main.showLoginStatus(
             "Sync Complete; You're Online!", counter='inc')
 
+#''' BEGIN NEWITEMS MOD #
+        self.itm.beginSyncItems()
+
+# END NEWITEMS MOD '''#
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
                           persist, nick, info):
@@ -2941,6 +2957,12 @@ class OnlineStateManager(object):
         if self.yqrm:
             self.yqrm.shutdown()
 
+#''' BEGIN NEWITEMS MOD #
+        # Shut down the ItemsManager
+        if self.itm:
+            self.itm.shutdown()
+
+# END NEWITEMS MOD '''#
 
 ##############################################################################
 
@@ -3838,9 +3860,6 @@ class SyncRequestRoutingManager(object):
 
         if isnew or timedout:
             self.sendSyncReply(src_ipp, cont, uncont)
-#''' BEGIN NEWITEMS MOD #
-            self.sendSyncNewitemsReply(src_ipp)
-# END NEWITEMS MOD '''#
 
 
     def sendSyncReply(self, src_ipp, cont, uncont):
@@ -3896,32 +3915,6 @@ class SyncRequestRoutingManager(object):
 
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
-#''' BEGIN NEWITEMS MOD #
-
-    def sendSyncNewitemsReply(self, src_ipp):
-        # Same as above but with different packet contents
-        ad = Ad().setRawIPPort(src_ipp)
-        osm = self.main.osm
-
-        CHECK(osm and osm.syncd)
-
-        # Build Packet
-        packet = ['WR']
-        packet.append(osm.me.ipp)
-        packet.append(struct.pack('!I', osm.me.status_pktnum))
-
-        newitems = osm.nitm.getItems()
-        for it in newitems:
-            ts, ipp, cat, item = it
-            packet.append(struct.pack('!I', ts))
-            packet.append(ipp)
-            packet.append(struct.pack('!B', cat))
-            packet.append(struct.pack('!B', len(item)))
-            packet.append(item)
-
-        self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
-
-# END NEWITEMS MOD '''#
 
     def shutdown(self):
         # Cancel all timeouts
@@ -4232,15 +4225,336 @@ class TopicManager(object):
 ##############################################################################
 
 
-class NewitemsManager(object):
+class ItemsManager(object):
 
     def __init__(self, main):
         self.main = main
-        self.newitems = [] # list of (timestamp, nick,
-        self.waiting = True
+        self.items = {} # dict of (cat, item) : ([whohas], ts)
+        self.syncd = False
         self.categories = ["OTHER","TV","FILM","MUSIC","GAME","SOFTWARE","DOCUMENT"]
         self.catlen = len(self.categories)
         self.catlist = ', '.join(self.categories)
+
+
+    def beginSyncItems(self):
+        self.uncontacted = RandSet(self.main.osm.nodes)
+        self.incorrectsync = []
+        self.attemptSyncItems()
+        self.syncStartTime = time.time()
+
+
+    def attemptSyncItems(self, n=None):
+        # previous node might have an incomplete copy of the list
+        if n:
+            self.incorrectsync.append(n)
+
+        # pick a node to sync with
+        try:
+            s = self.uncontacted.pop()
+            ad = Ad().setRawIPPort(s.ipp)
+
+            packet = ['JQ']
+            packet.append(self.main.osm.me.ipp)
+
+            self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
+
+        except KeyError: # run out of nodes
+            self.syncComplete()
+
+    def sendSyncItemsReply(self, ipp):
+
+        self.removeOldItems()
+
+        ad = Ad().setRawIPPort(ipp)
+
+        CHECK(self.syncd)
+
+        # Build Packet
+        packet = ['JR']
+        packet.append(self.main.osm.me.ipp)
+
+        stream = [struct.pack('!I', int(time.time()))]
+        for (k, v) in self.getItems().items():
+            (cat, item) = k
+            (src, ts) = v
+            # the code in insertSrcForItem should ensure this doesn't overflow
+            src = '\x00'.join(src)
+
+            stream.append(struct.pack('!I', ts))
+            stream.append(struct.pack('!B', cat))
+            stream.append(struct.pack('!B', len(item)))
+            stream.append(item)
+            stream.append(struct.pack('!B', len(src)))
+            stream.append(src)
+        stream = bz2.compress(''.join(stream))
+
+        packet.append(struct.pack('!H', len(stream)))
+        packet.append(stream)
+        self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
+
+
+    def syncComplete(self):
+        if self.syncd: # suppress message etc if already syncd
+            return
+
+        self.syncd = True
+        if len(self.items) != 1:
+            self.notifyDC("%i new items" % len(self.items))
+        else:
+            self.notifyDC("1 new item")
+
+        if len(self.incorrectsync) < 2: # not actually incorrect. think about it.
+            self.incorrectsync = []
+
+        # Go through the incorrectly-syncd nodes list and send them JR
+        while self.incorrectsync:
+            self.sendSyncItemsReply(self, self.incorrectsync.pop().ipp)
+
+
+    def receivedSyncItemsReply(self, n, ntime, items):
+        # Items arrived from a JR packet
+
+        # Process the packet even if we think it's syncd, since
+        # the rest of the network might know better
+        changed = False
+
+        for i in items:
+            (ts, cat, item, src) = i
+
+            tdiff = ntime - ts
+            if tdiff < 0: raise Reject # time newer than the present? no way mate
+
+            if not src:
+                src = []
+            else:
+                src = src.split('\x00')
+
+            changed = self.updateItem(cat, item, src, tdiff) or changed
+
+        if not changed:
+            self.syncComplete()
+            return True
+
+        else:
+            if not self.syncd:
+                self.attemptSyncItems(n)
+            return False;
+
+
+    def updateItem(self, cat, item, src, tdiff):
+
+        if self.items.has_key((cat, item)):
+
+            newsrc = self.items[(cat, item)][0].union(src)
+            changed = (newsrc == self.items[(cat, item)][0])
+
+            # ignore time inconsistencies
+            self.items[(cat, item)] = (newsrc, max(self.items[(cat, item)][1], int(time.time()) - tdiff))
+
+            return changed
+
+        else:
+            self.items[(cat, item)] = (set(src), int(time.time()) - tdiff)
+
+            return True # changed
+
+
+    def insertSrcForItem(self, cat, item, src):
+
+        if self.items.has_key((cat, item)):
+            if not self.items[(cat, item)][0]: new = True
+            else: new = False
+
+            # add src to the set
+            newsrc = self.items[(cat, item)][0].union(src)
+
+            # check if this will make the set too big
+            if self.getSerialisedLength(newsrc) > 255:
+                raise Reject
+
+            self.items[(cat, item)][0].update(src)
+
+            if new and newsrc:
+                self.notifyDC("New %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+
+        else:
+            src = set(src)
+            # check if this will make the set too big
+            if self.getSerialisedLength(src) > 255:
+                raise Reject
+
+            # new item
+            self.items[(cat, item)] = (src, int(time.time()))
+
+            if src: self.notifyDC("New %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+            else: self.notifyDC("Wanted %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+
+
+    def removeSrcForItem(self, cat, item, src):
+
+        if self.items.has_key((cat, item)):
+            # remove src from the set
+            self.items[(cat, item)][0].difference_update(src)
+
+            # if src was empty, contine
+            # or if the new entry is empty, continue
+            if src and self.items[(cat, item)][0]: return
+
+            # remove the whole entry
+            self.items.pop((cat, item))
+
+            self.notifyDC("No more %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+
+
+    def notifyDC(self, message, override=False):
+
+        # Without DC, there's nothing to say
+        dch = self.main.getOnlineDCH()
+        if not dch:
+            return
+
+        if self.main.state.newitems_notify or override:
+            dch.pushStatus(message)
+
+
+    def broadcastSrcForItem(self, remove, cat, item, src):
+
+        self.removeOldItems()
+
+        osm = self.main.osm
+
+        # make flags
+        cat = cat & ITEMS_CATEGORY
+        remove = int(bool(remove))
+        flags = (remove << 4) | cat
+
+        # check item
+        if len(item) > 255:
+            item = item[:255]
+
+        # Update item locally
+        if remove:
+            self.removeSrcForItem(cat, item, src)
+        else:
+            self.insertSrcForItem(cat, item, src)
+
+        # make src
+        src = '\x00'.join(set(src))
+        # length check already done by insertSrcForItem above
+
+        packet = osm.mrm.broadcastHeader('JU', osm.me.ipp)
+        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
+        packet.append(osm.me.nickHash())
+        packet.append(struct.pack('!B', flags))
+        packet.append(struct.pack('!B', len(item)))
+        packet.append(item)
+        packet.append(struct.pack('!B', len(src)))
+        packet.append(src)
+
+        osm.mrm.newMessage(''.join(packet), tries=4)
+
+
+    def getFormattedItems(self, num, days, cats, srcs):
+        # returns all the items as a human-readable string
+        # this data is used for display with the !newstuff command
+        self.removeOldItems()
+
+        filters = []
+
+        if num:
+            if len(num) > 1: b, e = num
+            else: b, e = (0, num[0])
+            if e > local.newitems_numlim: e = local.newitems_numlim
+
+            if b > 0: text = " - between entries %i (inc) to %i (exc)" % (b, e)
+            elif e != 1: text = " - in the latest %i entries" % (e)
+            else: text = " - in the latest entry"
+
+            filters.append(text)
+
+        if days:
+            if len(days) > 1: tb, te = days
+            else: tb, te = (0, days[0])
+            if te > local.newitems_daylim: te = local.newitems_daylim
+
+            if tb > 0: text = " - between %i and %i days ago" % (tb, te)
+            elif te != 1: text = " - in the past %i days" % (te)
+            else: text = " - in the past day"
+
+            filters.append(text)
+            t = int(time.time())
+            tb, te = t - tb*86400, t - te*86400
+
+        if cats:
+            if len(srcs) > 1: text = " - from categories [" + ', '.join(map(self.getCategory, cats)) + "]"
+            else: text = " - from category [" + ', '.join(map(self.getCategory, cats)) + "]"
+
+            filters.append(text)
+
+        if srcs:
+            if len(srcs) > 1: text = " - from sources (" + ', '.join(srcs) + ")"
+            else: text = " - from source (" + ', '.join(srcs) + ")"
+
+            filters.append(text)
+        elif srcs is None:
+            filters.append(" - that are wanted")
+
+        if not filters: filters.append('(No filters specified.)')
+
+        items = []
+
+        i = 0
+        for (k, v) in sorted(self.items.items(), lambda a, b: b[1][1] - a[1][1]):
+            (cat, item) = k
+            (src, ts) = v
+            if (not num) or (b <= i < e):
+                if (not days) or (tb > ts >= te):
+                    if (not cats) or (cat in cats):
+                        if srcs is None:
+                            if not src:
+                                items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
+                                  self.getCategory(cat) + ": " + item + " (WANTED - please bring this to DC!)")
+                        elif (not srcs) or src.intersection(srcs):
+                            items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
+                              self.getCategory(cat) + ": " + item + " ( " + self.formatSources(src) + " )")
+                            # extra spaces so magnet links are parsed properly by whatever client
+            i += 1
+        items.reverse()
+
+        if not items: items.append('(No items to display.)')
+
+        lines = ['========','Items:']
+        lines.extend(filters)
+        lines.append('--------')
+        lines.extend(items)
+        lines.append('========')
+
+        return lines
+
+
+    def getItems(self):
+        # returns all the items to be sent in response to a sync request
+        self.removeOldItems()
+        return self.items
+
+
+    def removeOldItems(self):
+        # removes old items as defined in local_config
+
+        if not self.items:
+            return
+
+        tlim = int(time.time()) - local.newitems_daylim * 86400;
+
+        # go backwards through the dict, and keep removing until an entry
+        # satisfies the limits. this is faster than doing it the other way
+        # round since most entries will be kept
+        i = len(self.items)
+        for (k, v) in sorted(self.items.items(), lambda a, b: a[1][1] - b[1][1]):
+            if i <= local.newitems_numlim and v[1] > tlim:
+                break
+            del self.items[k]
+            i -= 1
 
 
     def getCategory(self, cat, default="OTHER"):
@@ -4250,234 +4564,23 @@ class NewitemsManager(object):
             return default
 
 
-    def receivedSyncNewitems(self, n, newitems):
-        # Newitems arrived from a WR packet
-        if not self.waiting: return
-
-        for item in newitems:
-            self.newitems.append(item)
-
-        self.waiting = False
-
-        # Without DC, there's nothing to say
-        dch = self.main.getOnlineDCH()
-        if not dch: return True
-
-        # If notify is true, tell the user how many new items there are
-        if self.main.state.newitems_notify:
-            dch.pushStatus("%i new items" % len(self.newitems))
-
-
-    def insertNewItem(self, n, ts, cat, item):
-
-        self.removeOldItems()
-
-        # Store stuff
-        self.newitems.insert(0, (ts, n.ipp, cat, item))
-
-        # Without DC, there's nothing to say
-        dch = self.main.getOnlineDCH()
-        if not dch:
-            return True
-
-        # If notify is true or if it's the user's own update,
-        # tell the user that there's a newitem.
-        if self.main.state.newitems_notify or n == self.main.osm.me:
-            dch.pushStatus("%s has new %s: %s" % (n.nick, self.getCategory(cat, 'stuff'), item))
-
-        return True
-
-
-    def removeNewItem(self, n, ts, ipp, cat, item):
-
-        self.removeOldItems()
-
-        # Remove stuff
-        try:
-            self.newitems.remove((ts, ipp, cat, item))
-        except ValueError:
-            return False
-
-        # Without DC, there's nothing to say
-        dch = self.main.getOnlineDCH()
-        if not dch:
-            return True
-
-        # If notify is true or if it's the user's own update,
-        # tell the user that there's no longer a newitem.
-        if self.main.state.newitems_notify or n == self.main.osm.me:
-            if n.ipp == ipp:
-                dch.pushStatus("%s no longer has %s: %s" % (n.nick, self.getCategory(cat, 'stuff'), item))
-
-            else:
-                osm = self.main.osm
-                try:
-                    tnick = osm.lookup_ipp[ipp].nick
-                except KeyError:
-                    if ipp == osm.me.ipp:
-                        tnick = osm.me.nick
-                    else:
-                        tnick = "<offline>"
-                dch.pushStatus("%s has removed: %s/%s/%s" % (n.nick, tnick, self.getCategory(cat), item))
-
-        return True
-
-
-    def broadcastNewItem(self, item, cat=0):
-        osm = self.main.osm
-
-        if len(item) > 240:
-            item = item[:240]
-
-        ts = int(time.time())
-
-        # Update newitem locally
-        self.insertNewItem(osm.me, ts, cat, item)
-
-        packet = osm.mrm.broadcastHeader('WN', osm.me.ipp)
-        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
-        packet.append(osm.me.nickHash())
-        packet.append(struct.pack('!I', ts))
-        packet.append(struct.pack('!B', cat))
-        packet.append(struct.pack('!B', len(item)))
-        packet.append(item)
-
-        osm.mrm.newMessage(''.join(packet), tries=4)
-
-
-    def broadcastRemItem(self, th, ownentriesonly=False):
-        osm = self.main.osm
-
-        # Update newitem locally
-
-        if ownentriesonly:
-            ts, ipp, cat, item = filter(lambda x: x[1] == osm.me.ipp, self.newitems)[th]
+    def formatSources(self, src):
+        if src:
+            return ', '.join(src)
         else:
-            ts, ipp, cat, item = self.newitems[th]
-        # will throw IndexError if th is out of range
-
-        self.removeNewItem(osm.me, ts, ipp, cat, item)
-
-        packet = osm.mrm.broadcastHeader('WO', osm.me.ipp)
-        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
-        packet.append(osm.me.nickHash())
-        packet.append(struct.pack('!I', ts))
-        packet.append(ipp)
-        packet.append(struct.pack('!B', cat))
-        packet.append(struct.pack('!B', len(item)))
-        packet.append(item)
-
-        osm.mrm.newMessage(''.join(packet), tries=4)
+            return 'WANTED - please bring to the network!'
 
 
-    def getFormattedItems(self, num, days, cats):
-        # returns all the items as a human-readable string
-        # this data is used for display with the !newitems command
-        self.removeOldItems()
-
-        filtersummary = []
-
-        range = self.newitems[:]
-        rangefilters = []
-
-        if num:
-            if len(num) > 1:
-                s, e = num 
-            else:
-                s, e = (0, num[0])
-            
-            if e > local.newitems_numlim: e = local.newitems_numlim
-            if s == 0:
-                if e != 1:
-                    rangefilters.append("in the latest %i entries" % (e))
-                else:
-                    rangefilters.append("in the latest 1 entry")
-            else:
-                rangefilters.append("between entries %i (inc) to %i (exc)" % (s, e))
-
-            range = range[s:e]
-
-        if days:
-            if len(days) > 1:
-                s, e = days 
-            else:
-                s, e = (0, days[0])
-            if e > local.newitems_daylim: e = local.newitems_daylim
-            
-            
-            if s == 0:
-                if e != 1:
-                    rangefilters.append("in the past %i days" % (e))
-                else:
-                    rangefilters.append("in the past 1 day")
-            else:
-                if e != 1:
-                    rangefilters.append("between %i and %i days ago" % (s, e))
-                else:
-                    rangefilters.append("between %i and 1 day ago" % (s))
-
-            t = int(time.time())
-            ts, te = t - s*86400, t - e*86400
-            s, e = 0, len(range)
-            while s < e and ts < range[s][0]: s += 1
-            while s < e and range[e-1][0] <= te: e -= 1
-            range = range[s:e]
-
-        rangefilters = ' and '.join(rangefilters)
-        if rangefilters: filtersummary.append(rangefilters)
-
-        if cats:
-            if len(cats) > 1:
-                filtersummary.append("from categories [" +', '.join(map(self.getCategory, cats)) + ']')
-            else:
-                filtersummary.append("from category [" + ', '.join(map(self.getCategory, cats)) + ']')
-
-        filtersummary = ', '.join(filtersummary)
-        if filtersummary:
-            lines = ['New items ' + filtersummary + ':']
-        else:
-            lines = ['New items ' + filtersummary + 'New items:']
-
-        range.reverse()
-        osm = self.main.osm
-        for item in range:
-            ts, ipp, cat, stuff = item
-            if cats and cat not in cats: continue
-            try:
-                nick = osm.lookup_ipp[ipp].nick
-            except KeyError:
-                if ipp == osm.ms.ipp:
-                    nick = osm.me.nick
-                else:
-                    nick = "<offline>"
-
-            lines.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " + nick + " has (" + self.getCategory(cat) + ") " + stuff)
-
-        if len(lines) == 1: lines.append('(No items to display.)')
-        return lines
+    def getSerialisedLength(self, list):
+        return len(' '.join(list))
 
 
-    def getItems(self):
-        # returns all the items to be sent in response to a sync request
-        self.removeOldItems()
-        return self.newitems
+    def shutdown(self):
+        self.uncontacted = None
+        self.incorrectsync = None
+        self.syncd = False
+        self.syncStartTime = 0
 
-
-    def removeOldItems(self):
-        # removes old items as defined in local_config
-
-        if len(self.newitems) == 0:
-            return
-        if len(self.newitems) > local.newitems_numlim:
-            self.newitems = self.newitems[:local.newitems_numlim]
-
-        lim = int(time.time()) - local.newitems_daylim * 86400;
-        if lim < self.newitems[-1][0]: return
-
-        i = -2;
-        while -i <= len(self.newitems) and self.newitems[i][0] <= lim:
-            i = i - 1;
-        self.newitems = self.newitems[:i+1]
 
 # END NEWITEMS MOD '''#
 
