@@ -1688,6 +1688,7 @@ class DtellaBot(object):
             out("You must be online to use %sSTUFF." % prefix)
             return
 
+        if text is None: text = ''
         userargs = text.split(' ')
         args = [None, None, [], []]
         badfilters = []
