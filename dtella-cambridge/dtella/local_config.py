@@ -106,7 +106,7 @@ suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.societies|\.private)?\.cam\.ac\.u
 #    }
 
 suf_table = {
-    'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus',
+    'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus Christi',
     'dar':'Darwin', 'dow':'Downing', 'emma':'Emmanuel', 'fitz':'Fitzwilliam',
     'girton':'Girton', 'cai':'Gonville and Caius', 'homerton':'Homerton', 'jesus':'Jesus',
     'kings':'King\'s', 'lucy-cav':'Lucy Cavendish', 'magd':'Magdalene', 'newn':'Newnham',
