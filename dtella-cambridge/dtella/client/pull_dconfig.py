@@ -93,7 +93,6 @@ class DynamicConfigPuller(object):
                 self.handleConfig(result)
                 self.cfg_lastUpdate = seconds()
                 self.cfg_busy = False
-                self.schedulePeriodicUpdates()
                 self.doCallback()
             except:
                 # Don't want errors propagating up the chain.
@@ -105,7 +104,6 @@ class DynamicConfigPuller(object):
                     self.main.showLoginStatus(
                         "Query failed!  Trying to proceed without it...")
                 self.cfg_busy = False
-                self.schedulePeriodicUpdates()
                 self.doCallback()
             except:
                 # Don't want errors propagating up the chain.
@@ -159,7 +157,7 @@ class DynamicConfigPuller(object):
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
                 state.dns_pkhashes.add(h)
-            
+
             elif name == 'ipcache':
                 try:
                     data = binascii.a2b_base64(value)
@@ -178,6 +176,7 @@ class DynamicConfigPuller(object):
         if self.belowMinimumVersion():
             return
 
+        self.schedulePeriodicUpdates()
         self.reportNewVersion()
 
         if self.cfg_cb:
@@ -196,11 +195,12 @@ class DynamicConfigPuller(object):
 
         if self.cfgRefresh_dcall:
             self.cfgRefresh_dcall.reset(when)
+            return
 
         def cb():
             self.cfgRefresh_dcall = None
             self.getDynamicConfig(None)
-        
+
         self.cfgRefresh_dcall = reactor.callLater(when, cb)
 
 
@@ -220,7 +220,7 @@ class DynamicConfigPuller(object):
         if self.override_vc < min_vc:
 
             self.main.shutdown(reconnect='no')
-            
+
             text = (
                 " ",
                 "Your version of Dtella (%s) is too old to be used on this "
@@ -251,14 +251,14 @@ class DynamicConfigPuller(object):
         new_vc = cmpify_version(new_v)
 
         if self.reported_vc < new_vc:
-            
+
             if self.main.dch:
                 say = self.main.dch.bot.say
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
                     % (local.version, new_v))
                 say("Download link: %s" % url)
-                
+
                 self.reported_vc = new_vc
 
 
