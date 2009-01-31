@@ -1466,6 +1466,8 @@ class PeerHandler(DatagramProtocol):
         # SyncItems Reply
 
         osm = self.main.osm
+        if not osm:
+            raise BadTimingError("Not ready for syncitems reply")
 
         (kind, src_ipp, rest
          ) = self.decodePacket('!2s6s+', data)
