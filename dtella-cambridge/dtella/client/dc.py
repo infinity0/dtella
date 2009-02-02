@@ -1592,7 +1592,7 @@ class DtellaBot(object):
     def handleCmd_IHAVE(self, out, desc, prefix):
 
         out("This command has been deprecated and will be REMOVED in the next "
-        "update. Please use %sI instead - see %sHELP I for details." % prefix)
+        "update. Please use %sI instead - see %sHELP I for details." % (prefix, prefix))
 
         self.handleCmd_I(out, "HAVE " + desc, prefix)
 
@@ -1697,7 +1697,7 @@ class DtellaBot(object):
     def handleCmd_NEWSTUFF(self, out, args, prefix):
 
         out("This command has been deprecated and will be REMOVED in the next "
-        "update. Please use %sSTUFF instead - see %sHELP STUFF for details." % prefix)
+        "update. Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
 
         self.handleCmd_NEWSTUFF(out, "d7", prefix)
 
