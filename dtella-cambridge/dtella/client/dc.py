@@ -1699,7 +1699,7 @@ class DtellaBot(object):
         out("This command has been deprecated and will be REMOVED in the next "
         "update. Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
 
-        self.handleCmd_NEWSTUFF(out, "d7", prefix)
+        self.handleCmd_STUFF(out, "d7", prefix)
 
 
     def handleCmd_STUFF(self, out, text, prefix):
