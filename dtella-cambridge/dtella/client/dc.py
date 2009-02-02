@@ -1074,8 +1074,10 @@ class DtellaBot(object):
 
 
 #''' BEGIN NEWITEMS MOD #
-    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF'])
+
+    # TODO: IHAVE and NEWSTUFF to be removed at next update
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF','IHAVE','NEWSTUFF'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF','IHAVE','NEWSTUFF'])
 
 
     minihelp = [
@@ -1086,6 +1088,7 @@ class DtellaBot(object):
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
         ("I",          "Add/remove stuff to the global items list."),
+        ("STUFF",      "View the global items list."),
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
@@ -1095,7 +1098,6 @@ class DtellaBot(object):
         ("NOTIFY",     "View or toggle notifications of new items"),
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
-        ("STUFF",      "View the global items list."),
         ("USERS",      "Show how many users exist at each location"),
         ("SHARED",     "Show how many bytes are shared at each location"),
         ("DENSE",      "Show the bytes/user density for each location"),
@@ -1586,6 +1588,15 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
 
+    # TODO: IHAVE and NEWSTUFF to be removed at next update
+    def handleCmd_IHAVE(self, out, desc, prefix):
+
+        out("This command has been deprecated and will be REMOVED in the next "
+        "update. Please use %sI instead - see %sHELP I for details." % prefix)
+
+        self.handleCmd_I(out, "HAVE " + desc, prefix)
+
+
     def handleCmd_I(self, out, desc, prefix):
 
         if not self.dch.isOnline():
@@ -1647,7 +1658,7 @@ class DtellaBot(object):
             if itm.items[(cat, desc[:255])][0].difference(src):
                 # other people have that item
                 return
-        elif type == 'REMOVE':
+        elif type == 'B4CKD00RNUKE':
             remove = True
             # force a remove, remove all sources
             src = []
@@ -1682,6 +1693,15 @@ class DtellaBot(object):
         self.syntaxHelp(out, 'NOTIFY', prefix)
 
 
+    # TODO: IHAVE and NEWSTUFF to be removed at next update
+    def handleCmd_NEWSTUFF(self, out, args, prefix):
+
+        out("This command has been deprecated and will be REMOVED in the next "
+        "update. Please use %sSTUFF instead - see %sHELP STUFF for details." % prefix)
+
+        self.handleCmd_NEWSTUFF(out, "d7", prefix)
+
+
     def handleCmd_STUFF(self, out, text, prefix):
 
         if not self.dch.isOnline():
@@ -1694,7 +1714,7 @@ class DtellaBot(object):
         badfilters = []
 
         if len(userargs) == 0:
-            args = [(0,7), (0,16), [],[]]
+            args = [(0,16), (0,7), [],[]]
 
         elif userargs[0].upper() == 'FILTERS':
             out("STUFF filters")
