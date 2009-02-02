@@ -1140,7 +1140,7 @@ class DtellaBot(object):
             "[filters]",
             "Displays the list of stuff based on some filters. If no "
             "filters are provided, displays new items from the last week. To "
-            "the syntax for these filters, see NEWSTUFF FILTERS."
+            "the syntax for these filters, see STUFF FILTERS."
             ),
 
         "NOTIFY":(
@@ -1591,10 +1591,17 @@ class DtellaBot(object):
     # TODO: IHAVE and NEWSTUFF to be removed at next update
     def handleCmd_IHAVE(self, out, desc, prefix):
 
-        out("This command has been deprecated and will be REMOVED in the next "
-        "update. Please use %sI instead - see %sHELP I for details." % (prefix, prefix))
+        out("%sIHAVE has been deprecated and will be REMOVED in the next update." % prefix)
+        out("Please use %sI instead - see %sHELP I for details." % (prefix, prefix))
 
-        self.handleCmd_I(out, "HAVE " + desc, prefix)
+        if not self.dch.isOnline():
+            out("You must be online to use %sIHAVE." % prefix)
+            return
+
+        if desc:
+            self.handleCmd_I(out, "HAVE " + desc, prefix)
+        else:
+            self.handleCmd_I(out, "HAVE", prefix)
 
 
     def handleCmd_I(self, out, desc, prefix):
@@ -1696,8 +1703,12 @@ class DtellaBot(object):
     # TODO: IHAVE and NEWSTUFF to be removed at next update
     def handleCmd_NEWSTUFF(self, out, args, prefix):
 
-        out("This command has been deprecated and will be REMOVED in the next "
-        "update. Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
+        out("%sNEWSTUFF has been deprecated and will be REMOVED in the next update." % prefix)
+        out("Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sNEWSTUFF." % prefix)
+            return
 
         self.handleCmd_STUFF(out, "d7", prefix)
 
@@ -1717,27 +1728,38 @@ class DtellaBot(object):
             args = [(0,16), (0,7), [],[]]
 
         elif userargs[0].upper() == 'FILTERS':
-            out("STUFF filters")
-            out("An entry is displayed if it satisfies ALL* range filters and "
-                "AT LEAST ONE category filter and AT LEAST ONE source filter.")
-            out("")
-            out("Range filters [<D|N>x[:y]]")
-            out("  These are a single character followed by either two integers "
-                "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ")
-            out("  - Dx:y filters entries between x and y days ago. ")
-            out("  - Nx:y filters to the last xth to yth entries. ")
-            out("  *When multiple range filters of the same type are supplied, "
-                "only the last one is used.")
-            out("")
-            out("Category filters [@CAT]")
-            out("  These filter entries according to their category as assigned "
-                "by the original announcer. Currently accepted categories are:")
-            out("  - " + self.main.osm.itm.catlist + ".")
-            out("")
-            out("Source filters [~SRC|WANTED]")
-            out("  These filter entries according to their sources as advertised "
+
+            lines = [
+                "STUFF filters",
+                "An entry is displayed if it satisfies ALL* range filters and "
+                "AT LEAST ONE category filter and AT LEAST ONE source filter.",
+                "",
+                "Range filters [<D|N>x[:y]]",
+                "  These are a single character followed by either two integers "
+                "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ",
+                "  - Dx:y filters entries between x and y days ago. ",
+                "  - Nx:y filters to the last xth to yth entries. ",
+                "  *When multiple range filters of the same type are supplied, "
+                "only the last one is used.",
+                "",
+                "Category filters [@CAT]",
+                "  These filter entries according to their category as assigned "
+                "by the original announcer. Currently accepted categories are:",
+                "  - " + self.main.osm.itm.catlist + ".",
+                "",
+                "Source filters [~SRC|WANTED]",
+                "  These filter entries according to their sources as advertised "
                 "by various people. WANTED is a special filter that matches "
-                "entries with no listed sources.")
+                "entries with no listed sources.",
+                ]
+
+            for line in lines:
+                for l in word_wrap(line):
+                    if l:
+                        out(l)
+                    else:
+                        out(" ")
+
             return
 
         else:
