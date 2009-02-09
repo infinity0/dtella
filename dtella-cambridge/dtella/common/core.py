@@ -1449,8 +1449,6 @@ class PeerHandler(DatagramProtocol):
         itm = self.main.osm.itm
         if len(self.main.osm.nodes) < 3: # small networks need all sync packets to be sent
             itm.syncComplete()
-        elif time.time() > itm.syncStartTime + 30: # timeout
-            itm.syncComplete()
 
         elif not (itm and itm.syncd):
             raise BadTimingError("Not ready to handle a syncitems request")
@@ -4240,28 +4238,111 @@ class ItemsManager(object):
 
     def beginSyncItems(self):
         self.uncontacted = RandSet(self.main.osm.nodes)
-        self.incorrectsync = []
+        self.waiting = set()
+        self.timedout = set()
+        self.incorrectsync = set()
+        self.retries = 0
+        # start 2 syncing "threads"
         self.attemptSyncItems()
-        self.syncStartTime = time.time()
+        self.attemptSyncItems()
 
 
-    def attemptSyncItems(self, n=None):
-        # previous node might have an incomplete copy of the list
-        if n:
-            self.incorrectsync.append(n)
-
-        # pick a node to sync with
+    def attemptSyncItems(self):
         try:
+            # pick a node to sync with
             s = self.uncontacted.pop()
             ad = Ad().setRawIPPort(s.ipp)
 
             packet = ['JQ']
             packet.append(self.main.osm.me.ipp)
-
             self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
-        except KeyError: # run out of nodes
+            self.waiting.add(s)
+            reactor.callLater(4, self.checkSyncItemsTimeout, s)
+
+        except KeyError:
+            # run out of nodes
+
+            # if there are still nodes awaiting reply, wait for them
+            if self.waiting: return
+
+            if self.timedout and self.retries < 4:
+                # retry any timed out nodes
+                self.uncontacted = RandSet(self.timedout)
+                self.timedout.clear()
+                self.retries += 1
+                # start 2 syncing "threads"
+                self.attemptSyncItems()
+                self.attemptSyncItems()
+
+            else:
+                # force a syncComplete
+                self.syncComplete()
+
+
+    def checkSyncItemsTimeout(self, n):
+        # if not yet received a reply, pick another node
+        if n in self.waiting:
+            self.waiting.discard(n)
+            self.timedout.add(n)
+            self.attemptSyncItems()
+
+
+    def syncComplete(self):
+        if self.syncd: # suppress message etc if already syncd
+            return
+
+        self.syncd = True
+        if len(self.items) != 1:
+            self.notifyDC("%i new items" % len(self.items))
+        else:
+            self.notifyDC("1 new item")
+
+        if len(self.incorrectsync) < 2: # not actually incorrect. think about it.
+            self.incorrectsync.clear()
+
+        # Go through the incorrectly-syncd nodes list and send them JR
+        while self.incorrectsync:
+            self.sendSyncItemsReply(self.incorrectsync.pop().ipp)
+
+
+    def receivedSyncItemsReply(self, n, ntime, items):
+        # Items arrived from a JR packet
+
+        # Process the packet even if we think it's syncd, since
+        # the rest of the network might know better
+        changed = False
+
+        for i in items:
+            (ts, cat, item, src) = i
+
+            tdiff = ntime - ts
+            if tdiff < 0: raise Reject # time newer than the present? no way mate
+
+            if not src:
+                src = []
+            else:
+                src = src.split('\x00')
+
+            changed = self.updateItem(cat, item, src, tdiff) or changed
+
+        self.waiting.discard(n)
+        self.timedout.discard(n)
+
+        if self.syncd: return
+
+        if changed:
+            # sync incomplete, pick another node to sync with
+            if not self.syncd:
+                self.incorrectsync.add(n)
+                self.attemptSyncItems()
+
+        else:
+            # list matches others, complete sync
             self.syncComplete()
+
+        return not changed
+
 
     def sendSyncItemsReply(self, ipp):
 
@@ -4293,54 +4374,6 @@ class ItemsManager(object):
         packet.append(struct.pack('!H', len(stream)))
         packet.append(stream)
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
-
-
-    def syncComplete(self):
-        if self.syncd: # suppress message etc if already syncd
-            return
-
-        self.syncd = True
-        if len(self.items) != 1:
-            self.notifyDC("%i new items" % len(self.items))
-        else:
-            self.notifyDC("1 new item")
-
-        if len(self.incorrectsync) < 2: # not actually incorrect. think about it.
-            self.incorrectsync = []
-
-        # Go through the incorrectly-syncd nodes list and send them JR
-        while self.incorrectsync:
-            self.sendSyncItemsReply(self, self.incorrectsync.pop().ipp)
-
-
-    def receivedSyncItemsReply(self, n, ntime, items):
-        # Items arrived from a JR packet
-
-        # Process the packet even if we think it's syncd, since
-        # the rest of the network might know better
-        changed = False
-
-        for i in items:
-            (ts, cat, item, src) = i
-
-            tdiff = ntime - ts
-            if tdiff < 0: raise Reject # time newer than the present? no way mate
-
-            if not src:
-                src = []
-            else:
-                src = src.split('\x00')
-
-            changed = self.updateItem(cat, item, src, tdiff) or changed
-
-        if not changed:
-            self.syncComplete()
-            return True
-
-        else:
-            if not self.syncd:
-                self.attemptSyncItems(n)
-            return False;
 
 
     def updateItem(self, cat, item, src, tdiff):
@@ -4488,14 +4521,14 @@ class ItemsManager(object):
             tb, te = t - tb*86400, t - te*86400
 
         if cats:
-            if len(srcs) > 1: text = " - from categories [" + ', '.join(map(self.getCategory, cats)) + "]"
-            else: text = " - from category [" + ', '.join(map(self.getCategory, cats)) + "]"
+            if len(srcs) > 1: text = " - from categories [" + ' '.join(map(self.getCategory, cats)) + "]"
+            else: text = " - from category [" + ' '.join(map(self.getCategory, cats)) + "]"
 
             filters.append(text)
 
         if srcs:
-            if len(srcs) > 1: text = " - from sources (" + ', '.join(srcs) + ")"
-            else: text = " - from source (" + ', '.join(srcs) + ")"
+            if len(srcs) > 1: text = " - from sources (" + ' '.join(srcs) + ")"
+            else: text = " - from source (" + ' '.join(srcs) + ")"
 
             filters.append(text)
         elif srcs is None:
@@ -4515,10 +4548,10 @@ class ItemsManager(object):
                         if srcs is None:
                             if not src:
                                 items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
-                                  self.getCategory(cat) + ": " + item + " (WANTED - please bring this to DC!)")
+                                  self.getCategory(cat) + ": " + item + " -- WANTED: please bring to the network!")
                         elif (not srcs) or src.intersection(srcs):
                             items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
-                              self.getCategory(cat) + ": " + item + " ( " + self.formatSources(src) + " )")
+                              self.getCategory(cat) + ": " + item + " -- " + self.formatSources(src))
                             # extra spaces so magnet links are parsed properly by whatever client
             i += 1
         items.reverse()
@@ -4568,7 +4601,7 @@ class ItemsManager(object):
 
     def formatSources(self, src):
         if src:
-            return ', '.join(src)
+            return ' '.join(src)
         else:
             return 'WANTED - please bring to the network!'
 
@@ -4579,10 +4612,11 @@ class ItemsManager(object):
 
     def shutdown(self):
         self.uncontacted = None
+        self.waiting = None
+        self.timedout = None
         self.incorrectsync = None
         self.syncd = False
-        self.syncStartTime = 0
-
+        self.retries = 0
 
 # END NEWITEMS MOD '''#
 

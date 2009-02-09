@@ -1665,7 +1665,7 @@ class DtellaBot(object):
             if itm.items[(cat, desc[:255])][0].difference(src):
                 # other people have that item
                 return
-        elif type == 'B4CKD00RNUKE':
+        elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
             remove = True
             # force a remove, remove all sources
             src = []
@@ -1735,20 +1735,20 @@ class DtellaBot(object):
                 "AT LEAST ONE category filter and AT LEAST ONE source filter.",
                 "",
                 "Range filters [<D|N>x[:y]]",
-                "  These are a single character followed by either two integers "
+                "These are a single character followed by either two integers "
                 "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ",
                 "  - Dx:y filters entries between x and y days ago. ",
                 "  - Nx:y filters to the last xth to yth entries. ",
-                "  *When multiple range filters of the same type are supplied, "
+                "*When multiple range filters of the same type are supplied, "
                 "only the last one is used.",
                 "",
                 "Category filters [@CAT]",
-                "  These filter entries according to their category as assigned "
+                "These filter entries according to their category as assigned "
                 "by the original announcer. Currently accepted categories are:",
                 "  - " + self.main.osm.itm.catlist + ".",
                 "",
                 "Source filters [~SRC|WANTED]",
-                "  These filter entries according to their sources as advertised "
+                "These filter entries according to their sources as advertised "
                 "by various people. WANTED is a special filter that matches "
                 "entries with no listed sources.",
                 ]
@@ -1784,6 +1784,9 @@ class DtellaBot(object):
                     continue
                 elif arg == 'WANTED':
                     args[3] = None
+                    continue
+                else:
+                    badfilters.append((arg, 'Unrecognised filter - see STUFF FILTERS for help.'))
                     continue
 
                 try:
