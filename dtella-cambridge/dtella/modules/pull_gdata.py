@@ -3,7 +3,7 @@ Dtella - Google Spreadsheets Puller Module
 Copyright (C) 2008  Dtella Labs (http://dtella.org)
 Copyright (C) 2008  Paul Marks (http://pmarks.net)
 
-$Id: pull_gdata.py 497 2008-03-04 05:14:53Z feisley $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

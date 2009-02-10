@@ -4,7 +4,7 @@ Copyright (C) 2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2008  Jacob Feisley  (http://www.feisley.com/)
 
-$Id: bridge_server.py 547 2008-11-28 08:46:46Z sparkmaul $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

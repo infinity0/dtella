@@ -3,7 +3,7 @@ Dtella - Utility Functions
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: util.py 503 2008-04-14 05:30:45Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -278,6 +278,39 @@ def split_tag(desc):
         except ValueError:
             pass
     return desc, tag
+
+
+# Minimum Dtella needed to retain the SSL MyINFO flag.
+SSLHACK_VERSION = cmpify_version("1.2.4")
+
+def SSLHACK_filter_flags(info_str):
+    # SSLHACK: The 'speed' field contains a flags byte, of which bit 0x10
+    #          indicates SSL capability for some DC clients.  If this is an
+    #          older Dtella node which doesn't understand SSL requests, we
+    #          clear the bit, so our DC client won't try to initiate an
+    #          SSL connection with it.
+
+    # Ignore new-enough Dtella versions.
+    dttag = parse_dtella_tag(info_str)
+    if cmpify_version(dttag[3:]) >= SSLHACK_VERSION:
+        return info_str
+
+    try:
+        info = split_info(info_str)
+    except ValueError:
+        return info_str
+
+    try:
+        flags, = struct.unpack('!B', info[2][-1:])
+    except struct.error:
+        return info_str
+
+    if flags & 0x10:
+        flags ^= 0x10
+        info[2] = info[2][:-1] + struct.pack('!B', flags)
+        return '$'.join(info)
+
+    return info_str
 
 
 def format_bytes(n):

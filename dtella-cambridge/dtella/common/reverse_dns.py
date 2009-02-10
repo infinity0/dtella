@@ -3,7 +3,7 @@ Dtella - Reverse DNS Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: reverse_dns.py 503 2008-04-14 05:30:45Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

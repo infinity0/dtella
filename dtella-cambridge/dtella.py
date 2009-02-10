@@ -6,7 +6,7 @@ Copyright (C) 2007-2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2007-2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://www.feisley.com/)
 
-$Id: dtella.py 553 2008-12-02 05:29:25Z sparkmaul $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

@@ -4,7 +4,7 @@ Copyright (C) 2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2008  Jacob Feisley (http://www.feisley.com/)
 Copyright (C) 2008  Paul Marks (http://www.pmarks.net/)
 
-$Id: log.py 494 2008-02-11 01:21:58Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

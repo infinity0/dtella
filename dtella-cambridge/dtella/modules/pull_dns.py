@@ -3,7 +3,7 @@ Dtella - DNS TXT Record Puller Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: pull_dns.py 478 2008-01-27 14:11:38Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

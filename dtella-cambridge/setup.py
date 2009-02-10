@@ -4,7 +4,7 @@ Copyright (C) 2007-2008  Dtella Labs (http://dtella.org/)
 Copyright (C) 2007-2008  Paul Marks (http://pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://feisley.com/)
 
-$Id: setup.py 550 2008-12-01 11:41:35Z sparkmaul $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -104,7 +104,6 @@ setup(
             "excludes": excludes,
         },
 
-        # TODO: Find out how to make the mac build process easier.
         "py2app": {
             "optimize": 2,
             "argv_emulation": True,

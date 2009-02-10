@@ -3,7 +3,7 @@ Dtella - Dynamic Config Puller Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: pull_dconfig.py 503 2008-04-14 05:30:45Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -157,7 +157,7 @@ class DynamicConfigPuller(object):
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
                 state.dns_pkhashes.add(h)
-
+            
             elif name == 'ipcache':
                 try:
                     data = binascii.a2b_base64(value)
@@ -200,7 +200,7 @@ class DynamicConfigPuller(object):
         def cb():
             self.cfgRefresh_dcall = None
             self.getDynamicConfig(None)
-
+        
         self.cfgRefresh_dcall = reactor.callLater(when, cb)
 
 
@@ -220,7 +220,7 @@ class DynamicConfigPuller(object):
         if self.override_vc < min_vc:
 
             self.main.shutdown(reconnect='no')
-
+            
             text = (
                 " ",
                 "Your version of Dtella (%s) is too old to be used on this "
@@ -251,14 +251,14 @@ class DynamicConfigPuller(object):
         new_vc = cmpify_version(new_v)
 
         if self.reported_vc < new_vc:
-
+            
             if self.main.dch:
                 say = self.main.dch.bot.say
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
                     % (local.version, new_v))
                 say("Download link: %s" % url)
-
+                
                 self.reported_vc = new_vc
 
 

@@ -3,7 +3,7 @@ Dtella - Standalone Dynamic Config Pusher Main Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2008  Paul Marks (http://www.pmarks.net/)
 
-$Id: push_dconfig_main.py 545 2008-11-10 08:57:36Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

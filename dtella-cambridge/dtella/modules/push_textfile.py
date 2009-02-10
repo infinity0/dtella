@@ -3,7 +3,7 @@ Dtella - DNS Updater Plugin (Text File)
 Copyright (C) 2007  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2007  Paul Marks
 
-$Id: push_textfile.py 473 2008-01-23 04:54:25Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

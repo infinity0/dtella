@@ -3,7 +3,7 @@ Dtella - Packet Encryption Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: crypto.py 500 2008-03-31 00:53:54Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

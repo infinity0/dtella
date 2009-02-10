@@ -3,7 +3,7 @@ Dtella - Bridge Client Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: bridge_client.py 545 2008-11-10 08:57:36Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -449,7 +449,7 @@ class NickNode(object):
         self.parent_n.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
 
-    def event_ConnectToMe(self, main, port, fail_cb):
+    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
         fail_cb("IRC users don't have any files.")
 
 

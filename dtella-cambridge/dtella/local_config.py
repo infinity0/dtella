@@ -3,8 +3,9 @@ Dtella - Local Site Configuration
 Copyright (C) 2007-2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2007-2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://www.feisley.com/)
+Copyright (C) 2008-2009  Dtella Cambridge (http://camdc.pcriot.com)
 
-$Id: local_config.py 555 2008-12-02 09:13:56Z sparkmaul $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

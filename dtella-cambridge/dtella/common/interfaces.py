@@ -3,7 +3,7 @@ Dtella - Common Interfaces
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: interfaces.py 545 2008-11-10 08:57:36Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -45,7 +45,7 @@ class IDtellaNickNode(Interface):
         pass
     def event_PrivateMessage(main, text, fail_cb):
         pass
-    def event_ConnectToMe(main, port, fail_cb):
+    def event_ConnectToMe(main, port, use_ssl, fail_cb):
         pass
     def event_RevConnectToMe(main, fail_cb):
         pass

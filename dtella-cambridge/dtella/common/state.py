@@ -2,8 +2,9 @@
 Dtella - State File Management Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com)
 
-$Id: state.py 503 2008-04-14 05:30:45Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -279,6 +280,7 @@ class Persistent(LoadSaver):
     def save(self, state, d):
         self.packValue(d, 'B', bool(state.persistent))
 
+
 #''' BEGIN NEWITEMS MOD #
 
 #Added 18/12/2008 by andyhhp - support for newstuff functionality
@@ -295,6 +297,7 @@ class Newitems_Notify(LoadSaver):
 
     def save(self, state, d):
         self.packValue(d, 'B', bool(state.newitems_notify))
+
 
 # END NEWITEMS MOD '''#
 
@@ -428,7 +431,9 @@ class DNSPkHashes(LoadSaver):
 
 
 client_loadsavers = [Persistent(),
+#''' BEGIN NEWITEMS MOD #
                      Newitems_Notify(),
+# END NEWITEMS MOD '''#
                      LocalSearch(),
                      UDPPort(),
                      IPCache(),

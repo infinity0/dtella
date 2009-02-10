@@ -3,7 +3,7 @@ Dtella - UnrealIRCd-compatible Hostmasking Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
 
-$Id: hostmask.py 542 2008-11-07 08:35:59Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

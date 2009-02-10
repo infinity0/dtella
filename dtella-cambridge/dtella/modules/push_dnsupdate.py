@@ -4,7 +4,7 @@ Copyright (C) 2007  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2007  Jacob Feisley (http://www.feisley.com/)
 Copyright (C) 2007  Paul Marks (http://www.pmarks.net/)
 
-$Id: push_dnsupdate.py 514 2008-08-04 03:55:52Z paul248 $
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
