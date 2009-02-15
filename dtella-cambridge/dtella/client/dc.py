@@ -1675,7 +1675,7 @@ class DtellaBot(object):
             remove = True
             # we don't just test for emptylist, since we want !i wantnot [magnet link]
             # to be able to reverse the effects of !i want [magnet link]
-            if itm.items[(cat, desc[:255])][0].difference(src):
+            if (cat, desc[:255]) in itm.items and itm.items[(cat, desc[:255])][0].difference(src):
                 # other people have that item
                 return
         elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
