@@ -4298,7 +4298,7 @@ class ItemsManager(object):
 
     def checkSyncItemsTimeout(self, n):
         # if not yet received a reply, pick another node
-        if n in self.waiting:
+        if self.waiting and n in self.waiting:
             self.waiting.discard(n)
             self.timedout.add(n)
             self.attemptSyncItems()
