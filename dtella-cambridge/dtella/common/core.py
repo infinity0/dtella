@@ -4397,7 +4397,7 @@ class ItemsManager(object):
         if self.items.has_key((cat, item)):
 
             newsrc = self.items[(cat, item)][0].union(src)
-            changed = (newsrc == self.items[(cat, item)][0])
+            changed = (newsrc != self.items[(cat, item)][0])
 
             # ignore time inconsistencies
             self.items[(cat, item)] = (newsrc, max(self.items[(cat, item)][1], int(time.time()) - tdiff))
