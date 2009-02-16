@@ -104,7 +104,7 @@ def n_user(ipp):
 
 def wild_to_regex(in_str):
     # Build a regular expression from a string containing *'s
-    
+
     regex_badchars = r".^$+?{}\[]|():"
 
     out = '^'
@@ -188,7 +188,7 @@ def dc_from_irc(inick):
 
 def irc_to_dc(inick):
     # Encode an IRC nick, for use in Dtella
-    
+
     return cfg.irc_to_dc_prefix + inick.replace('|','!')
 
 
@@ -230,7 +230,7 @@ if not cfg.dc_to_irc_bot.startswith(cfg.dc_to_irc_prefix):
 class IRCServer(LineOnlyReceiver):
     implements(IDtellaStateObserver)
     showirc = False
-    
+
     def __init__(self, main):
         self.data = IRCServerData(self)
         self.main = main
@@ -250,10 +250,10 @@ class IRCServer(LineOnlyReceiver):
 
     def sendLine(self, line):
         line = line.replace('\r', '').replace('\n', '')
-        
+
         if self.showirc:
             LOG.log(5, "<: %s" % line)
-            
+
         LineOnlyReceiver.sendLine(self, line)
 
 
@@ -311,7 +311,7 @@ class IRCServer(LineOnlyReceiver):
         if self.syncd and matches_dc_to_irc_prefix(newnick):
             self.pushKill(newnick)
             return
-            
+
         if oldnick:
             self.data.changeNick(oldnick, newnick)
         else:
@@ -319,7 +319,7 @@ class IRCServer(LineOnlyReceiver):
 
 
     def handleCmd_JOIN(self, prefix, args):
-        
+
         nick = prefix
         chans = args[0].split(',')
 
@@ -376,7 +376,7 @@ class IRCServer(LineOnlyReceiver):
 
 
     def handleCmd_TOPIC(self, prefix, args):
-        
+
         # :Paul TOPIC #dtella Paul 1169420711 :Dtella :: Development Stage
         chan = args[0]
         whoset = args[1]
@@ -401,7 +401,7 @@ class IRCServer(LineOnlyReceiver):
     def handleCmd_TKL(self, prefix, args):
 
         #:irc1.dhirc.com TKL + Z * 128.10.12.0/24 darkhorse!admin@dhirc.com 0 1171427130 :no reason
-        
+
         addrem = args[0]
         kind = args[1]
 
@@ -531,7 +531,7 @@ class IRCServer(LineOnlyReceiver):
 
     def handleCmd_WHOIS(self, prefix, args):
         # Somewhat simplistic handling of WHOIS requests
-        
+
         if not (prefix and len(args) >= 1):
             return
 
@@ -575,7 +575,7 @@ class IRCServer(LineOnlyReceiver):
 
         self.pushWhoisReply(
             318, src, who, "End of /WHOIS list.")
-            
+
 
 
     def pushWhoisReply(self, code, target, who, *strings):
@@ -596,7 +596,7 @@ class IRCServer(LineOnlyReceiver):
         target = args[0]
         text = args[1]
         flags = 0
-        
+
         if (text[:8], text[-1:]) == ('\001ACTION ', '\001'):
             text = text[8:-1]
             flags |= core.SLASHME_BIT
@@ -608,7 +608,7 @@ class IRCServer(LineOnlyReceiver):
             osm.bsm.addChatChunk(
                 chunks, irc_to_dc(prefix), text, flags)
             osm.bsm.sendBridgeChange(chunks)
-	
+
         #Format> :Global PRIVMSG $irc3.dhirc.com :TESTING....
         #Handle global messages delivered to the bridge.
         elif target == "$" + cfg.my_host:
@@ -682,21 +682,21 @@ class IRCServer(LineOnlyReceiver):
         self.sendLine(
             ":%s TOPIC %s %s %d :%s" %
             (nick, cfg.irc_chan, nick, int(time.time()), topic))
-        
+
 
     def pushQuit(self, nick, reason=""):
         self.sendLine(":%s QUIT :%s" % (nick, reason))
-        
+
 
     def pushPrivMsg(self, nick, text, target=None, action=False):
         if target is None:
             target = cfg.irc_chan
-            
+
         if action:
             text = "\001ACTION %s\001" % text
-        
+
         self.sendLine(":%s PRIVMSG %s :%s" % (nick, target, text))
-    
+
 
     def pushNotice(self, nick, text, target=None):
         if target is None:
@@ -732,7 +732,7 @@ class IRCServer(LineOnlyReceiver):
         if self.ping_dcall:
             self.ping_dcall.reset(60.0)
             return
-        
+
         def cb():
             self.ping_dcall = None
 
@@ -816,7 +816,7 @@ class IRCServer(LineOnlyReceiver):
                 pass
             else:
                 reason += " [%d sec]" % int(time.time() - t)
-            
+
             self.pushQuit(n.inick, reason)
 
 
@@ -869,7 +869,7 @@ class IRCServer(LineOnlyReceiver):
 
         if self.shutdown_deferred:
             return self.shutdown_deferred
-        
+
         # Remove nick ban
         self.pushRemoveQLine(cfg.dc_to_irc_prefix + "*")
 
@@ -893,13 +893,13 @@ class IRCServer(LineOnlyReceiver):
         LOG.info("Lost IRC connection.")
         if self.syncd:
             self.main.removeIRCServer(self)
-        
+
         if self.shutdown_deferred:
             self.shutdown_deferred.callback("Bye!")
 
 verifyClass(IDtellaStateObserver, IRCServer)
 
-        
+
 ##############################################################################
 
 
@@ -913,7 +913,7 @@ class IRCServerData(object):
 
     def __init__(self, ircs):
         self.ircs = ircs
-        
+
         self.users = {} # nick -> User()
         self.chanusers = set()
 
@@ -964,7 +964,7 @@ class IRCServerData(object):
             if (self.ircs.syncd and osm and osm.syncd):
 
                 infoindex = self.getInfoIndex(newnick)
-                
+
                 chunks = []
                 osm.bsm.addChatChunk(
                     chunks, cfg.irc_to_dc_bot,
@@ -996,13 +996,13 @@ class IRCServerData(object):
                     )
                 osm.bsm.addNickChunk(chunks, irc_to_dc(n00b), 0xFF)
                 osm.bsm.sendBridgeChange(chunks)
-                
+
             else:
                 # DC Nick
                 chunks = []
                 osm.bsm.addKickChunk(
                     chunks, n, irc_to_dc(l33t), reason,
-                    rejoin=True, silent=False
+                    rejoin=False, silent=False # TODO: change back to rejoin=True when upgrade is over
                     )
                 osm.bsm.sendBridgeChange(chunks)
 
@@ -1097,7 +1097,7 @@ class IRCServerData(object):
         if (self.ircs.syncd and osm and osm.syncd):
 
             infoindex = self.getInfoIndex(nick)
-            
+
             chunks = []
             osm.bsm.addNickChunk(
                 chunks, irc_to_dc(nick), infoindex)
@@ -1203,7 +1203,7 @@ class IRCServerData(object):
 
         h1 = "%s!%s@%s" % (n.inick, n_user(n.ipp), n.hostname)
         h2 = "%s!%s@%s" % (n.inick, n_user(n.ipp), n.hostmask)
-        
+
         for ban_re in self.chanbans.itervalues():
             if ban_re.match(h1) or ban_re.match(h2):
                 return True
@@ -1212,7 +1212,7 @@ class IRCServerData(object):
 
 
     def addNetBan(self, ip, mask):
-        
+
         if (ip, mask) in self.bans:
             LOG.warning( "Duplicate ban" )
             return
@@ -1302,7 +1302,7 @@ class IRCServerData(object):
 
         self.topic = topic
         self.topic_whoset = whoset
-        
+
         osm = self.ircs.main.osm
         if (self.ircs.syncd and osm and osm.syncd):
             chunks = []
@@ -1352,7 +1352,7 @@ class IRCServerData(object):
         if u not in self.chanusers:
             # Out of the channel, virtual nick.
             return 6
-        
+
         try:
             # qaohv
             return u.chanmodes.index(True)
@@ -1375,7 +1375,7 @@ class IRCFactory(ReconnectingClientFactory):
     initialDelay = 10
     maxDelay = 60*20
     factor = 1.5
-    
+
     def __init__(self, main):
         self.main = main
 
@@ -1460,7 +1460,7 @@ class BridgeServerProtocol(core.PeerHandler):
 class BridgeServerManager(object):
 
     class CachedBlock(object):
-        
+
         def __init__(self, data):
             self.data = data
             self.expire_dcall = None
@@ -1529,7 +1529,7 @@ class BridgeServerManager(object):
             body = data
 
         data_hash = md5(body).digest()
-        
+
         t = time.time()
         sig, = self.rsa_obj.sign(data_hash, None)
         LOG.debug("Sign Time = %f sec" % (time.time() - t))
@@ -1759,7 +1759,7 @@ class BridgeServerManager(object):
         # Pick a packet number that's a little bit ahead of what the node
         # is using, so that any status messages sent out by the node at
         # the same time will be overriden by the kick.
-        
+
         n.status_pktnum = (n.status_pktnum + 3) % 0x100000000
 
         flags = (rejoin and core.REJOIN_BIT)
@@ -1774,7 +1774,7 @@ class BridgeServerManager(object):
             n00b = ''
         else:
             n00b = n.nick
-        
+
         chunks.append(struct.pack("!B", len(n00b)))
         chunks.append(n00b)
         chunks.append(struct.pack("!H", len(reason)))
@@ -1821,7 +1821,7 @@ class BridgeServerManager(object):
         chunks.append('M')
         chunks.append(struct.pack('!BB', flags, len(nick)))
         chunks.append(nick)
-        
+
         text = text[:512]
         chunks.append(struct.pack('!H', len(text)))
         chunks.append(text)
@@ -1895,7 +1895,7 @@ class BridgeServerManager(object):
                     dst_nick = irc_from_dc(dst_nick)
                 except NickError:
                     raise Reject("Invalid dest nick")
-                
+
                 if dst_nick not in ircs.data.users:
                     raise Reject("Dest not on IRC")
 
@@ -2010,7 +2010,7 @@ class ReverseDNSManager(object):
         ip, ent = self.dnsq.popleft()
 
         def cb(hostname):
-          
+
             for ipp in ent.waiting_ipps:
                 self.signOn(ipp, hostname)
 
