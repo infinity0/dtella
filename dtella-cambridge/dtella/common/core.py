@@ -4386,6 +4386,7 @@ class ItemsManager(object):
             stream.append(struct.pack('!B', len(src)))
             stream.append(src)
         stream = bz2.compress(''.join(stream))
+        ## TODO: code length-check on this
 
         packet.append(struct.pack('!H', len(stream)))
         packet.append(stream)
@@ -4416,28 +4417,29 @@ class ItemsManager(object):
             if not self.items[(cat, item)][0]: new = True
             else: new = False
 
-            # add src to the set
-            newsrc = self.items[(cat, item)][0].union(src)
-
+            srcstr = self.serialiseSources(self.items[(cat, item)][0].union(src))
             # check if this will make the set too big
-            if self.getSerialisedLength(newsrc) > 255:
+            if len(srcstr) > 255:
                 raise Reject
 
+            # add src to the set
             self.items[(cat, item)][0].update(src)
 
             if new and newsrc:
-                self.notifyDC("New %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+                self.notifyDC("New %s: %s -- %s" % (self.getCategory(cat, 'stuff'), item, srcstr), self.main.osm.me.nick in src)
 
         else:
             src = set(src)
+
+            srcstr = self.serialiseSources(src)
             # check if this will make the set too big
-            if self.getSerialisedLength(src) > 255:
+            if len(srcstr) > 255:
                 raise Reject
 
             # new item
             self.items[(cat, item)] = (src, int(time.time()))
 
-            if src: self.notifyDC("New %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+            if src: self.notifyDC("New %s: %s -- %s" % (self.getCategory(cat, 'stuff'), item, srcstr), self.main.osm.me.nick in src)
             else: self.notifyDC("Wanted %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
 
 
@@ -4622,8 +4624,8 @@ class ItemsManager(object):
             return 'WANTED - please bring to the network!'
 
 
-    def getSerialisedLength(self, list):
-        return len(' '.join(list))
+    def serialiseSources(self, list):
+        return ' '.join(list)
 
 
     def shutdown(self):

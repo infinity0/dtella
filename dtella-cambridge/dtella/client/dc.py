@@ -1628,7 +1628,13 @@ class DtellaBot(object):
             return
 
         itm = self.main.osm.itm
-        type, desc = desc.split(' ', 1)
+
+        try:
+            type, desc = desc.split(' ', 1)
+        except ValueError:
+            self.syntaxHelp(out, 'I', prefix)
+            return
+
         type = type.upper()
         src = []
 
