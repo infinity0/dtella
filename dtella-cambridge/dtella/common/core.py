@@ -26,7 +26,6 @@ import heapq
 import time
 import random
 import bisect
-import weakref
 import socket
 from binascii import hexlify
 from hashlib import md5
@@ -35,8 +34,9 @@ import bz2
 # END NEWITEMS MOD '''#
 
 from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 from twisted.python.runtime import seconds
+import twisted.internet.error
 
 import dtella.local_config as local
 import dtella.common.crypto
@@ -507,7 +507,7 @@ class PeerHandler(DatagramProtocol):
         # This helps a little to prevent the injection of random broadcast
         # traffic into the network.
         try:
-            if not osm.lookup_ipp[nb_ipp].got_ack:
+            if not osm.pgm.pnbs[nb_ipp].got_ack:
                 raise KeyError
         except KeyError:
             raise BadTimingError("Broadcast packet not from a ping neighbor")
@@ -607,9 +607,6 @@ class PeerHandler(DatagramProtocol):
                 n = osm.lookup_ipp[src_ipp]
             except KeyError:
                 raise Reject("Unknown node")
-
-            if not n.expire_dcall:
-                raise Reject("Not online")
 
             if src_nhash != n.nickHash():
                 raise Reject("Source nickhash mismatch")
@@ -748,16 +745,21 @@ class PeerHandler(DatagramProtocol):
             IR_LEN = IC_LEN
 
         elif osm and osm.syncd:
-            # Add in some online nodes
-            node_ipps = [n.ipp for n in osm.nodes if n.expire_dcall]
-
-            # Add myself
-            node_ipps.append(osm.me.ipp)
-
+            # Get a random sample of online nodes (plus me).
+            indices = xrange(len(osm.nodes) + 1)
             try:
-                node_ipps = random.sample(node_ipps, IR_LEN)
+                indices = random.sample(indices, IR_LEN)
             except ValueError:
                 pass
+
+            # Remap the list of indices into a list of ipps.
+            # For the one out-of-bounds index, fill in 'me'.
+            def get_ipp(i):
+                try:
+                    return osm.nodes[i].ipp
+                except IndexError:
+                    return osm.me.ipp
+            node_ipps = [get_ipp(i) for i in indices]
 
         elif osm:
             # Not syncd yet, don't add any online nodes
@@ -979,9 +981,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadBroadcast("Outdated")
 
             if osm.syncd:
-                if (src_n and src_n.expire_dcall and
-                    src_n.infohash == infohash
-                    ):
+                if src_n and src_n.infohash == infohash:
                     # We are syncd, and this node matches, so extend the
                     # expire timeout and keep forwarding.
                     src_n.status_pktnum = pktnum
@@ -1026,15 +1026,13 @@ class PeerHandler(DatagramProtocol):
                 if src_ipp == osm.me.ipp and sesid == osm.me.sesid:
                     # Yikes! Make me a new session id and rebroadcast it.
                     osm.me.sesid = randbytes(4)
-                    for n in osm.nodes:
-                        n.calcDistance(osm.me)
-                    osm.nodes.sort()
+                    osm.reorderNodesList()
 
                     osm.sendMyStatus()
                     osm.pgm.scheduleMakeNewLinks()
                     raise BadBroadcast("Tried to exit me")
 
-                if not (src_n and src_n.expire_dcall):
+                if not src_n:
                     raise BadBroadcast("Node not online")
 
                 if sesid != src_n.sesid:
@@ -1096,8 +1094,6 @@ class PeerHandler(DatagramProtocol):
 
         try:
             n = osm.lookup_ipp[dead_ipp]
-            if not n.expire_dcall:
-                raise KeyError
         except KeyError:
             raise BadTimingError("PF received for not-online node")
 
@@ -1107,7 +1103,7 @@ class PeerHandler(DatagramProtocol):
         if self.isOutdatedStatus(n, pktnum):
             raise BadTimingError("PF is outdated")
 
-        osm.pgm.handleNodeFailure(n, nb_ipp)
+        osm.pgm.handleNodeFailure(n.ipp, nb_ipp)
 
 
     def handlePacket_CH(self, ad, data):
@@ -1143,7 +1139,7 @@ class PeerHandler(DatagramProtocol):
                 # it's better than broadcasting useless traffic.
                 raise BadBroadcast("Chat is moderated")
 
-            elif src_n and src_n.expire_dcall and nhash == src_n.nickHash():
+            elif src_n and nhash == src_n.nickHash():
                 osm.cms.addMessage(
                     src_n, pktnum, src_n.nick, text, flags)
 
@@ -1180,7 +1176,7 @@ class PeerHandler(DatagramProtocol):
                 # Not syncd, forward blindly
                 return None
 
-            if src_n and src_n.expire_dcall and nhash == src_n.nickHash():
+            if src_n and nhash == src_n.nickHash():
                 osm.tm.gotTopic(src_n, topic)
 
             else:
@@ -1210,11 +1206,9 @@ class PeerHandler(DatagramProtocol):
                 # Not syncd, forward blindly
                 return
 
-            if src_n and src_n.expire_dcall:
+            if src_n:
                 # Looks good
-
                 dch = self.main.getOnlineDCH()
-
                 if dch:
                     dch.pushSearchRequest(src_ipp, string)
 
@@ -1594,19 +1588,9 @@ class InitialContactManager(DatagramProtocol):
             self.bad_code = False
 
 
-    def __init__(self, main, cb):
+    def __init__(self, main):
         self.main = main
-        self.done_callback = cb
-
-        self.main.showLoginStatus("Scanning For Online Nodes...", counter=1)
-
-        # Listen on an arbitrary UDP port
-        try:
-            reactor.listenUDP(0, self)
-        except twisted.internet.error.BindError:
-            self.main.showLoginStatus("Failed to bind alt UDP port!")
-            self.done_callback('no_nodes', None)
-            return
+        self.deferred = None
 
         self.peers = {}  # {IPPort -> PeerInfo object}
 
@@ -1626,7 +1610,23 @@ class InitialContactManager(DatagramProtocol):
         self.counters = {
             'good':0, 'foreign_ip':0, 'banned_ip':0, 'dead_port':0}
 
-        self.scheduleInitRequest()
+
+    def start(self):
+        CHECK(self.deferred is None)
+        self.deferred = defer.Deferred()
+
+        self.main.showLoginStatus("Scanning For Online Nodes...", counter=1)
+
+        # Listen on an arbitrary UDP port
+        try:
+            reactor.listenUDP(0, self)
+        except twisted.internet.error.BindError:
+            self.main.showLoginStatus("Failed to bind alt UDP port!")
+            self.deferred.callback(('no_nodes', None))
+        else:
+            self.scheduleInitRequest()
+
+        return self.deferred
 
 
     def newPeer(self, ipp, seen):
@@ -1649,7 +1649,8 @@ class InitialContactManager(DatagramProtocol):
 
 
     def scheduleInitRequest(self):
-
+        if not self.deferred:
+            return
         if self.initrequest_dcall:
             return
 
@@ -1697,7 +1698,7 @@ class InitialContactManager(DatagramProtocol):
 
         self.waitreply.add(p)
 
-        def cb(p):
+        def cb():
             p.timeout_dcall = None
             self.waitreply.remove(p)
 
@@ -1706,7 +1707,7 @@ class InitialContactManager(DatagramProtocol):
 
             self.checkStatus()
 
-        p.timeout_dcall = reactor.callLater(5.0, cb, p)
+        p.timeout_dcall = reactor.callLater(5.0, cb)
 
 
     def cancelPeerContactTimeout(self, p):
@@ -1845,7 +1846,7 @@ class InitialContactManager(DatagramProtocol):
         self.shutdown()
 
         if good:
-            self.done_callback('good', self.node_ipps)
+            self.deferred.callback(('good', self.node_ipps))
 
         else:
             # In a tie, prefer 'banned_ip' over 'foreign_ip', etc.
@@ -1860,11 +1861,11 @@ class InitialContactManager(DatagramProtocol):
 
             if rank[0][0] == 0:
                 # Nobody replied
-                self.done_callback('no_nodes', None)
+                self.deferred.callback(('no_nodes', None))
 
             else:
                 # Return the name of the failure which occurred most
-                self.done_callback(rank[0][2], None)
+                self.deferred.callback((rank[0][2], None))
 
 
     def datagramReceived(self, data, addr):
@@ -1901,17 +1902,6 @@ class Node(object):
     # This will be redefined for bridge nodes
     bridge_data = None
 
-    # These will get defined for the instance if the node becomes
-    # a Ping Neighbor
-    is_ping_nb = False
-    ping_reqs = None
-    sendPing_dcall = None
-    nodeFail_dcall = None
-    got_ack = False
-    u_got_ack = False
-    ping_nbs = None
-    avg_ping = None
-
     # Remember when we receive a RevConnect
     rcWindow_dcall = None
 
@@ -1921,7 +1911,6 @@ class Node(object):
         self.ipp = ipp            # 6-byte IP:Port
         self.sesid = None         # 4-byte session ID
         self.dist = None          # 16-byte md5 "distance"
-        self.inlist = False       # True if it's in the nodes list
         self.expire_dcall = None  # dcall for expiring stale nodes
         self.status_pktnum = None # Pktnum of last status update
 
@@ -2056,7 +2045,7 @@ class Node(object):
     def sendPrivateMessage(self, ph, ack_key, packet, fail_cb):
         # Send an ACK-able direct message to this node
 
-        def cb(fail_cb, tries):
+        def cb(tries):
 
             if tries == 0:
                 del self.msgkeys_out[ack_key]
@@ -2068,11 +2057,12 @@ class Node(object):
 
             # Set timeout for outbound message
             # This will be cancelled if we receive an AK in time.
-            self.msgkeys_out[ack_key] = reactor.callLater(
-                1.0, cb, fail_cb, tries-1)
+            dcall = reactor.callLater(1.0, cb, tries-1)
+            dcall.pm_fail_cb = fail_cb
+            self.msgkeys_out[ack_key] = dcall
 
         # Send it 3 times, then fail.
-        cb(fail_cb, 3)
+        cb(3)
 
 
     def receivedPrivateMessageAck(self, ack_key, reject):
@@ -2084,19 +2074,10 @@ class Node(object):
             return
 
         if reject:
-            dcall.args[0]("Rejected")  # Call fail_cb
+            dcall.pm_fail_cb("Rejected")
 
         dcall.cancel()
 
-
-    def stillAlive(self):
-        # return True if the connection hasn't timed out yet
-        return (self.sendPing_dcall and self.sendPing_dcall.args[1] >= 0)
-
-
-    def stronglyConnected(self):
-        # return True if both ends are willing to accept broadcast traffic
-        return (self.got_ack and self.u_got_ack)
 
 
     def event_PrivateMessage(self, main, text, fail_cb):
@@ -2283,8 +2264,17 @@ class SyncManager(object):
         # Notify the user of the sync stats, if they've changed.
 
         MAX = 20
+        done = self.stats_done
+        total = self.stats_total
 
-        def cb(bar, done, total):
+        if total == 0:
+            bar = MAX
+        else:
+            bar = (MAX * done) // total
+
+        dcall_discard(self, 'showProgress_dcall')
+
+        def cb():
             self.showProgress_dcall = None
 
             if bar == self.stats_lastbar:
@@ -2296,20 +2286,12 @@ class SyncManager(object):
             self.main.showLoginStatus(
                 "[%s] (%d/%d)" % (progress, done, total))
 
-        if self.stats_total == 0:
-            bar = MAX
-        else:
-            bar = (MAX * self.stats_done) // self.stats_total
-
-        dcall_discard(self, 'showProgress_dcall')
-
         if bar == MAX:
             # The final update should draw immediately
-            cb(bar, self.stats_done, self.stats_total)
+            cb()
         else:
             # Otherwise, only draw once per reactor loop
-            self.showProgress_dcall = reactor.callLater(
-                0, cb, bar, self.stats_done, self.stats_total)
+            self.showProgress_dcall = reactor.callLater(0, cb)
 
 
     def advanceQueue(self):
@@ -2433,7 +2415,7 @@ class SyncManager(object):
         if s.timeout_dcall:
             return
 
-        def cb(s):
+        def cb():
             s.timeout_dcall = None
             self.waitcount -= 1
 
@@ -2452,7 +2434,7 @@ class SyncManager(object):
             s.proxy_request = True
 
         self.waitcount += 1
-        s.timeout_dcall = reactor.callLater(2.0, cb, s)
+        s.timeout_dcall = reactor.callLater(2.0, cb)
 
 
     def cancelSyncTimeout(self, s):
@@ -2532,18 +2514,17 @@ class OnlineStateManager(object):
 
         self.sendLoginEcho()
 
-        self.lookup_ipp = weakref.WeakValueDictionary() # {ipp: Node()}
+        # List of online nodes, sorted by random distance.
         self.nodes = []
+        # Index of online nodes: ipp -> Node()
+        self.lookup_ipp = {}
 
         for ipp in node_ipps:
-            n = self.lookup_ipp[ipp] = Node(ipp)
-            n.inlist = True
-            self.nodes.append(n)
+            self.addNodeToNodesList(Node(ipp))
 
         # Initially, we'll just connect to random nodes.
         # This list will be sorted after syncing is finished.
         random.shuffle(self.nodes)
-
 
         if self.nodes:
             self.main.showLoginStatus(
@@ -2560,19 +2541,18 @@ class OnlineStateManager(object):
         # Forget the SyncManager
         self.sm = None
 
-        # Remove weird neighbors from the list, and sort by distance
-        nodes = []
-        for n in self.nodes:
-            n.inlist = bool(n.expire_dcall)
-            if n.inlist:
-                n.calcDistance(self.me)
-                nodes.append(n)
+        # Unconfirmed nodes (without an expiration) can't exist once the
+        # network is syncd, so purge them from the nodes list.
+        old_nodes = self.nodes
+        self.nodes = []
+        self.lookup_ipp.clear()
+        for n in old_nodes:
+            if n.expire_dcall:
+                self.addNodeToNodesList(n)
             else:
-                # No longer an outbound node
-                self.pgm.removeOutboundLink(n)
+                self.pgm.removeOutboundLink(n.ipp)
 
-        self.nodes = nodes
-        self.nodes.sort()
+        self.reorderNodesList()
 
         # Get ready to handle Sync requests from other nodes
         self.yqrm = SyncRequestRoutingManager(self.main)
@@ -2600,8 +2580,10 @@ class OnlineStateManager(object):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
+            in_nodes = True
         except KeyError:
-            n = self.lookup_ipp[src_ipp] = Node(src_ipp)
+            n = Node(src_ipp)
+            in_nodes = False
 
         self.main.logPacket("Status: %s %d (%s)" %
                             (hexlify(src_ipp), expire, nick))
@@ -2612,11 +2594,11 @@ class OnlineStateManager(object):
         # Change uptime to a fixed time when the node went up
         uptime = seconds() - uptime
 
-        if self.syncd and n.inlist and n.sesid != sesid:
+        if self.syncd and in_nodes and n.sesid != sesid:
             # session ID changed; remove n from sorted nodes list
             # so that it will be reinserted into the correct place
-            del self.nodes[bisect.bisect_left(self.nodes, n)]
-            n.inlist = False
+            self.removeNodeFromNodesList(n)
+            in_nodes = False
 
         # Update info
         n.sesid = sesid
@@ -2653,13 +2635,8 @@ class OnlineStateManager(object):
                     n.setNoUser()
 
         # If n isn't in nodes list, then add it
-        if not n.inlist:
-            if self.syncd:
-                n.calcDistance(self.me)
-                bisect.insort(self.nodes, n)
-            else:
-                self.nodes.append(n)
-            n.inlist = True
+        if not in_nodes:
+            self.addNodeToNodesList(n)
 
         # Expire this node after the expected retransmit
         self.scheduleNodeExpire(n, expire + NODE_EXPIRE_EXTEND)
@@ -2676,16 +2653,7 @@ class OnlineStateManager(object):
 
         dcall_discard(n, 'expire_dcall')
 
-        if not n.inlist:
-            return
-
-        # Remove from nodes list
-        if self.syncd:
-            del self.nodes[bisect.bisect_left(self.nodes, n)]
-        else:
-            self.nodes.remove(n)
-
-        n.inlist = False
+        self.removeNodeFromNodesList(n)
 
         # Tell the TopicManager this node is leaving
         self.tm.checkLeavingNode(n)
@@ -2704,11 +2672,36 @@ class OnlineStateManager(object):
         if self.sm:
             self.sm.giveUpNode(n.ipp)
 
-        # Remove from outbound links
-        self.pgm.removeOutboundLink(n)
+        # Remove from outbound links; find more if needed.
+        if self.pgm.removeOutboundLink(n.ipp):
+            self.pgm.scheduleMakeNewLinks()
 
-        # Maybe get more outbound links
-        self.pgm.scheduleMakeNewLinks()
+
+    def addNodeToNodesList(self, n):
+        if self.syncd:
+            n.calcDistance(self.me)
+            bisect.insort(self.nodes, n)
+        else:
+            self.nodes.append(n)
+        self.lookup_ipp[n.ipp] = n
+
+
+    def removeNodeFromNodesList(self, n):
+        # Remove a node from self.nodes.  It must exist.
+        if self.syncd:
+            i = bisect.bisect_left(self.nodes, n)
+            CHECK(self.nodes[i] == n)
+            del self.nodes[i]
+        else:
+            self.nodes.remove(n)
+        del self.lookup_ipp[n.ipp]
+
+
+    def reorderNodesList(self):
+        # Recalculate and sort all nodes in the nodes list.
+        for n in self.nodes:
+            n.calcDistance(self.me)
+        self.nodes.sort()
 
 
     def scheduleNodeExpire(self, n, when):
@@ -2718,11 +2711,11 @@ class OnlineStateManager(object):
             n.expire_dcall.reset(when)
             return
 
-        def cb(n):
+        def cb():
             n.expire_dcall = None
             self.nodeExited(n, "Node Timeout")
 
-        n.expire_dcall = reactor.callLater(when, cb, n)
+        n.expire_dcall = reactor.callLater(when, cb)
 
 
     def getStatus(self):
@@ -2985,6 +2978,28 @@ class OnlineStateManager(object):
 
 class PingManager(object):
 
+    class PingNeighbor(object):
+        def __init__(self, ipp):
+            self.ipp = ipp
+            self.outbound = False
+            self.inbound = False
+            self.ping_reqs = {}           # {ack_key: time sent}
+            self.sendPing_dcall = None    # dcall for sending pings
+            self.deadNb_dcall = None      # keep track of node failure
+            self.got_ack = False
+            self.u_got_ack = False
+            self.ping_nbs = None
+            self.avg_ping = None
+
+        def stillAlive(self):
+            # return True if the connection hasn't timed out yet
+            return (self.sendPing_dcall and
+                    self.sendPing_dcall.args[0] >= 0)
+
+        def stronglyConnected(self):
+            # return True if both ends are willing to accept broadcast traffic
+            return (self.got_ack and self.u_got_ack)
+
     OUTLINK_GOAL = 3
 
     def __init__(self, main):
@@ -2992,8 +3007,9 @@ class PingManager(object):
 
         self.chopExcessLinks_dcall = None
         self.makeNewLinks_dcall = None
-        self.outbound = set()
-        self.inbound = set()
+
+        # All of my ping neighbors: ipp -> PingNeighbor()
+        self.pnbs = {}
 
         self.onlineTimeout_dcall = None
         self.scheduleOnlineTimeout()
@@ -3004,74 +3020,65 @@ class PingManager(object):
         osm = self.main.osm
 
         try:
-            n = osm.lookup_ipp[src_ipp]
+            pn = self.pnbs[src_ipp]
         except KeyError:
+            # If we're not fully online yet, then reject pings that we never
+            # asked for.
             if not osm.syncd:
                 raise BadTimingError("Not ready to accept pings yet")
-            n = osm.lookup_ipp[src_ipp] = Node(src_ipp)
+            pn = self.pnbs[src_ipp] = self.PingNeighbor(src_ipp)
 
-        iwant = (n in self.outbound)
+        CHECK(osm.syncd or pn.outbound)
 
-        # If we're not fully online yet, then reject pings that we never
-        # asked for.
-
-        if not (osm.syncd or iwant):
-            raise BadTimingError("Not ready to acccept pings yet")
-
-        self.initPingNeighbor(n)
-
-        # Save list of neighbors
+        # Save list of this node's neighbors
         if nbs is not None:
-            n.ping_nbs = tuple(nbs)
+            pn.ping_nbs = tuple(nbs)
 
-        # Put n in inbound iff we got a uwant
-        if uwant:
-            self.inbound.add(n)
-        else:
-            self.inbound.discard(n)
+        # Mark neighbor as inbound iff we got a uwant
+        pn.inbound = uwant
 
         # If they requested an ACK, then we'll want to ping soon
         ping_now = bool(req_key)
 
-        was_stronglyConnected = n.stronglyConnected()
+        was_stronglyConnected = pn.stronglyConnected()
 
         # Keep track of whether the remote node has received an ack from us
-        n.u_got_ack = u_got_ack
+        pn.u_got_ack = u_got_ack
 
         # If this ping contains an acknowledgement...
         if ack_key:
             try:
-                sendtime = n.ping_reqs[ack_key]
+                sendtime = pn.ping_reqs[ack_key]
             except KeyError:
                 raise BadPacketError("PG: unknown ack")
+
+            # Keep track of ping delay
+            delay = seconds() - sendtime
+            self.main.logPacket("Ping: %f ms" % (delay * 1000.0))
+
+            if pn.avg_ping is None:
+                pn.avg_ping = delay
             else:
-                # Keep track of ping delay
-                delay = seconds() - sendtime
-                self.main.logPacket("Ping: %f ms" % (delay * 1000.0))
+                pn.avg_ping = 0.8 * pn.avg_ping + 0.2 * delay
 
-                if n.avg_ping is None:
-                    n.avg_ping = delay
-                else:
-                    n.avg_ping = 0.8 * n.avg_ping + 0.2 * delay
+            # If we just got the first ack, then send a ping now to
+            # send the GOTACK bit to neighbor
+            if not pn.got_ack:
+                pn.got_ack = True
+                ping_now = True
 
-                # If we just got the first ack, then send a ping now to
-                # send the GOTACK bit to neighbor
-                if not n.got_ack:
-                    n.got_ack = True
-                    ping_now = True
+            dcall_discard(pn, 'deadNb_dcall')
 
-                dcall_discard(n, 'nodeFail_dcall')
+            # Schedule next ping in ~5 seconds
+            self.pingWithRetransmit(pn, tries=4, later=True)
 
-                # Schedule next ping in ~5 seconds
-                self.pingWithRetransmit(n, tries=4, later=True)
+            # Got ack, so reset the online timeout
+            self.scheduleOnlineTimeout()
 
-                # Got ack, so reset the online timeout
-                self.scheduleOnlineTimeout()
-
-        if not was_stronglyConnected and n.stronglyConnected():
+        if not was_stronglyConnected and pn.stronglyConnected():
 
             # Just got strongly connected.
-            if n in self.outbound:
+            if pn.outbound:
                 self.scheduleChopExcessLinks()
 
             # If we have a good solid link, then the sync procedure
@@ -3082,17 +3089,17 @@ class PingManager(object):
         # Decide whether to request an ACK.  This is in a nested
         # function to make the logic more redable.
         def i_req():
-            if not (iwant or uwant):
+            if not (pn.outbound or pn.inbound):
                 # Don't request an ack for an unwanted connection
                 return False
 
-            if not n.stillAlive():
+            if not pn.stillAlive():
                 # Try to revitalize this connection
                 return True
 
             if (ping_now and
-                hasattr(n.sendPing_dcall, 'ping_is_shortable') and
-                dcall_timeleft(n.sendPing_dcall) <= 1.0
+                hasattr(pn.sendPing_dcall, 'ping_is_shortable') and
+                dcall_timeleft(pn.sendPing_dcall) <= 1.0
                 ):
                 # We've got a REQ to send out in a very short time, so
                 # send it out early with this packet we're sending already.
@@ -3102,29 +3109,27 @@ class PingManager(object):
 
         if i_req():
             # Send a ping with ACK requesting + retransmits
-            self.pingWithRetransmit(n, tries=4, later=False, ack_key=req_key)
+            self.pingWithRetransmit(pn, tries=4, later=False, ack_key=req_key)
 
         elif ping_now:
             # Send a ping without an ACK request
-            self.sendPing(n, i_req=False, ack_key=req_key)
+            self.sendPing(pn, i_req=False, ack_key=req_key)
 
         # If neither end wants this connection, throw it away.
-        if not (iwant or uwant):
-            self.cancelInactiveLink(n)
+        if not (pn.outbound or pn.inbound):
+            self.cancelInactiveLink(pn)
 
 
-    def pingWithRetransmit(self, n, tries, later, ack_key=None):
+    def pingWithRetransmit(self, pn, tries, later, ack_key=None):
 
-        CHECK(n.is_ping_nb)
+        dcall_discard(pn, 'sendPing_dcall')
+        pn.ping_reqs.clear()
 
-        dcall_discard(n, 'sendPing_dcall')
-        n.ping_reqs.clear()
-
-        def cb(n, tries):
-            n.sendPing_dcall = None
+        def cb(tries):
+            pn.sendPing_dcall = None
 
             # Send the ping
-            self.sendPing(n, True)
+            self.sendPing(pn, True)
 
             # While tries is positive, use 1 second intervals.
             # When it hits zero, trigger a timeout.  As it goes negative,
@@ -3133,133 +3138,112 @@ class PingManager(object):
             if tries > 0:
                 when = 1.0
             else:
-                when = 2.0 ** min(-tries, 7)  # max of 128 sec
+                tries = max(tries, -7)
+                when = 2.0 ** -tries  # max of 128 sec
 
             # Tweak the delay
             when *= random.uniform(0.9, 1.1)
 
             # Schedule retransmit
-            n.sendPing_dcall = reactor.callLater(when, cb, n, tries-1)
+            pn.sendPing_dcall = reactor.callLater(when, cb, tries-1)
 
             # Just failed now
             if tries == 0:
 
-                if (self.main.osm.syncd and n.got_ack):
+                if self.main.osm.syncd and pn.got_ack:
                     # Note that we had to set sendPing_dcall before this.
-                    self.handleNodeFailure(n)
+                    self.handleNodeFailure(pn.ipp)
 
-                n.got_ack = False
+                pn.got_ack = False
 
                 # If this was an inbound node, forget it.
-                self.inbound.discard(n)
+                pn.inbound = False
 
-                if n in self.outbound:
+                if pn.outbound:
                     # An outbound link just failed.  Go find another one.
                     self.scheduleMakeNewLinks()
                 else:
                     # Neither side wants this link.  Clean up.
-                    self.cancelInactiveLink(n)
-
+                    self.cancelInactiveLink(pn)
 
         if later:
             when = 5.0
         else:
             # Send first ping
-            self.sendPing(n, True, ack_key)
+            self.sendPing(pn, True, ack_key)
             tries -= 1
             when = 1.0
 
         # Schedule retransmit(s)
         when *= random.uniform(0.9, 1.1)
-        n.sendPing_dcall = reactor.callLater(when, cb, n, tries)
+        pn.sendPing_dcall = reactor.callLater(when, cb, tries)
 
         # Leave a flag value in the dcall so we can test whether this
         # ping can be made a bit sooner
         if later:
-            n.sendPing_dcall.ping_is_shortable = True
+            pn.sendPing_dcall.ping_is_shortable = True
 
 
-    def initPingNeighbor(self, n):
-        # To conserve RAM, this state is only attached to ping neighbors.
-        # Normal nodes just keep the class-level defaults
-
-        if not n.is_ping_nb:
-            n.is_ping_nb = True
-            n.ping_reqs = {}           # {ack_key: time sent}
-            n.sendPing_dcall = None    # dcall for sending pings
-            n.nodeFail_dcall = None    # keep track of node failure
-            n.got_ack = False
-            n.u_got_ack = False
-            n.ping_nbs = None
-            n.avg_ping = None
+    def cancelInactiveLink(self, pn):
+        # Quietly remove an unwanted ping neighbor.
+        CHECK(not pn.inbound)
+        CHECK(not pn.outbound)
+        dcall_discard(pn, 'sendPing_dcall')
+        dcall_discard(pn, 'deadNb_dcall')
+        del self.pnbs[pn.ipp]
 
 
-    def cancelInactiveLink(self, n):
-        # Demote n back to a normal node
-
-        CHECK(n.is_ping_nb)
-
-        dcall_discard(n, 'sendPing_dcall')
-        dcall_discard(n, 'nodeFail_dcall')
-        del n.is_ping_nb
-        del n.ping_reqs
-        del n.sendPing_dcall
-        del n.nodeFail_dcall
-        del n.got_ack
-        del n.u_got_ack
-        del n.ping_nbs
-        del n.avg_ping
-
-
-    def instaKillNeighbor(self, n):
+    def instaKillNeighbor(self, pn):
         # Unconditionally drop neighbor connection (used for bans)
-
-        CHECK(n.is_ping_nb)
-
-        iwant = (n in self.outbound)
-
-        self.inbound.discard(n)
-        self.outbound.discard(n)
-
-        self.cancelInactiveLink(n)
+        iwant = pn.outbound
+        pn.inbound = False
+        pn.outbound = False
+        self.cancelInactiveLink(pn)
 
         if iwant:
             self.scheduleMakeNewLinks()
 
 
-    def handleNodeFailure(self, n, nb_ipp=None):
-
+    def handleNodeFailure(self, ipp, nb_ipp=None):
         osm = self.main.osm
+        CHECK(osm and osm.syncd)
+
+        # If this node isn't my neighbor, then don't even bother.
+        try:
+            pn = self.pnbs[ipp]
+        except KeyError:
+            return
+
+        # Only accept a remote failure if that node is a neighbor of pn.
+        if nb_ipp and pn.ping_nbs is not None and nb_ipp not in pn.ping_nbs:
+            return
+
+        # If this node's not online, don't bother.
+        try:
+            n = osm.lookup_ipp[ipp]
+        except KeyError:
+            return
 
         # A bridge node will just have to time out on its own
         if n.bridge_data:
             return
 
-        # If this node isn't my neighbor, then don't even bother.
-        if not n.sendPing_dcall:
-            return
-
-        # Only accept a remote failure if that node is a neighbor of n.
-        if nb_ipp and n.ping_nbs is not None and nb_ipp not in n.ping_nbs:
-            return
-
         # If the node's about to expire anyway, don't bother
-        if not (n.expire_dcall and
-                dcall_timeleft(n.expire_dcall) > NODE_EXPIRE_EXTEND * 1.1):
+        if dcall_timeleft(n.expire_dcall) <= NODE_EXPIRE_EXTEND * 1.1:
             return
 
-        failedMe = not n.stillAlive()
+        failedMe = not pn.stillAlive()
 
         # Trigger an NF message if I've experienced a failure, and:
         # - someone else just experienced a failure, or
         # - someone else experienced a failure recently, or
-        # - I seem to be n's only neighbor.
+        # - I seem to be pn's only neighbor.
 
         pkt_id = struct.pack('!I', n.status_pktnum)
 
-        if failedMe and (nb_ipp or n.nodeFail_dcall or n.ping_nbs==()):
+        if failedMe and (nb_ipp or pn.deadNb_dcall or pn.ping_nbs==()):
 
-            dcall_discard(n, 'nodeFail_dcall')
+            dcall_discard(pn, 'deadNb_dcall')
 
             packet = osm.mrm.broadcastHeader('NF', n.ipp)
             packet.append(pkt_id)
@@ -3276,17 +3260,17 @@ class PingManager(object):
 
         elif nb_ipp:
             # If this failure was reported by someone else, then set the
-            # nodeFail_dcall, so when I detect a failure, I'll be sure of it.
+            # deadNb_dcall, so when I detect a failure, I'll be sure of it.
 
             def cb():
-                n.nodeFail_dcall = None
+                pn.deadNb_dcall = None
 
-            dcall_discard(n, 'nodeFail_dcall')
-            n.nodeFail_dcall = reactor.callLater(15.0, cb)
+            dcall_discard(pn, 'deadNb_dcall')
+            pn.deadNb_dcall = reactor.callLater(15.0, cb)
 
-        elif n.ping_nbs:
-            # Reported by me, and n has neighbors, so
-            # Send Possible Failure message to n's neighbors
+        elif pn.ping_nbs:
+            # Reported by me, and pn has neighbors, so
+            # Send Possible Failure message to pn's neighbors
 
             packet = ['PF']
             packet.append(osm.me.ipp)
@@ -3295,7 +3279,7 @@ class PingManager(object):
             packet.append(n.sesid)
             packet = ''.join(packet)
 
-            for nb_ipp in n.ping_nbs:
+            for nb_ipp in pn.ping_nbs:
                 ad = Ad().setRawIPPort(nb_ipp)
                 self.main.ph.sendPacket(packet, ad.getAddrTuple())
 
@@ -3316,14 +3300,18 @@ class PingManager(object):
             # Make sure the K closest nonbroken nodes are marked as outbound
             n_alive = 0
             for n in osm.nodes:
+                try:
+                    pn = self.pnbs[n.ipp]
+                except KeyError:
+                    pn = self.pnbs[n.ipp] = self.PingNeighbor(n.ipp)
 
-                if n not in self.outbound:
+                if not pn.outbound:
 
-                    if n not in self.inbound:
+                    if not pn.inbound:
                         # Completely new link
                         tries = 2
 
-                    elif n.stronglyConnected():
+                    elif pn.stronglyConnected():
                         # An active inbound link is being marked as outbound,
                         # so we might want to close some other outbound
                         # link.  Note that this won't run until the next
@@ -3335,11 +3323,10 @@ class PingManager(object):
                         # Existing link, not strongly connected yet
                         tries = 2
 
-                    self.initPingNeighbor(n)
-                    self.outbound.add(n)
-                    self.pingWithRetransmit(n, tries=tries, later=False)
+                    pn.outbound = True
+                    self.pingWithRetransmit(pn, tries=tries, later=False)
 
-                if n in self.outbound and n.stillAlive():
+                if pn.outbound and pn.stillAlive():
                     n_alive += 1
                     if n_alive >= self.OUTLINK_GOAL:
                         break
@@ -3357,32 +3344,38 @@ class PingManager(object):
 
         def cb():
             self.chopExcessLinks_dcall = None
-
             osm = self.main.osm
 
-            # Remove any unnecessary nodes.
-
+            # Keep a set of unwanted outbound neighbors.  We will remove
+            # wanted neighbors from this set, and kill what remains.
+            unwanted = set(pn.ipp for pn in self.pnbs.itervalues()
+                           if pn.outbound)
             n_alive = 0
 
-            for i,n in enumerate(osm.nodes):
-
-                if n not in self.outbound:
+            for n in osm.nodes:
+                try:
+                    pn = self.pnbs[n.ipp]
+                    if not pn.outbound:
+                        raise KeyError
+                except KeyError:
                     # We ran out of nodes before hitting the target number
                     # of strongly connected nodes.  That means stuff's still
                     # connecting, and there's no need to remove anyone.
+                    unwanted.clear()
                     break
 
-                if n.stronglyConnected():
+                # This neighbor is NOT unwanted.
+                unwanted.remove(pn.ipp)
+
+                # Stop once we reach the desired number of outbound links.
+                if pn.stronglyConnected():
                     n_alive += 1
                     if n_alive == self.OUTLINK_GOAL:
-
-                        # Chop off the excess outbound links
-                        excess = self.outbound.difference(osm.nodes[:i+1])
-
-                        for n in excess:
-                            self.removeOutboundLink(n)
-
                         break
+
+            # If any unwanted links remain, remove them.
+            for ipp in unwanted:
+                CHECK(self.removeOutboundLink(ipp))
 
         self.chopExcessLinks_dcall = reactor.callLater(0, cb)
 
@@ -3403,47 +3396,51 @@ class PingManager(object):
         self.onlineTimeout_dcall = reactor.callLater(ONLINE_TIMEOUT, cb)
 
 
-    def removeOutboundLink(self, n):
+    def removeOutboundLink(self, ipp):
         try:
-            self.outbound.remove(n)
+            pn = self.pnbs[ipp]
         except KeyError:
-            return
+            return False
+        if not pn.outbound:
+            return False
 
         # Send iwant=0 to neighbor
-        if n in self.inbound:
-            self.pingWithRetransmit(n, tries=4, later=False)
+        pn.outbound = False
+        if pn.inbound:
+            self.pingWithRetransmit(pn, tries=4, later=False)
         else:
-            self.sendPing(n, i_req=False, ack_key=None)
-            self.cancelInactiveLink(n)
+            self.sendPing(pn, i_req=False, ack_key=None)
+            self.cancelInactiveLink(pn)
+        return True
 
 
-    def sendPing(self, n, i_req, ack_key=None):
+    def sendPing(self, pn, i_req, ack_key=None):
         # Transmit a single ping to the given node
 
         osm = self.main.osm
 
         # Expire old ack requests
-        if n.ping_reqs:
+        if pn.ping_reqs:
             now = seconds()
-            for req_key, when in n.ping_reqs.items():
+            for req_key, when in pn.ping_reqs.items():
                 if now - when > 15.0:
-                    del n.ping_reqs[req_key]
+                    del pn.ping_reqs[req_key]
 
-        iwant = (n in self.outbound)
+        iwant = pn.outbound
 
         # For now, include neighbor list only when requesting an ack.
         nblist = i_req
 
         # Offline bit is set if this neighbor is not recognized.
         # (this just gets ignored, but it could be useful someday)
-        offline = osm.syncd and (not n.expire_dcall)
+        offline = osm.syncd and (pn.ipp not in osm.lookup_ipp)
 
         # Build packet
         packet = ['PG']
         packet.append(osm.me.ipp)
 
         flags = ((iwant and IWANT_BIT)       |
-                 (n.got_ack and GOTACK_BIT)  |
+                 (pn.got_ack and GOTACK_BIT) |
                  (i_req and REQ_BIT)         |
                  (bool(ack_key) and ACK_BIT) |
                  (nblist and NBLIST_BIT)     |
@@ -3457,10 +3454,10 @@ class PingManager(object):
             # a new req_key
             while True:
                 req_key = randbytes(4)
-                if req_key not in n.ping_reqs:
+                if req_key not in pn.ping_reqs:
                     break
 
-            n.ping_reqs[req_key] = seconds()
+            pn.ping_reqs[req_key] = seconds()
             packet.append(req_key)
 
         if ack_key:
@@ -3469,11 +3466,10 @@ class PingManager(object):
         if nblist:
             if osm.syncd:
                 # Grab my list of ping neighbors.
-                nbs = [nb.ipp for nb in self.inbound | self.outbound
-                       if (nb.ipp != n.ipp and
-                           nb.expire_dcall and
-                           nb.stronglyConnected())
-                       ]
+                nbs = [pn_it.ipp for pn_it in self.pnbs.itervalues()
+                       if (pn_it.ipp != pn.ipp and
+                           pn_it.ipp in osm.lookup_ipp and
+                           pn_it.stronglyConnected())]
 
                 # Don't bother sending more than 8
                 nbs.sort()
@@ -3484,7 +3480,7 @@ class PingManager(object):
             packet.append(struct.pack("!B", len(nbs)))
             packet.extend(nbs)
 
-        ad = Ad().setRawIPPort(n.ipp)
+        ad = Ad().setRawIPPort(pn.ipp)
         self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
 
 
@@ -3493,16 +3489,15 @@ class PingManager(object):
         dcall_discard(self, 'makeNewLinks_dcall')
         dcall_discard(self, 'onlineTimeout_dcall')
 
-        ob = tuple(self.outbound)
+        outbounds = [pn for pn in self.pnbs.itervalues() if pn.outbound]
 
-        for n in self.outbound | self.inbound:
-            self.cancelInactiveLink(n)
+        for pn in self.pnbs.values():  # can't use itervalues
+            pn.inbound = False
+            pn.outbound = False
+            self.cancelInactiveLink(pn)
 
-        self.inbound.clear()
-        self.outbound.clear()
-
-        for n in ob:
-            self.sendPing(n, i_req=False, ack_key=None)
+        for pn in outbounds:
+            self.sendPing(pn, i_req=False, ack_key=None)
 
 
 ##############################################################################
@@ -3528,12 +3523,12 @@ class MessageRoutingManager(object):
                 self.expire_dcall.reset(60.0)
                 return
 
-            def cb(msgs, ack_key):
+            def cb():
                 self.expire_dcall = None
                 self.forgetTimeouts()
                 del msgs[ack_key]
 
-            self.expire_dcall = reactor.callLater(60.0, cb, msgs, ack_key)
+            self.expire_dcall = reactor.callLater(60.0, cb)
 
 
         def sendToNeighbor(self, nb_ipp, ph):
@@ -3543,7 +3538,15 @@ class MessageRoutingManager(object):
                 # This neighbor has already seen our message
                 return
 
-            def cb(data, tries):
+            data = self.data
+            tries = self.tries
+
+            # If we're passing an NF to the node who's dying, then up the
+            # number of retries to 8, because it's rather important.
+            if data[0:2] == 'NF' and data[10:16] == nb_ipp:
+                tries = 8
+
+            def cb(tries):
                 # Ack timeout callback
 
                 # Make an attempt now
@@ -3554,20 +3557,11 @@ class MessageRoutingManager(object):
                 # Reschedule another attempt
                 if tries-1 > 0:
                     when = random.uniform(1.0, 2.0)
-                    self.nbs[nb_ipp] = reactor.callLater(
-                        when, cb, data, tries-1)
+                    self.nbs[nb_ipp] = reactor.callLater(when, cb, tries-1)
                 else:
                     self.nbs[nb_ipp] = None
 
-            data = self.data
-            tries = self.tries
-
-            # If we're passing an NF to the node who's dying, then up the
-            # number of retries to 8, because it's rather important.
-            if data[0:2] == 'NF' and data[10:16] == nb_ipp:
-                tries = 8
-
-            cb(data, tries)
+            cb(tries)
 
 
         def forgetTimeouts(self):
@@ -3605,16 +3599,15 @@ class MessageRoutingManager(object):
             osm = self.main.osm
 
             # Get my current neighbors who we know to be alive.  We don't
-            # need to verify n.u_got_ack because it doesn't really matter
+            # need to verify pn.u_got_ack because it doesn't really matter
             # if they filter our traffic.
-            sendto = [n for n in osm.pgm.inbound | osm.pgm.outbound
-                      if n.got_ack]
+            sendto = [pn.ipp for pn in osm.pgm.pnbs.itervalues() if pn.got_ack]
 
             # For each message waiting to be sent, send to each of my
             # neighbors who needs it
             for m in self.outbox:
-                for n in sendto:
-                    m.sendToNeighbor(n.ipp, self.main.ph)
+                for ipp in sendto:
+                    m.sendToNeighbor(ipp, self.main.ph)
 
             # Clear the outbox
             del self.outbox[:]
@@ -3772,13 +3765,10 @@ class MessageRoutingManager(object):
         ph = self.main.ph
         osm = self.main.osm
 
-        if (osm and osm.syncd and not self.main.hide_node):
-            sendto = [n for n in osm.pgm.inbound | osm.pgm.outbound]
-
+        if osm and osm.syncd and not self.main.hide_node:
             packet = osm.makeExitPacket()
-
-            for n in sendto:
-                ad = Ad().setRawIPPort(n.ipp)
+            for pn in osm.pgm.pnbs.itervalues():
+                ad = Ad().setRawIPPort(pn.ipp)
                 ph.sendPacket(packet, ad.getAddrTuple(), broadcast=True)
 
 
@@ -3799,10 +3789,10 @@ class SyncRequestRoutingManager(object):
                 self.expire_dcall.reset(180.0)
                 return
 
-            def cb(msgs, key):
+            def cb():
                 del msgs[key]
 
-            self.expire_dcall = reactor.callLater(180.0, cb, msgs, key)
+            self.expire_dcall = reactor.callLater(180.0, cb)
 
 
     def __init__(self, main):
@@ -3811,18 +3801,18 @@ class SyncRequestRoutingManager(object):
 
 
     def receivedSyncRequest(self, nb_ipp, src_ipp, sesid, hop, timedout):
-
         osm = self.main.osm
         ph  = self.main.ph
 
         key = (src_ipp, sesid)
 
-        # Get all syncd neighbors who we've heard from recently
-        nbs = [n for n in osm.pgm.inbound | osm.pgm.outbound
-               if n.expire_dcall and n.got_ack]
+        # Get ipp of all syncd neighbors who we've heard from recently
+        CHECK(osm and osm.syncd)
+        my_nbs = [pn.ipp for pn in osm.pgm.pnbs.itervalues()
+                  if pn.got_ack and pn.ipp in osm.lookup_ipp]
 
         # Put neighbors in random order
-        random.shuffle(nbs)
+        random.shuffle(my_nbs)
 
         # See if we've seen this sync message before
         try:
@@ -3852,24 +3842,27 @@ class SyncRequestRoutingManager(object):
             cont = []
             uncont = []
 
-            for n in nbs:
+            for ipp in my_nbs:
+                # If we've already contacted enough nodes, or we know this
+                # node has already been contacted with a higher hop count,
+                # then don't forward the sync request to it.
                 try:
-                    if len(cont) >= 3 or m.nbs[n.ipp] >= hop-1:
-                        uncont.append(n.ipp)
+                    if len(cont) >= 3 or m.nbs[ipp] >= hop-1:
+                        uncont.append(ipp)
                         continue
                 except KeyError:
                     pass
 
-                cont.append(n.ipp)
-                m.nbs[n.ipp] = hop-1
+                cont.append(ipp)
+                m.nbs[ipp] = hop-1
 
-                ad = Ad().setRawIPPort(n.ipp)
+                ad = Ad().setRawIPPort(ipp)
                 ph.sendPacket(packet, ad.getAddrTuple(), broadcast=True)
 
         else:
             # no hops left
             cont = []
-            uncont = [n.ipp for n in nbs]
+            uncont = my_nbs
 
         # Cut off after 16 nodes, just in case
         uncont = uncont[:16]
@@ -4021,7 +4014,7 @@ class ChatMessageSequencer(object):
         if not n.chatq:
             return
 
-        def cb(n):
+        def cb():
             n.chatq_dcall = None
 
             # Forget any missing messages at the beginning
@@ -4035,7 +4028,7 @@ class ChatMessageSequencer(object):
         # The first queue entry contains a timestamp.
         # Let the gap survive for 2 seconds total.
         when = max(0, n.chatq[0] + 2.0 - seconds())
-        n.chatq_dcall = reactor.callLater(when, cb, n)
+        n.chatq_dcall = reactor.callLater(when, cb)
 
 
     def flushQueue(self, n):
@@ -4089,8 +4082,8 @@ class BanManager(object):
                             self.ban_matcher.addRange(b.ipmask)
 
             # If I'm a bridge, get bans from IRC.
-            if osm.bsm and self.main.ircs:
-                for ipmask in self.main.ircs.data.bans:
+            if osm.bsm and self.main.ism:
+                for ipmask in self.main.ism.bans:
                     self.ban_matcher.addRange(ipmask)
 
             self.enforceAllBans()
@@ -4102,17 +4095,17 @@ class BanManager(object):
     def enforceAllBans(self):
         osm = self.main.osm
 
-        # Check all the other nodes
-        for n in osm.lookup_ipp.values():
+        # Check all the online nodes.
+        for n in list(osm.nodes):
             int_ip = Ad().setRawIPPort(n.ipp).getIntIP()
             if self.isBanned(int_ip):
-                # in nodes list
-                if n.inlist:
-                    osm.nodeExited(n, "Node Banned")
+                osm.nodeExited(n, "Node Banned")
 
-                # in inbound | outbound
-                if n.is_ping_nb:
-                    osm.pgm.instaKillNeighbor(n)
+        # Check my ping neighbors.
+        for pn in osm.pgm.pnbs.values():  # can't use itervalues
+            int_ip = Ad().setRawIPPort(pn.ipp).getIntIP()
+            if self.isBanned(int_ip):
+                osm.pgm.instaKillNeighbor(pn)
 
         # Check myself
         if not osm.bsm:
@@ -4689,8 +4682,9 @@ class DtellaMain_Base(object):
 
         dcall_discard(self, 'reconnect_dcall')
 
-        def cb(result, node_ipps):
+        def cb(result):
             self.icm = None
+            result, node_ipps = result
 
             if result == 'good':
                 self.startNodeSync(node_ipps)
@@ -4723,7 +4717,8 @@ class DtellaMain_Base(object):
                 CHECK(False)
 
         self.ph.remap_ip = None
-        self.icm = InitialContactManager(self, cb)
+        self.icm = InitialContactManager(self)
+        self.icm.start().addCallback(cb)
 
 
     def needPortForward(self):
