@@ -26,6 +26,7 @@ import time
 import random
 import bisect
 import socket
+import base64
 from binascii import hexlify
 from hashlib import md5
 
@@ -140,38 +141,55 @@ CODE_IP_OK = 0
 CODE_IP_FOREIGN = 1
 CODE_IP_BANNED = 2
 
+#Protocol Flags - applies to the following packets
+PROTOCOL_NMDC = 0x0
+PROTOCOL_ADC = 0x80
+
 
 ##############################################################################
 
 
 class NickManager(object):
+    sid_counter = 2
 
     def __init__(self, main):
         self.main = main
-        self.nickmap = {}  # {nick.lower() -> Node}
-
+        self.nickmap = {}   # {nick.lower() -> Node}
+        self.sidmap = {}    # {sid -> Node}
 
     def getNickList(self):
         return [n.nick for n in self.nickmap.itervalues()]
 
-
-    def lookupNick(self, nick):
+    def lookupNodeFromNick(self, nick):
         # Might raise KeyError
         return self.nickmap[nick.lower()]
+        
+    def lookupSIDFromNick(self, nick):
+        # Might raise KeyError
+        return self.nickmap[nick.lower()].sid
 
+    def lookupNodeFromSID(self, sid):
+        # Might raise KeyError
+        return self.sidmap[sid]
+        
+    def lookupNickFromSID(self, sid):
+        # Might raise KeyError
+        return self.sidmap[sid].nick
 
     def removeNode(self, n, reason):
         try:
-            if self.nickmap[n.nick.lower()] is not n:
+            if self.nickmap[n.nick.lower()] is not n or \
+               self.sidmap[n.sid] is not n:
                 raise KeyError
         except KeyError:
             return
 
-        del self.nickmap[n.nick.lower()]
-
         so = self.main.getStateObserver()
         if so:
             so.event_RemoveNick(n, reason)
+            
+        del self.nickmap[n.nick.lower()]
+        del self.sidmap[n.sid]
 
         # Clean up nick-specific stuff
         if n.is_peer:
@@ -182,19 +200,27 @@ class NickManager(object):
 
         if not n.nick:
             return
-
-        lnick = n.nick.lower()
-
-        if lnick in self.nickmap:
-            raise NickError("collision")
-
+            
         so = self.main.getStateObserver()
+        lnick = n.nick.lower()
+        
+        sid = base64.b32encode(struct.pack('I',NickManager.sid_counter))[:4]
+        NickManager.sid_counter += 1#TODO - remove this hack
+        
+        if lnick in self.nickmap or sid in self.sidmap:
+            raise NickError("collision")
+            
         if so:
             # Might raise NickError
             so.event_AddNick(n)
-            so.event_UpdateInfo(n)
-
+            
+        n.sid = sid
         self.nickmap[lnick] = n
+        self.sidmap[n.sid] = n
+        
+        if so:
+            # Might raise NickError
+            so.event_UpdateInfo(n)
 
 
     def setInfoInList(self, n, info):
@@ -927,6 +953,11 @@ class PeerHandler(DatagramProtocol):
             info, rest = self.decodeString1(rest)
 
             persist = bool(flags & PERSIST_BIT)
+            
+            if flags & PROTOCOL_ADC:
+                protocol = PROTOCOL_ADC
+            else:
+                protocol = PROTOCOL_NMDC
 
             if rest:
                 raise BadPacketError("Extra data")
@@ -942,7 +973,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadBroadcast("Outdated")
 
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol)
 
             # They had a nick, now they don't.  This indicates a problem.
             # Stop forwarding and notify the user.
@@ -1400,6 +1431,11 @@ class PeerHandler(DatagramProtocol):
         self.checkSource(src_ipp, ad)
 
         persist = bool(flags & PERSIST_BIT)
+        
+        if flags & PROTOCOL_ADC:
+            protocol = PROTOCOL_ADC
+        else:
+            protocol = PROTOCOL_NMDC
 
         nick, rest = self.decodeString1(rest)
         info, rest = self.decodeString1(rest)
@@ -1425,7 +1461,7 @@ class PeerHandler(DatagramProtocol):
         # Check for outdated status, in case an NS already arrived.
         if not self.isOutdatedStatus(n, pktnum):
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol)
 
         if topic:
             osm.tm.receivedSyncTopic(n, topic)
@@ -1786,7 +1822,6 @@ class Node(object):
     # Remember when we receive a RevConnect
     rcWindow_dcall = None
 
-
     def __init__(self, ipp):
         # Dtella Tracking stuff
         self.ipp = ipp            # 6-byte IP:Port
@@ -1807,10 +1842,12 @@ class Node(object):
         # General Info
         self.nick = ''
         self.dcinfo = ''
+        self.adcinfo = ''
         self.location = ''
         self.shared = 0
 
         self.dttag = ""
+        self.protocol = None
 
         self.infohash = None
 
@@ -2448,7 +2485,7 @@ class OnlineStateManager(object):
 
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info):
+                          persist, nick, info, protocol):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -2476,6 +2513,7 @@ class OnlineStateManager(object):
         n.sesid = sesid
         n.uptime = uptime
         n.persist = persist
+        n.protocol = protocol
 
         # Save version info
         n.dttag = parse_dtella_tag(info)

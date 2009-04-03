@@ -43,9 +43,11 @@ import sys
 import socket
 import time
 import getopt
+import dtella.common.core as core
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
+
 
 
 def addTwistedErrorCatcher(handler):
@@ -89,7 +91,7 @@ def runDconfigPusher():
     reactor.run()
 
 
-def runClient(dc_port):
+def runClient(dc_port, pflags):
     #Logging for Dtella Client
     setLogFile("dtella.log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
@@ -112,8 +114,12 @@ def runClient(dc_port):
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
 
-    from dtella.client.dc import DCFactory
-    dfactory = DCFactory(dtMain, dc_port)
+    if ( pflags & core.PROTOCOL_ADC):
+        from dtella.client.adc import ADCFactory
+        dfactory = ADCFactory(dtMain, dc_port)
+    else:
+        from dtella.client.dc import DCFactory
+        dfactory = DCFactory(dtMain, dc_port)
 
     LOG.info("%s %s" % (local.hub_name, local.version))
 
@@ -175,6 +181,9 @@ def main():
     else:
         usage_str += " [--bridge] [--dconfigpusher] [--makeprivatekey]"
         allowed_opts.extend(['bridge', 'dconfigpusher', 'makeprivatekey'])
+        
+    usage_str += " [--nmdc|adc]"
+    allowed_opts.extend(['nmdc', 'adc'])
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', allowed_opts)
@@ -216,8 +225,13 @@ def main():
             time.sleep(2.0)
         print "Done."
         return
+    
 
-    runClient(dc_port)
+    if '--adc' in opts:
+        pflags = core.PROTOCOL_ADC
+    else:
+        pflags = core.PROTOCOL_NMDC
+    runClient(dc_port,pflags)
 
 
 if __name__=='__main__':

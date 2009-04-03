@@ -541,7 +541,7 @@ class IRCStateManager(object):
             return None
 
         try:
-            return osm.nkm.lookupNick(dnick)
+            return osm.nkm.lookupNodeFromNick(dnick)
         except KeyError:
             return None
 

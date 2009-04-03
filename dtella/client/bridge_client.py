@@ -100,6 +100,11 @@ class BridgeClientProtocol(core.PeerHandler):
              ) = self.decodePacket('!QH4sIB+', rest)
 
             persist = bool(flags & core.PERSIST_BIT)
+            
+            if flags & core.PROTOCOL_ADC:
+                protocol = core.PROTOCOL_ADC
+            else:
+                protocol = core.PROTOCOL_NMDC
 
             (hashes, rest
              ) = self.decodeString1(rest, 16)
@@ -143,7 +148,7 @@ class BridgeClientProtocol(core.PeerHandler):
 
             # Update basic status
             n = osm.refreshNodeStatus(
-                src_ipp, None, expire, sesid, uptime, persist, '', '')
+                src_ipp, None, expire, sesid, uptime, persist, '', '', protocol)
 
             # Update bridge-specific status
             osm.bcm.refreshBridgeNodeStatus(
@@ -165,6 +170,11 @@ class BridgeClientProtocol(core.PeerHandler):
         self.checkSource(src_ipp, ad, exempt_ip=True)
 
         persist = bool(flags & core.PERSIST_BIT)
+        
+        if flags & core.PROTOCOL_ADC:
+            protocol = core.PROTOCOL_ADC
+        else:
+            protocol = core.PROTOCOL_NMDC
 
         (hashes, rest
          ) = self.decodeString1(rest, 16)
@@ -220,7 +230,7 @@ class BridgeClientProtocol(core.PeerHandler):
 
             # Update basic status
             n = osm.refreshNodeStatus(
-                src_ipp, None, expire, sesid, uptime, persist, '', '')
+                src_ipp, None, expire, sesid, uptime, persist, '', '', protocol)
 
             # Update bridge-specific status
             osm.bcm.refreshBridgeNodeStatus(
@@ -408,6 +418,7 @@ class NickNode(object):
         self.nick = nick
         
         self.dcinfo = ""
+        self.adcinfo = ""
         self.location = ""
         self.shared = 0
         self.setInfo(info)

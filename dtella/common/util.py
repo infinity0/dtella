@@ -197,6 +197,17 @@ def get_user_path(filename):
 def remove_dc_escapes(text):
     return text.replace('&#124;','|').replace('&#36;','$')
 
+def adc_escape_lines(text):
+    return text.replace('\n','\\n')
+    
+def adc_escape_spaces(text):
+    return text.replace(' ','\\s')
+    
+def remove_adc_lines(text):
+    return text.replace('\\n','\n')
+    
+def remove_adc_spaces(text):
+    return text.replace('\\s',' ')
 
 def split_info(info):
     # Split a MyINFO string
@@ -310,10 +321,14 @@ def SSLHACK_filter_flags(info_str):
         flags ^= 0x10
         info[2] = info[2][:-1] + struct.pack('!B', flags)
         return '$'.join(info)
-
+    
     return info_str
 
-
+def b32pad(n):
+    _, leftover = divmod(len(n), 8)
+    n += (8-leftover)*'='
+    return n
+    
 def format_bytes(n):
     # Convert an integer into a Bytes representation
     n = float(n)

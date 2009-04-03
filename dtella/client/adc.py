@@ -1,9 +1,7 @@
 """
-Dtella - DirectConnect Interface Module
-Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
-Copyright (C) 2008  Paul Marks
-
-$Id$
+Dtella - AdvancedDirectConnect Interface Module
+Copyright (C) 2009  Dtella Labs (http://www.dtella.org)
+Copyright (C) 2009  Andrew Cooper, on behalf of Dtella Labs
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -29,7 +27,8 @@ import twisted.python.log
 from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, remove_dc_escapes, dcall_discard,
                                 format_bytes, dcall_timeleft,
-                                get_version_string, lock2key, CHECK)
+                                get_version_string, lock2key, CHECK, adc_escape_spaces,
+                                adc_escape_lines, b32pad, remove_adc_spaces)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
@@ -39,25 +38,39 @@ import random
 import re
 import binascii
 import socket
+import tiger
+import base64
 
 from zope.interface import implements
 from zope.interface.verify import verifyClass
 from dtella.common.interfaces import IDtellaStateObserver
 
+
+
 # Login Procedure
-# H>C $HubName
-# H<C $ValidateNick
-# H>C $Hello
-# H<C $GetNickList + $MyINFO
+# H<C HSUP ADBASE ADTIGR ...
+# H>C ISUP ADBASE ADTIGR ...
+# H>C ISID <client-sid>
+# H>C IINF HU1 HI1
+# H<C BINF <my-sid> ID... PD...
+#(H>C IGPA ...
+# H<C HPAS ...)
+# H>C BINF <all clients>
+# H>C BINF <Client-SID>
 # ...
 
 
-LOCK_STR = "EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DTELLA"
+#Example login
+#Hub:	[Outgoing][91.120.21.169:2424]	 	HSUP ADBAS0 ADBASE ADTIGR ADUCM0 ADBLO0
+#Hub:	[Incoming][91.120.21.169:2424]	 	ISUP ADBASE ADTIGR ADPING
+#Hub:	[Incoming][91.120.21.169:2424]	 	ISID CGRU
+#Hub:	[Outgoing][91.120.21.169:2424]	 	BINF CGRU IDMSZVM3CFZPDYGCDWG5M3QWNWWXKP564IFPIBMHY PDHB24SHTHV76WHHI3BKHHHYNYZ7VNGVJFIMLSDKY NIandyhhp DE[~]\sowner SL15 SS838319620790 SF12869 EMandyhhp@hotmail.com HN3 HR0 HO0 VE++\s0.7091 US131072000 I4131.111.128.225 U416765 SUADC0,TCP4,UDP4
+#Hub:	[Incoming][91.120.21.169:2424]	 	IINF CT32 VEuHub/0.2.8 NIElite\sIstenhub DEDigital\sFreedom\s[since\s2006]
+#Hub:	[Incoming][91.120.21.169:2424]	 	ISTA 000 Powered\sby\suHub/0.2.8
 
+class BaseADCProtocol(LineOnlyReceiver):
 
-class BaseDCProtocol(LineOnlyReceiver):
-
-    delimiter='|'
+    delimiter='\n'
 
     def connectionMade(self):
         try:
@@ -69,40 +82,58 @@ class BaseDCProtocol(LineOnlyReceiver):
 
     def sendLine(self, line):
         #print "<:", line
-        LineOnlyReceiver.sendLine(self, line.replace('|','&#124;'))
+        LineOnlyReceiver.sendLine(self,adc_escape_lines(line))
 
 
     def lineReceived(self, line):
-        #print ">:", line
-        cmd = line.split(' ', 1)
-
+        
+        if(len(line) == 0):
+            self.sendLine('')#Keepalive
+            return
+        
+        cmd = line.split(' ', 1)        
+        args = {}
+        args['con'] = cmd[0][0]
+        msg = cmd[0][1:]
+        
+        if args['con'] == 'E': #If its an echo context, echo it back
+            self.sendLine(line)
+        
+        print "Context: %s Message: %s" % (args['con'],msg)
+        
         # Do a dict lookup to find the parameters for this command
         try:
-            nargs, fn = self.dispatch[cmd[0]]
+            contexts, fn = self.dispatch[msg]
         except KeyError:
-            # Unknown DC message
+            print "Error: Unknown command \"%s\"" % line
             return
+        
+        if contexts is None:
+            fn(line)
+        elif(args['con'] not in contexts):
+            print "Invalid context %s for command %s" % (args['con'],args['cmd'])
+            return
+        
+        try:
+            if args['con'] == 'B':
+                args['src_sid'], args['rest'] = cmd[1].split(' ',1)
+                fn(**args)
+            elif args['con'] in ('C', 'I', 'H'):
+                args['rest'] = cmd[1]
+                fn(**args)
+            elif args['con'] in ('D', 'E'):
+                args['src_sid'], args['dst_sid'], args['rest'] = cmd[1].split(' ',2)
+                fn(**args)
 
-        # Create the argument list
-        if len(cmd) <= 1:
-            args = []
-        elif nargs < 0:
-            nargs = -nargs
-            args = cmd[1].split(' ', nargs-1)
-        else:
-            args = cmd[1].split(' ', nargs)
-
-        if len(args) == nargs:
-            try:
-                fn(*args)
-            except:
-                twisted.python.log.err()
+        except:
+            twisted.python.log.err()
+        
 
 
-    def addDispatch(self, command, nargs, fn):
-        self.dispatch[command] = (nargs, fn)
+    def addDispatch(self, command, contexts, fn):
+        self.dispatch[command] = (contexts, fn)
 
-
+"""
 ##############################################################################
 
 # These next 3 classes implement a small subset of the DC client-client
@@ -225,40 +256,42 @@ class AbortTransfer_In(BaseDCProtocol):
 
 ##############################################################################
 
-
-class DCHandler(BaseDCProtocol):
+"""
+class ADCHandler(BaseADCProtocol):
     implements(IDtellaStateObserver)
 
     def __init__(self, main):
         self.main = main
 
     def connectionMade(self):
-        BaseDCProtocol.connectionMade(self)
+        BaseADCProtocol.connectionMade(self)
 
         self.info = ''
+        self.infdict = {}
         self.nick = ''
+        self.sid = base64.b32encode(struct.pack('I',0))[:4]
         self.bot = DtellaBot(self, '*Dtella')
+        self.bot.sid = base64.b32encode(struct.pack('I',1))[:4]
+        self.bot.inf = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
+                        (base64.b32encode(tiger.hash(self.bot.nick)),
+                        get_version_string(), self.bot.nick,
+                        "Local\\sDtella\\sBot")
 
         # Handlers which can be used before attaching to Dtella
-        self.addDispatch('$ValidateNick',   1, self.d_ValidateNick)
-        self.addDispatch('$GetNickList',    0, self.d_GetNickList)
-        self.addDispatch('$MyINFO',        -3, self.d_MyInfo)
-        self.addDispatch('$GetINFO',        2, self.d_GetInfo)
-        self.addDispatch('',                0, self.d_KeepAlive)
-        self.addDispatch('$KillDtella',     0, self.d_KillDtella)
-
-        self.addDispatch('$MyNick',         1, self.d_MyNick)
+        self.addDispatch('$KillDtella',     None, self.d_KillDtella)
+        self.addDispatch('SUP',             ('H','F','T','C'),self.d_SUP)
+        self.addDispatch('INF',             ('B'),self.d_INF)
+        
+        #self.addDispatch('$MyNick',         1, self.d_MyNick)
         
         # Chat messages waiting to be sent
         self.chatq = []
         self.chat_counter = 99999
         self.chatRate_dcall = None
 
-        # ['login_1', 'login_2', 'queued', 'ready', 'invisible']
-        self.state = 'login_1'
-
-        self.loginblockers = set(('MyINFO', 'GetNickList'))
-
+        # ['PROTOCOL', 'IDENTIFY', 'queued', 'ready', 'invisible']
+        self.state = 'PROTOCOL'
+        
         self.queued_dcall = None
         self.autoRejoin_dcall = None
 
@@ -267,7 +300,7 @@ class DCHandler(BaseDCProtocol):
         # If we're expecting a fake revconnect, delay the inital hub text.
         def cb():
             self.init_dcall = None
-            self.sendLine("$Lock FOO Pk=BAR")
+            #self.sendLine("$Lock FOO Pk=BAR")#TODO investiage
             self.pushTopic()
 
         if self.main.abort_nick:
@@ -275,11 +308,9 @@ class DCHandler(BaseDCProtocol):
         else:
             cb()
 
-
     def isOnline(self):
         osm = self.main.osm
         return (self.state == 'ready' and osm and osm.syncd)
-
 
     def connectionLost(self, reason):
 
@@ -289,16 +320,241 @@ class DCHandler(BaseDCProtocol):
         dcall_discard(self, 'chatRate_dcall')
         dcall_discard(self, 'autoRejoin_dcall')
 
-
     def fatalError(self, text):
         self.pushStatus("ERROR: %s" % text)
         self.transport.loseConnection()
-
 
     def d_KillDtella(self):
         reactor.stop()
 
 
+    def d_SUP(self, con, rest=None):
+        features = rest.split(' ')
+        if 'ADBASE' not in features or 'ADTIGR' not in features:
+            print "Client doestn support ADC/1.0"
+            return
+            
+        if self.state == 'PROTOCOL':
+        
+            self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
+            self.sendLine("ISID %s"%self.sid)
+            self.sendLine("IINF CT32 NIADC-Dtella@Cambridge")
+            
+            
+            self.state = 'IDENTIFY'
+        elif self.state != 'ready':
+            #TODO broadcast
+            return
+        
+
+ 
+    def d_INF(self, con, src_sid=None, rest=None):
+    
+        fields = rest.split(' ')
+        inf = {}
+        for i in fields:
+            inf[i[:2]] = i[2:]
+        
+        if self.state == 'IDENTIFY':
+            inf['PD'] = b32pad(inf['PD'])
+            inf['ID'] = b32pad(inf['ID'])
+
+            if base64.b32encode( tiger.hash( base64.b32decode(inf['PD']))) != inf['ID']:
+                print "Invalid security check"
+                return
+            del inf['PD']
+            
+            #Let Dtella logon so we can send messages to the user
+            self.sendLine("BINF %s %s"%(self.bot.sid,self.bot.inf))
+            
+            dcall_discard(self, 'init_dcall')
+
+            #From ValidateNick
+            reason = validateNick(inf['NI'])
+
+            if reason:
+                self.pushStatus("Your nick is invalid: %s" % reason)
+                self.pushStatus("Please fix it and reconnect.  Goodbye.")
+                self.transport.loseConnection()
+                return
+
+            self.nick = inf['NI']
+
+            #login procedue - replaced from removeLoginBlockers
+            if self.main.dch is None:
+                self.attachMeToDtella()
+
+            elif self.main.pending_dch is None:
+                self.state = 'queued'
+                self.main.pending_dch = self
+
+                def cb():
+                    self.queued_dcall = None
+                    self.main.pending_dch = None
+                    self.pushStatus("Nope, it didn't leave.  Goodbye.")
+                    self.transport.loseConnection()
+
+                self.pushStatus(
+                    "Another DC client is already using Dtella on this computer.")
+                self.pushStatus(
+                    "Waiting 5 seconds for it to leave.")
+
+                self.queued_dcall = reactor.callLater(5.0, cb)
+
+            else:
+                self.pushStatus(
+                    "Dtella is busy with other DC connections from your "
+                    "computer.  Goodbye.")
+                self.transport.loseConnection()
+                
+            self.state = 'ready'
+        elif self.state != 'ready':
+            return
+        
+        self.infdict.update(inf)
+        if self.main.osm:
+            self.main.osm.me.adcinfo = self.formatMyInfo()
+        self.sendLine("BINF %s %s" % (src_sid,self.formatMyInfo()))
+        #TODO - broadcast to other users
+        
+        
+    def d_MSG(self, con, src_sid=None, dst_sid=None, rest=None):
+        
+        if not rest:
+            return
+        
+        params = rest.split(' ')
+        text = remove_adc_spaces(params[0])
+        
+        inf = {}
+        if len(params)>1:
+            for i in params[1:]:
+                inf[i[:2]] = i[2:]
+
+        if con == 'E':  #Private Message - must echo back
+        
+            if dst_sid == self.bot.sid:
+
+                # No ! is needed for commands in the private message context
+                if text[:1] == '!':
+                    text = text[1:]
+
+                def out(text):
+                    if text is not None:
+                        self.bot.say(text)
+                
+                self.bot.commandInput(out, text)
+                return
+
+            if len(text) > 10:
+                shorttext = text[:10] + '...'
+            else:
+                shorttext = text
+
+            def fail_cb(detail):
+                self.pushPrivMsg(
+                    nick,
+                    "*** Your message \"%s\" could not be sent: %s"
+                    % (shorttext, detail))
+
+            if not self.isOnline():
+                fail_cb("You're not online.")
+                return
+
+            try:
+                n = self.main.osm.nkm.lookupNodeFromNick(nick)
+            except KeyError:
+                fail_cb("User doesn't seem to exist.")
+                return
+
+            n.event_PrivateMessage(self.main, text, fail_cb )
+            
+        else:           #Public message
+
+            # Route commands to the bot
+            if text[:1] == '!':
+
+                def out(out_text, flag=[True]):
+
+                    # If the bot produces output, inject our text input before
+                    # the first line.
+                    if flag[0]:
+                        self.pushStatus("You commanded: %s" % text)
+                        flag[0] = False
+
+                    if out_text is not None:
+                        self.pushStatus(out_text)
+                
+                if self.bot.commandInput(out, text[1:], '!'):
+                    return
+
+            if not self.isOnline():
+                self.pushStatus("*** You must be online to chat!")
+                return
+
+            if self.main.osm.isModerated():
+                self.pushStatus(
+                    "*** Can't send text; the chat is currently moderated.")
+                return
+
+            text = text.replace('\r\n','\n').replace('\r','\n')
+
+            for line in text.split('\n'):
+
+                # Skip empty lines
+                if not line:
+                    continue
+
+                # Limit length
+                if len(line) > 1024:
+                    line = line[:1024-12] + ' [Truncated]'
+
+                flags = 0
+
+                # Check for ME1 flag (ADC specific)
+                try:
+                    if inf['ME'] == '1':
+                        flags |= core.SLASHME_BIT
+                except KeyError:
+                    pass
+                
+                #Check for /me incase the client misses it
+                if len(line) > 4 and line[:4].lower() in ('/me ','+me ','!me '):
+                    line = line[4:]
+                    flags |= core.SLASHME_BIT
+
+                # Check rate limiting
+                if self.chat_counter > 0:
+
+                    # Send now
+                    self.chat_counter -= 1
+                    if flags&core.SLASHME_BIT:
+                        print "about to broadcast with /me"
+                    self.broadcastChatMessage(flags, line)
+
+                else:
+                    # Put in a queue
+                    if len(self.chatq) < 5:
+                        if flags&core.SLASHME_BIT:
+                            print "about to append with /me"
+                        self.chatq.append( (flags, line) )
+                    else:
+                        self.pushStatus(
+                            "*** Chat throttled.  Stop typing so much!")
+                        break
+
+    def d_CTM(self, con, src_sid , dst_sid, rest):
+    
+        params = rest.split(' ')
+        
+        if(len(params) != 3):
+            print "CTM Error: rest=%s" % rest
+    
+        if dst_sid == self.bot.sid:     #User is trying to connect to *Dtella - cancel them
+            self.sendLine("DSTA %s %s 241 Cant\\sconnect\\sto\\s*Dtella TO%s PR%s" % (dst_sid, src_sid, params[2], params[0]))
+    
+    
+    """
     def d_MyNick(self, nick):
         # This is a fake RevConnect that we should terminate.
         
@@ -360,30 +616,6 @@ class DCHandler(BaseDCProtocol):
             self.pushInfo(n.nick, n.dcinfo)
         
 
-    def d_GetNickList(self):
-
-        if self.state == 'login_1':
-            self.fatalError("Got $GetNickList, expected $ValidateNick")
-            return
-
-        # Me and the bot are ALWAYS online
-        nicks = [self.bot.nick, self.nick]
-
-        # Add in the Dtella nicks, if we're fully online (DC and Dtella)
-        if self.isOnline():
-            nicks = set(nicks)
-            nicks.update(self.main.osm.nkm.getNickList())
-            nicks = list(nicks)
-
-        nicks.sort()
-
-        self.sendLine("$NickList %s$$" % '$$'.join(nicks))
-        self.sendLine("$OpList %s$$" % self.bot.nick)
-
-        if self.state == 'login_2':
-            self.removeLoginBlocker('GetNickList')
-
-
     def d_MyInfo(self, _1, _2, info):
 
         if self.state == 'login_1':
@@ -399,10 +631,10 @@ class DCHandler(BaseDCProtocol):
         elif self.isOnline():
             self.main.osm.updateMyInfo()
 
-
+    
     def removeLoginBlocker(self, blocker):
 
-        CHECK(self.state == 'login_2')
+        #CHECK(self.state == 'login_2')
 
         try:
             self.loginblockers.remove(blocker)
@@ -439,6 +671,7 @@ class DCHandler(BaseDCProtocol):
                 "computer.  Goodbye.")
             self.transport.loseConnection()
 
+    """
 
     def attachMeToDtella(self):
 
@@ -452,40 +685,28 @@ class DCHandler(BaseDCProtocol):
 
         dcall_discard(self, 'queued_dcall')
 
+        self.addDispatch('MSG',                 ('B','E'),  self.d_MSG)
+        self.addDispatch('CTM',                 ('D'),      self.d_CTM)
         # Add the post-login handlers
-        self.addDispatch('$ConnectToMe',      2, self.d_ConnectToMe)
-        self.addDispatch('$RevConnectToMe',   2, self.d_RevConnectToMe)
-        self.addDispatch('$Search',          -2, self.d_Search)
-        self.addDispatch('$To:',             -5, self.d_PrivateMsg)
-        self.addDispatch("<%s>" % self.nick, -1, self.d_PublicMsg)
+        #self.addDispatch('$ConnectToMe',      2, self.d_ConnectToMe)
+        #self.addDispatch('$RevConnectToMe',   2, self.d_RevConnectToMe)
+        #self.addDispatch('$Search',          -2, self.d_Search)
+        #self.addDispatch('$To:',             -5, self.d_PrivateMsg)
+        #self.addDispatch("<%s>" % self.nick, -1, self.d_PublicMsg)
 
         # Announce my presence.
         # If Dtella's online too, this will trigger an event_DtellaUp.
         self.state = 'ready'
         self.main.addDCHandler(self)
 
-
+    
     def formatMyInfo(self):
-        # Build and return a hacked-up version of my info string.
 
-        # Get version string
-        ver_string = get_version_string()
-
-        # Split info string
-        try:
-            info = split_info(self.info)
-        except ValueError:
-            # No info.  Just use the offline version tag
-            return "<%s>" % ver_string
-
-        # Split description into description and <tag>
-        desc, tag = split_tag(info[0])
-
-        # Update tag
-        if tag:
-            info[0] = "%s<%s,%s>" % (desc, tag, ver_string)
+        self.infdict['CT'] = '0'
+        if len(self.infdict['VE']) > 0:
+            self.infdict['VE'] = adc_escape_spaces("%s - %s" % (self.infdict['VE'], get_version_string()))
         else:
-            info[0] = "%s<%s>" % (desc, ver_string)
+            self.infdict['VE'] = adc_escape_spaces(get_version_string())
 
         if local.use_locations:
             # Try to get my location name.
@@ -500,19 +721,14 @@ class DCHandler(BaseDCProtocol):
                 # Append location suffix, if it exists
                 suffix = self.main.state.suffix
                 if suffix:
-                    loc = '%s|%s' % (loc, suffix)
-                
-                info[2] = loc + info[2][-1:]
+                    loc = loc + suffix
 
-        info = '$'.join(info)
+        if loc is not None and self.infdict['DE'][:len(loc)] != loc:
+            self.infdict['DE'] = adc_escape_spaces("%s - %s" % (loc, self.infdict['DE']))
 
-        if len(info) > 255:
-            self.pushStatus("*** Your info string is too long!")
-            info = ''
+        return ' '.join(["%s%s" % (i,adc_escape_spaces(d)) for (i,d) in self.infdict.iteritems()])
 
-        return info
-
-
+    """
     def d_Search(self, addr_string, search_string):
         # Send a search request
 
@@ -537,7 +753,7 @@ class DCHandler(BaseDCProtocol):
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
             self.pushSearchRequest(osm.me.ipp, search_string)
-
+    
 
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
 
@@ -579,7 +795,7 @@ class DCHandler(BaseDCProtocol):
 
         n.event_PrivateMessage(self.main, text, fail_cb)
 
-
+    
     def d_ConnectToMe(self, nick, addr):
 
         osm = self.main.osm
@@ -681,6 +897,7 @@ class DCHandler(BaseDCProtocol):
         n.event_RevConnectToMe(self.main, fail_cb)
 
 
+    """
     def isLeech(self):
         # If I don't meet the minimum share, yell and return True
 
@@ -695,7 +912,7 @@ class DCHandler(BaseDCProtocol):
             return True
 
         return False
-
+    """
 
     def d_PublicMsg(self, text):
 
@@ -761,61 +978,81 @@ class DCHandler(BaseDCProtocol):
                     self.pushStatus(
                         "*** Chat throttled.  Stop typing so much!")
                     break
+    """
+    def pushChatMessage(self, nick, text, flags=0):
+        if(nick == self.nick):
+            sid = self.sid
+        elif(nick == self.bot.nick or nick == '*IRC' or nick == '*ChanServ'):
+            sid = self.bot.sid
+        else:
+            sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
+        
+        if flags & core.SLASHME_BIT:
+            self.sendLine("BMSG %s %s ME1" % (sid, adc_escape_spaces(text)))
+        else:
+            self.sendLine("BMSG %s %s" % (sid, adc_escape_spaces(text)))
 
 
-    def d_KeepAlive(self):
-        # Doesn't do much really
-        self.sendLine('')
-
-
-    def pushChatMessage(self, nick, text):
-        self.sendLine("<%s> %s" % (nick, text))
-
-
-    def pushInfo(self, nick, dcinfo):
-        self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
+    def pushInfo(self, node):
+        #print "pushInfo: %s" % nick
+        if node.sid and node.adcinfo:
+            self.sendLine("BINF %s %s" % (node.sid, node.adcinfo))
+        else:
+            if node.nick == self.nick:
+                print "attempting to generate callstack"
+                self.osm.nkm.lookupSIDFromNick(node)
+            else:
+                print "+ Node: %s has no adcinfo" % node.nick
+        #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
 
 
     def pushTopic(self, topic=None):
         if topic:
-            self.sendLine("$HubName %s - %s" % (local.hub_name, topic))
+            self.sendLine("IINF CT32 DE%s" % adc_escape_spaces(topic))
         else:
-            self.sendLine("$HubName %s" % local.hub_name)
+            self.sendLine("IINF CT32 DE")
+    
+    def pushQuit(self, node):
+        if node.sid:
+            self.sendLine("IQUI %s" % node.sid)
+        else:
+            print "+ Node: %s has no SID" % node.nick
 
-
-    def pushHello(self, nick):
-        self.sendLine('$Hello %s' % nick)
-
-
-    def pushQuit(self, nick):
-        self.sendLine('$Quit %s' % nick)
-
-
+    
     def pushConnectToMe(self, ad, use_ssl):
-        line = "$ConnectToMe %s %s" % (self.nick, ad.getTextIPPort())
-        if use_ssl:
-            line += 'S'
-        self.sendLine(line)
+        print "CTM"
+        #line = "$ConnectToMe %s %s" % (self.nick, ad.getTextIPPort())
+        #if use_ssl:
+        #    line += 'S'
+        #self.sendLine(line)
 
 
     def pushRevConnectToMe(self, nick):
-        self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
+        print "$RevCTM"
+        #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
-
+    
     def pushSearchRequest(self, ipp, search_string):
-        ad = Ad().setRawIPPort(ipp)
-        self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
+        pass
+        #print "pushSearchRequest: %s %s" % (binascii.hexlify(ipp), search_string)
+        #ad = Ad().setRawIPPort(ipp)
+        #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
 
     def pushPrivMsg(self, nick, text):
-        self.sendLine("$To: %s From: %s $<%s> %s"
-                      % (self.nick, nick, nick, text))
+        
+        if(nick == self.bot.nick or nick == '*IRC' or nick == '*ChanServ'):
+            sid = self.bot.sid
+        else:
+            sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
+            
+        self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape_spaces(text), sid))
 
 
     def pushStatus(self, text):
-        self.pushChatMessage(self.bot.nick, text)
+        self.sendLine("BMSG %s %s" % (self.bot.sid, adc_escape_spaces(text)))
 
-
+    
     def scheduleChatRateControl(self):
         if self.chatRate_dcall:
             return
@@ -830,7 +1067,7 @@ class DCHandler(BaseDCProtocol):
                 self.chat_counter = min(5, self.chat_counter + 1)
 
         cb()
-
+    
 
     def broadcastChatMessage(self, flags, text):
 
@@ -848,24 +1085,16 @@ class DCHandler(BaseDCProtocol):
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_chat()))
 
         packet.append(osm.me.nickHash())
-        packet.append(struct.pack('!BH', flags, len(text)))
+        packet.append(struct.pack('!BH', flags | core.PROTOCOL_ADC, len(text)))
         packet.append(text)
 
         osm.mrm.newMessage(''.join(packet), tries=4)
 
-        # Echo back to the DC client
-        if flags & core.SLASHME_BIT:
-            nick = "*"
-            text = "%s %s" % (osm.me.nick, text)
-        else:
-            nick = osm.me.nick
-
-        self.pushChatMessage(nick, text)
-
+        self.pushChatMessage(self.nick, text, flags)
 
     # Precompile a regex for pushSearchResult
     searchreply_re = re.compile(r"^\$SR ([^ |]+) ([^|]*) \([^ |]+\)\|?$")
-
+    """
     def pushSearchResult(self, data):
 
         m = self.searchreply_re.match(data)
@@ -883,7 +1112,7 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$SR %s %s (127.0.0.1:%d)"
                       % (nick, data, self.factory.listen_port))
 
-
+    """
     def remoteNickCollision(self):
 
         text = (
@@ -896,7 +1125,7 @@ class DCHandler(BaseDCProtocol):
 
         for line in word_wrap(text):
             self.pushStatus(line)
-
+    
 
     def doRejoin(self):
         if self.state != 'invisible':
@@ -916,8 +1145,20 @@ class DCHandler(BaseDCProtocol):
 
     def event_DtellaUp(self):
         CHECK(self.isOnline())
-        self.d_GetNickList()
+        
+        # from GetNickList - addapted to just send BINF for all online users
 
+        me = self.main.osm.me
+        me.adcinfo = self.formatMyInfo()
+        me.sid = self.sid
+        #self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
+
+        for node in self.main.osm.nkm.nickmap.itervalues():
+            if node.nick != self.nick and node.nick != self.bot.nick and node.adcinfo is not None:
+                self.pushInfo(node)
+
+        self.sendLine("BINF %s %s" % (self.sid,self.formatMyInfo()))
+        
         # Grab the current topic from Dtella.
         tm = self.main.osm.tm
         self.pushTopic(tm.topic)
@@ -967,50 +1208,47 @@ class DCHandler(BaseDCProtocol):
 
 
     def event_AddNick(self, n):
-        if not self.isProtectedNick(n.nick):
-            self.pushHello(n.nick)
+        pass #nothing to do - no $Hello for ADC
+        #if not self.isProtectedNick(n.nick):
+        #    self.pushHello(n.nick)
     
 
     def event_RemoveNick(self, n, reason):
         if not self.isProtectedNick(n.nick):
-            self.pushQuit(n.nick)
+            self.pushQuit(n)
 
 
     def event_UpdateInfo(self, n):
-        if n.dcinfo:
-            self.pushInfo(n.nick, n.dcinfo)
+        if n.adcinfo is not None:
+            self.pushInfo(n)
 
 
     def event_ChatMessage(self, n, nick, text, flags):
-        if flags & core.NOTICE_BIT:
-            self.pushChatMessage(("*N# %s" % nick), text)
-        elif flags & core.SLASHME_BIT:
-            self.pushChatMessage("*", "%s %s" % (nick, text))
-        else:
-            self.pushChatMessage(nick, text)
+        #if flags & core.NOTICE_BIT:
+        #    self.pushChatMessage(("*N# %s" % nick), text)
+        #elif flags & core.SLASHME_BIT:
+        #    self.pushChatMessage("*", "%s %s" % (nick, text))
+        #else:
+        self.pushChatMessage(n, text, flags)
 
-verifyClass(IDtellaStateObserver, DCHandler)
+verifyClass(IDtellaStateObserver, ADCHandler)
 
-
+    
 ##############################################################################
 
 
-class DCFactory(ServerFactory):
+class ADCFactory(ServerFactory):
     
     def __init__(self, main, listen_port):
         self.main = main
-        self.protocol = core.PROTOCOL_NMDC
+        self.protocol = core.PROTOCOL_ADC
         self.listen_port = listen_port # spliced into search results
         
     def buildProtocol(self, addr):
         if addr.host != '127.0.0.1':
             return None
 
-        p = DCHandler(self.main)
+        p = ADCHandler(self.main)
 
         p.factory = self
         return p
-
-
-##############################################################################
-

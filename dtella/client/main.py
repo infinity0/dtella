@@ -41,7 +41,7 @@ from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
 from dtella.common.log import LOG
 from dtella.common.ipv4 import Ad
 
-STATE_FILE = "dtella.state"
+STATE_FILE = "adc-dtella.state"
 
 class DtellaMain_Client(core.DtellaMain_Base):
 

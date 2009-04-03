@@ -3,6 +3,7 @@ Dtella - Local Site Configuration
 Copyright (C) 2007-2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2007-2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://www.feisley.com/)
+Copyright (C) 2008-2009  Dtella Cambridge (http://camdc.pcriot.com)
 
 $Id$
 
@@ -26,31 +27,32 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 # Use this prefix for filenames when building executables and installers.
 # It will be concatenated with the version number below.
-build_prefix = "dtella-purdue-"
+build_prefix = "dtella-cambridge-"
 
 # Dtella version number.
-version = "SVN"
+version = "1.2.4.3"
 
 # This is an arbitrary string which is used for encrypting packets.
 # It essentially defines the uniqueness of a Dtella network, so every
 # network should have its own unique key.
-network_key = 'PurdueDtella-11'
+network_key = 'DC-Comics-Reloaded'
 
 # This is the name of the "hub" which is seen by the user's DC client.
 # "Dtella@____" is the de-facto standard, but nobody's stopping you
 # from picking something else.
-hub_name = "Dtella@Purdue"
+hub_name = "Dtella@Cambridge"
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.
 # It should be set to some sane value to prevent the person managing DNS from
 # setting the minshare to 99999TiB, and effectively disabling the network.
-minshare_cap = 100 * (1024**3)   # (=100GiB)
+minshare_cap = 100 * (1024**2)   # (=100MiB)
 
 # This is a list of subnets (in CIDR notation) which will be permitted on
 # the network.  Make sure you get this right initially, because you can't
 # make changes once the program has been distributed.  In the unlikely event
 # that you don't want any filtering, use ['0.0.0.0/0']
-allowed_subnets = ['128.210.0.0/15', '128.10.0.0/16', '128.46.0.0/16']
+allowed_subnets = ['128.232.0.0/16', '129.169.0.0/16', '131.111.0.0/16', '193.60.80.0/20',
+'172.16.0.0/13', '172.24.0.0/14', '172.28.0.0/15', '172.30.0.0/16']
 
 # Here we configure an object which pulls 'Dynamic Config' from some source
 # at a known fixed location on the Internet.  This config contains a small
@@ -63,7 +65,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "purdue.config.dtella.org"
+    hostname = "cambridge.config.dtella.org"
     )
 
 # -- Use Google Spreadsheet --
@@ -71,6 +73,15 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
 ##dconfig_puller = dtella.modules.pull_gdata.GDataPuller(
 ##    sheet_key = "..."
 ##    )
+
+#''' BEGIN NEWITEMS MOD #
+# Limits for !newitems storage. Individual users can override the limits for
+# display by using the commands !newitems daylim [days] | numlim [count]
+# but data for items will always be stored up to the smallest of these limits.
+newitems_daylim = 14
+newitems_numlim = 64
+# newitems_numlim should be <= 32, since UDP packets have a limited size
+# END NEWITEMS MOD '''#
 
 # Enable this if you can devise a meaningful mapping from a user's hostname
 # to their location.  Locations are displayed in the "Connection / Speed"
@@ -85,25 +96,26 @@ use_locations = True
 
 # DNS servers which will be used for doing IP->Hostname reverse lookups.
 # These should be set to your school's local DNS servers, for efficiency.
-rdns_servers = ['128.210.11.5','128.210.11.57','128.10.2.5','128.46.154.76']
+rdns_servers = ['131.111.8.42','131.111.12.20']
 
 # Customized data for our implementation of hostnameToLocation
 import re
-suffix_re = re.compile(r".*\.([^.]+)\.purdue\.edu")
-prefix_re = re.compile(r"^([a-z]{1,6}).*\.purdue\.edu")
+suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.societies|\.private)?\.cam\.ac\.uk")
+#prefix_re = re.compile(r"^([a-z]{1,6}).*\.cam\.ac\.uk")
 
-pre_table = {
-    'erht':'Earhart', 'cary':'Cary', 'hill':'Hillenbrand',
-    'shrv':'Shreve', 'tark':'Tarkington', 'wily':'Wiley',
-    'mrdh':'Meredith', 'wind':'Windsor', 'harr':'Harrison',
-    'hawk':'Hawkins', 'mcut':'McCutcheon', 'owen':'Owen',
-    'hltp':'Hilltop', 'yong':'Young', 'pvil':'P.Village',
-    'pal':'AirLink', 'dsl':'DSL', 'vpn':'VPN'}
+#pre_table = {
+#    }
 
 suf_table = {
-    'cerias':'CERIAS', 'cs':'CS', 'ecn':'ECN', 'hfs':'HFS',
-    'ics':'ITaP Lab', 'lib':'Library', 'mgmt':'Management',
-    'uns':'News', 'cfs':'CFS'}
+    'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus Christi',
+    'dar':'Darwin', 'dow':'Downing', 'emma':'Emmanuel', 'fitz':'Fitzwilliam',
+    'girton':'Girton', 'cai':'Gonville and Caius', 'homerton':'Homerton', 'jesus':'Jesus',
+    'kings':'King\'s', 'lucy-cav':'Lucy Cavendish', 'magd':'Magdalene', 'newn':'Newnham',
+    'pem':'Pembroke', 'quns':'Queens\'', 'robinson':'Robinson', 'sel':'Selwyn',
+    'sid':'Sidney Sussex', 'caths':'St Catharine\'s', 'st-edmunds':'St Edmund\'s', 'joh':'St John\'s',
+    'trin':'Trinity', 'wolfson':'Wolfson', 'clarehall':'Clare Hall', 'hughes':'Hughes Hall',
+    'newhall':'New Hall', 'trinhall':'Trinity Hall', 'srcf':'SRCF',
+    }
 
 def hostnameToLocation(hostname):
     # Convert a hostname into a human-readable location name.
@@ -116,13 +128,13 @@ def hostnameToLocation(hostname):
                 return suf_table[suffix.group(1)]
             except KeyError:
                 pass
-        
-        prefix = prefix_re.match(hostname)
-        if prefix:
-            try:
-                return pre_table[prefix.group(1)]
-            except KeyError:
-                pass
 
-    return "Unknown"
+#        prefix = prefix_re.match(hostname)
+#        if prefix:
+#            try:
+#                return pre_table[prefix.group(1)]
+#            except KeyError:
+#                pass
+
+    return "Unknown Location"
 
