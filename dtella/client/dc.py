@@ -1087,8 +1087,7 @@ class DtellaBot(object):
 
 
 #''' BEGIN NEWITEMS MOD #
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF','IHAVE','NEWSTUFF'])
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
 
     location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF','IHAVE','NEWSTUFF'])
 
@@ -1601,22 +1600,6 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
 
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    def handleCmd_IHAVE(self, out, desc, prefix):
-
-        out("%sIHAVE has been deprecated and will be REMOVED in the next update." % prefix)
-        out("Please use %sI instead - see %sHELP I for details." % (prefix, prefix))
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sIHAVE." % prefix)
-            return
-
-        if desc:
-            self.handleCmd_I(out, "HAVE " + desc, prefix)
-        else:
-            self.handleCmd_I(out, "HAVE", prefix)
-
-
     def handleCmd_I(self, out, desc, prefix):
 
         if not self.dch.isOnline():
@@ -1717,19 +1700,6 @@ class DtellaBot(object):
                 return
 
         self.syntaxHelp(out, 'NOTIFY', prefix)
-
-
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    def handleCmd_NEWSTUFF(self, out, args, prefix):
-
-        out("%sNEWSTUFF has been deprecated and will be REMOVED in the next update." % prefix)
-        out("Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sNEWSTUFF." % prefix)
-            return
-
-        self.handleCmd_STUFF(out, "d7", prefix)
 
 
     def handleCmd_STUFF(self, out, text, prefix):
