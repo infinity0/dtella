@@ -55,7 +55,7 @@ class StateManager(object):
 
     def loadState(self):
         # Call this once to load the state file
-
+        
         try:
             f = file(self.filename, "rb")
 
@@ -68,13 +68,13 @@ class StateManager(object):
 
             for i in range(nkeys):
                 klen, = struct.unpack("!I", f.read(4))
-
+                
                 k = f.read(klen)
                 if len(k) != klen:
                     raise ValueError
 
                 vlen, = struct.unpack("!I", f.read(4))
-
+                
                 v = f.read(vlen)
                 if len(v) != vlen:
                     raise ValueError
@@ -97,7 +97,7 @@ class StateManager(object):
 
     def saveState(self):
         # Save the state file every few minutes
-
+        
         def cb():
             when = random.uniform(5*60, 6*60)
             self.saveState_dcall = reactor.callLater(when, cb)
@@ -125,7 +125,7 @@ class StateManager(object):
                     f.write(v)
 
                 f.close()
-
+                
             except:
                 twisted.python.log.err()
 
@@ -193,7 +193,7 @@ class StateManager(object):
 
         when, = struct.unpack("!I", data[:4])
         ipps = [data[i:i+6] for i in range(4, len(data), 6)]
-
+        
         self.dns_ipcache = when, ipps
 
         # If DNS contains a foreign IP, add it to the exemption
@@ -322,15 +322,15 @@ class UDPPort(LoadSaver):
     key = 'udp_port'
 
     def load(self, state, d):
-
+        
         try:
             state.udp_port = self.unpackValue(d, 'H')
-
+            
         except StateError:
             # Pick a random UDP port to use.  Try a few times.
             for i in range(8):
                 state.udp_port = random.randint(1024, 65535)
-
+                
                 try:
                     # See if the randomly-selected port is available
                     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
