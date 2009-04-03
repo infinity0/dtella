@@ -1,5 +1,0 @@
-Currently contains:
-
-dtella-cambrdige is the dtella trunk repo with some cambridge mods that we have added
-
-
