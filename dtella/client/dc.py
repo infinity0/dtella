@@ -2,7 +2,6 @@
 Dtella - DirectConnect Interface Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
-Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com)
 
 $Id$
 
@@ -1086,13 +1085,11 @@ class DtellaBot(object):
         out("Type '%sHELP %s' for more information." % (prefix, key))
 
 
-#''' BEGIN NEWITEMS MOD #
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF','IHAVE','NEWSTUFF'])
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG'])
 
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF','IHAVE','NEWSTUFF'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE'])
 
-
+    
     minihelp = [
         ("--",         "ACTIONS"),
         ("REJOIN",     "Hop back online after a kick or collision"),
@@ -1100,15 +1097,12 @@ class DtellaBot(object):
         ("INVITE",     "Show your current IP and port to give to a friend"),
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
-        ("I",          "Add/remove stuff to the global items list."),
-        ("STUFF",      "View the global items list."),
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
         ("UDP",        "Change Dtella's peer communication port"),
         ("LOCALSEARCH","View or toggle local search results."),
         ("PERSISTENT", "View or toggle persistent mode"),
-        ("NOTIFY",     "View or toggle notifications of new items"),
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
         ("USERS",      "Show how many users exist at each location"),
@@ -1116,7 +1110,6 @@ class DtellaBot(object):
         ("DENSE",      "Show the bytes/user density for each location"),
         ("RANK",       "Compare your share size with everyone else"),
         ]
-# END NEWITEMS MOD '''#
 
 
     bighelp = {
@@ -1140,30 +1133,6 @@ class DtellaBot(object):
             "the topic to prevent changes."
             ),
 
-#''' BEGIN NEWITEMS MOD #
-        "I":(
-            "<WANT|WANTNOT|HAVE|HAVENOT> [@<category>] <description>",
-            "Announce to the network an item that you have or want, with an "
-            "optional category to place that item into. eg. I HAVE @FILM V "
-            "for Vendetta. You can also use the NOT word to cancel a previous "
-            "submission. eg. I HAVENOT @FILM V for Vendetta."
-            ),
-
-        "STUFF":(
-            "[filters]",
-            "Displays the list of stuff based on some filters. If no "
-            "filters are provided, displays new items from the last week. To "
-            "the syntax for these filters, see STUFF FILTERS."
-            ),
-
-        "NOTIFY":(
-            "<ON | OFF>",
-            "Set whether you wish to be notified by *Dtella when someone "
-            "makes a new item announcement. To see whether you are currently "
-            "receiving notifications, use the command with no arguments."
-            ),
-
-# END NEWITEMS MOD '''#
         "SUFFIX":(
             "<suffix>",
             "This command appends a suffix to your location name, which "
@@ -1599,235 +1568,6 @@ class DtellaBot(object):
         if osm:
             osm.updateMyInfo()
 
-#''' BEGIN NEWITEMS MOD #
-
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    def handleCmd_IHAVE(self, out, desc, prefix):
-
-        out("%sIHAVE has been deprecated and will be REMOVED in the next update." % prefix)
-        out("Please use %sI instead - see %sHELP I for details." % (prefix, prefix))
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sIHAVE." % prefix)
-            return
-
-        if desc:
-            self.handleCmd_I(out, "HAVE " + desc, prefix)
-        else:
-            self.handleCmd_I(out, "HAVE", prefix)
-
-
-    def handleCmd_I(self, out, desc, prefix):
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sI." % prefix)
-            return
-
-        if desc is None:
-            self.syntaxHelp(out, 'I', prefix)
-            return
-
-        itm = self.main.osm.itm
-
-        try:
-            type, desc = desc.split(' ', 1)
-        except ValueError:
-            self.syntaxHelp(out, 'I', prefix)
-            return
-
-        type = type.upper()
-        src = []
-
-        # retrieve category
-        if desc[0] == '@':
-            try:
-                cat, desc = desc.split(' ',1)
-            except ValueError:
-                self.syntaxHelp(out, 'I', prefix)
-                return
-
-            cat = cat[1:].upper()
-            if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
-
-            try:
-                cat = itm.categories.index(cat)
-            except ValueError:
-                out("Invalid category: " + cat + ". Available categories are " + itm.catlist + ".")
-                return
-
-        else:
-            cat = 0
-
-        # retrieve magnet links
-        if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
-            desc = desc.split(' ')
-            for (i, word) in enumerate(desc):
-                if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
-                    src.append(word)
-                    del desc[i]
-            desc = ' '.join(desc)
-
-        remove = False
-
-        if type == 'HAVE':
-            src.append(self.main.osm.me.nick)
-        elif type == 'WANT':
-            # note: if the description contain magnet links, that will be added to the sources
-            pass
-        elif type == 'HAVENOT':
-            remove = True
-            src.append(self.main.osm.me.nick)
-        elif type == 'WANTNOT':
-            remove = True
-            # we don't just test for emptylist, since we want !i wantnot [magnet link]
-            # to be able to reverse the effects of !i want [magnet link]
-            if (cat, desc[:255]) in itm.items and itm.items[(cat, desc[:255])][0].difference(src):
-                # other people have that item
-                return
-        elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
-            remove = True
-            # force a remove, remove all sources
-            src = []
-        else:
-            self.syntaxHelp(out, 'I', prefix)
-            return
-
-        itm.broadcastSrcForItem(remove, cat, desc, src)
-
-
-    def handleCmd_NOTIFY(self, out, args, prefix):
-        if len(args) == 0:
-            if self.main.state.newitems_notify:
-                out("Notification of new items is currently ON.")
-            else:
-                out("Notification of new items is currently OFF.")
-            return
-
-        if len(args) == 1:
-            if args[0] == 'ON':
-                out("Set notifications to ON.")
-                self.main.state.newitems_notify = True
-                self.main.state.saveState()
-                return
-
-            elif args[0] == 'OFF':
-                out("Set notifications to OFF.")
-                self.main.state.newitems_notify = False
-                self.main.state.saveState()
-                return
-
-        self.syntaxHelp(out, 'NOTIFY', prefix)
-
-
-    # TODO: IHAVE and NEWSTUFF to be removed at next update
-    def handleCmd_NEWSTUFF(self, out, args, prefix):
-
-        out("%sNEWSTUFF has been deprecated and will be REMOVED in the next update." % prefix)
-        out("Please use %sSTUFF instead - see %sHELP STUFF for details." % (prefix, prefix))
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sNEWSTUFF." % prefix)
-            return
-
-        self.handleCmd_STUFF(out, "d7", prefix)
-
-
-    def handleCmd_STUFF(self, out, text, prefix):
-
-        if not self.dch.isOnline():
-            out("You must be online to use %sSTUFF." % prefix)
-            return
-
-        if text is None: userargs = []
-        else: userargs = text.split(' ')
-        args = [None, None, [], []]
-        badfilters = []
-
-        if len(userargs) == 0:
-            args = [(0,16), (0,7), [],[]]
-
-        elif userargs[0].upper() == 'FILTERS':
-
-            lines = [
-                "STUFF filters",
-                "An entry is displayed if it satisfies ALL* range filters and "
-                "AT LEAST ONE category filter and AT LEAST ONE source filter.",
-                "",
-                "Range filters [<D|N>x[:y]]",
-                "These are a single character followed by either two integers "
-                "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ",
-                "  - Dx:y filters entries between x and y days ago. ",
-                "  - Nx:y filters to the last xth to yth entries. ",
-                "*When multiple range filters of the same type are supplied, "
-                "only the last one is used.",
-                "",
-                "Category filters [@CAT]",
-                "These filter entries according to their category as assigned "
-                "by the original announcer. Currently accepted categories are:",
-                "  - " + self.main.osm.itm.catlist + ".",
-                "",
-                "Source filters [~SRC|WANTED]",
-                "These filter entries according to their sources as advertised "
-                "by various people. WANTED is a special filter that matches "
-                "entries with no listed sources.",
-                ]
-
-            for line in lines:
-                for l in word_wrap(line):
-                    if l:
-                        out(l)
-                    else:
-                        out(" ")
-
-            return
-
-        else:
-
-            for argv in userargs:
-                arg = argv.upper()
-
-                if arg[0] == 'N':
-                    i = 0
-                elif arg[0] == 'D':
-                    i = 1
-                elif arg[0] == '@':
-                    # category filters
-                    try:
-                        args[2].append(self.main.osm.itm.categories.index(arg[1:]))
-                    except ValueError:
-                        badfilters.append((arg, 'Category not available'))
-                    continue
-                elif arg[0] == '~' and args[3] is not None:
-                    # source filters
-                    args[3].append(argv[1:])
-                    continue
-                elif arg == 'WANTED':
-                    args[3] = None
-                    continue
-                else:
-                    badfilters.append((arg, 'Unrecognised filter - see STUFF FILTERS for help.'))
-                    continue
-
-                try:
-                    # range filters
-                    t = map(lambda x: int(x), arg[1:].split(':'))
-                    t.sort()
-                    if len(t) == 1 or len(t) == 2:
-                        args[i] = tuple(t)
-                    else:
-                        badfilters.append((arg, 'Need to specify one or two numbers'))
-                except ValueError:
-                    badfilters.append((arg, 'Badly formatted number'))
-
-        lines = self.main.osm.itm.getFormattedItems(*args)
-        for line in lines:
-            out(line)
-        if badfilters:
-            out('Some filters were invalid and ignored:')
-            for f in badfilters:
-                out("  %s: %s" % f)
-
-# END NEWITEMS MOD '''#
 
     def showStats(self, out, title, compute, format, peers_only):
 

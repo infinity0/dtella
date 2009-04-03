@@ -2,7 +2,6 @@
 Dtella - State File Management Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
-Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com)
 
 $Id$
 
@@ -281,25 +280,6 @@ class Persistent(LoadSaver):
         self.packValue(d, 'B', bool(state.persistent))
 
 
-#''' BEGIN NEWITEMS MOD #
-
-#Added 18/12/2008 by andyhhp - support for newstuff functionality
-class Newitems_Notify(LoadSaver):
-
-    key = 'newitems_notify'
-
-    def load(self, state, d):
-        try:
-            state.newitems_notify = bool(self.unpackValue(d, 'B'))
-        except StateError:
-            state.newitems_notify = False
-
-
-    def save(self, state, d):
-        self.packValue(d, 'B', bool(state.newitems_notify))
-
-
-# END NEWITEMS MOD '''#
 
 class LocalSearch(LoadSaver):
 
@@ -431,9 +411,6 @@ class DNSPkHashes(LoadSaver):
 
 
 client_loadsavers = [Persistent(),
-#''' BEGIN NEWITEMS MOD #
-                     Newitems_Notify(),
-# END NEWITEMS MOD '''#
                      LocalSearch(),
                      UDPPort(),
                      IPCache(),
