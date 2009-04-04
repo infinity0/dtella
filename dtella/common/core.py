@@ -1952,13 +1952,18 @@ class Node(object):
                     infs = split_info(info)
                     self.info['NI'] = self.nick
                     self.info['DE'], rest = split_tag(infs[0])
+                    if self.location:
+                        self.info['DE'] = "[%s] %s" % (self.location, self.info['DE'])
+
                     self.info['SS'] = str(self.shared)
                     cid = self.location[-28:0]
                     if len(cid) == 28 and cid[0:2] == '__' and cid[-2:0] == '__':
                         self.info['ID'] = cid[2:-2]
                     else:
                         self.info['ID'] = base64.b32encode(treehash(self.nick))
+
                     self.info['EM'] = infs[3]
+
                     self.info['VE'], rest = rest.split(' ')
                     tags = {}
                     for i in rest.split(','):
@@ -1969,6 +1974,7 @@ class Node(object):
                     self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
+
                     self.dcinfo = adc_infostring(self.info)
                     print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
                 except ValueError:
@@ -2723,12 +2729,14 @@ class OnlineStateManager(object):
         if adc:
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
+            print "PREPARING NS ADC packet ----------"
+            print self.me.info_out
         else:
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
                 
                 dc, dt = inf['VE'].split(';')
-                dc = dc.split(' ')
+                dc = dc.split(' ', 1)
                 dcstr, dcver = dc[0], ""
                 if len(dc) > 1: dcver = dc[1]
                 
