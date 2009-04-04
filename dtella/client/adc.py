@@ -354,7 +354,7 @@ class ADCHandler(BaseADCProtocol):
         fields = rest.split(' ')
         inf = {}
         for i in fields:
-            inf[i[:2]] = i[2:]
+            inf[i[:2]] = adc_unescape(i[2:])
         
         if self.state == 'IDENTIFY':
             inf['PD'] = b32pad(inf['PD'])
@@ -705,10 +705,13 @@ class ADCHandler(BaseADCProtocol):
 
         print self.infdict
         self.infdict['CT'] = '0'
+
         if len(self.infdict['VE']) > 0:
-            self.infdict['VE'] = adc_escape("%s - %s" % (self.infdict['VE'], get_version_string()))
+            verstr = get_version_string()
+            if verstr not in self.infdict['VE']:
+                self.infdict['VE'] = "%s - %s" % (self.infdict['VE'], verstr)
         else:
-            self.infdict['VE'] = adc_escape(get_version_string())
+            self.infdict['VE'] = get_version_string()
 
         if local.use_locations:
             # Try to get my location name.
@@ -726,9 +729,9 @@ class ADCHandler(BaseADCProtocol):
                     loc = loc + suffix
 
         if loc is not None and self.infdict.has_key('DE') and self.infdict['DE'][:len(loc)] != loc:
-            self.infdict['DE'] = adc_escape("%s - %s" % (loc, self.infdict['DE']))
+            self.infdict['DE'] = "%s - %s" % (loc, self.infdict['DE'])
 
-        return ' '.join(["%s%s" % (i,adc_escape(d)) for (i,d) in self.infdict.iteritems()])
+        return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in self.infdict.iteritems()])
 
     """
     def d_Search(self, addr_string, search_string):
