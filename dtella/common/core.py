@@ -965,8 +965,10 @@ class PeerHandler(DatagramProtocol):
 
             if adc:
                 info, rest = self.decodeString2(rest)
-            else:
+            elif not adc_mode or adc_allow_nmdc:
                 info, rest = self.decodeString1(rest)
+            else:
+                raise Reject
 
             persist = bool(flags & PERSIST_BIT)
             
@@ -1453,8 +1455,10 @@ class PeerHandler(DatagramProtocol):
         nick, rest = self.decodeString1(rest)
         if adc:
             info, rest = self.decodeString2(rest)
-        else:
+        elif not adc_mode or adc_allow_nmdc:
             info, rest = self.decodeString1(rest)
+        else:
+            raise Reject
         topic, rest = self.decodeString1(rest)
 
         c_nbs, rest = self.decodeNodeList(rest)
@@ -1937,13 +1941,13 @@ class Node(object):
                 self.shared = int(self.info['SS'])
             except KeyError:
                 self.shared = 0
-            print "got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
+            print "--- got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
 
         else:
             self.dcinfo, self.location, self.shared = (
                 parse_incoming_info(SSLHACK_filter_flags(info)))
             
-            if adc_mode and adc_allow_nmdc: # BACKWARDS COMPAT
+            if adc_mode: # BACKWARDS COMPAT
                 try:
                     infs = split_info(info)
                     self.info['NI'] = self.nick
@@ -1966,7 +1970,7 @@ class Node(object):
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
                     self.dcinfo = adc_infostring(self.info)
-                    print "got NMDC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
+                    print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
                 except ValueError:
                     try:
                         if not info: # bridge node
@@ -1978,7 +1982,7 @@ class Node(object):
                             self.info = adc_infodict(info)
                             self.dcinfo = info
                             self.location = ""
-                            print "got ADC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
+                            print "WARNING got ADC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
                     except:
                         raise Reject
 
@@ -2720,9 +2724,8 @@ class OnlineStateManager(object):
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
         else:
-            if adc_mode: # convert adc infostring to nmdc infostring
+            if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
-                print inf
                 
                 dc, dt = inf['VE'].split(';')
                 dc = dc.split(' ')
@@ -2741,7 +2744,6 @@ class OnlineStateManager(object):
                     inf['DE'], dcstr, dcver,
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
                     loc, inf['ID'], chr(0), inf['EM'], self.me.shared)
-                print info_out
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
 
