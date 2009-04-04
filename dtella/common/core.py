@@ -228,11 +228,11 @@ class NickManager(object):
             so.event_UpdateInfo(n)
 
 
-    def setInfoInList(self, n, info):
+    def setInfoInList(self, n, info, adc=adc_mode):
         # Set the info of the node, and synchronize the info with
         # an observer if it changes.
 
-        if not n.setInfo(info):
+        if not n.setInfo(info, adc):
             # dcinfo hasn't changed, so there's nothing to send
             return
 
@@ -1921,9 +1921,9 @@ class Node(object):
             return True
 
 
-    def setInfo(self, info):
+    def setInfo(self, info, adc=adc_mode):
 
-        print "dtella INFO for %s: %s" % (self.nick, info)
+        print ("ADC" if adc else "NMDC") + "dtella INFO for %s: %s" % (self.nick, info)
         old_dcinfo = self.dcinfo
         self.dcinfo, self.location, self.shared = (
             parse_incoming_info(SSLHACK_filter_flags(info)))
@@ -1943,7 +1943,10 @@ class Node(object):
         # Wipe out the nick, and set info to contain only a Dt tag.
         self.nick = ''
         if self.dttag:
-            self.setInfo("<%s>" % self.dttag)
+            if adc_mode:
+                self.setInfo("VE%s" % adc_escape(self.dttag))
+            else:
+                self.setInfo("<%s>" % self.dttag)
         else:
             self.setInfo("")
 
@@ -2498,7 +2501,7 @@ class OnlineStateManager(object):
 
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info, type = 'NMDC'):
+                          persist, nick, info, adc):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -2532,7 +2535,7 @@ class OnlineStateManager(object):
 
         if nick == n.nick:
             # Nick hasn't changed, just update info
-            self.nkm.setInfoInList(n, info)
+            self.nkm.setInfoInList(n, info, adc)
 
         else:
             # Nick has changed.
@@ -2548,7 +2551,7 @@ class OnlineStateManager(object):
             else:
                 # Good nick, update the info
                 n.nick = nick
-                n.setInfo(info)
+                n.setInfo(info, adc)
 
                 # Try to add the new nick (no-op if the nick is empty)
                 try:

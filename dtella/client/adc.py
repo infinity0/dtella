@@ -27,8 +27,8 @@ import twisted.python.log
 from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, remove_dc_escapes, dcall_discard,
                                 format_bytes, dcall_timeleft,
-                                get_version_string, lock2key, CHECK, adc_escape_spaces,
-                                adc_escape_lines, b32pad, remove_adc_spaces)
+                                get_version_string, lock2key, CHECK, adc_escape,
+                                b32pad, adc_unescape)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
@@ -82,7 +82,7 @@ class BaseADCProtocol(LineOnlyReceiver):
 
     def sendLine(self, line):
         #print "<:", line
-        LineOnlyReceiver.sendLine(self,adc_escape_lines(line))
+        LineOnlyReceiver.sendLine(self, line)
 
 
     def lineReceived(self, line):
@@ -338,7 +338,7 @@ class ADCHandler(BaseADCProtocol):
         if self.state == 'PROTOCOL':
         
             self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
-            self.sendLine("ISID %s"%self.sid)
+            self.sendLine("ISID %s" % self.sid)
             self.sendLine("IINF CT32 NIADC-Dtella@Cambridge")
             
             
@@ -366,7 +366,7 @@ class ADCHandler(BaseADCProtocol):
             del inf['PD']
             
             #Let Dtella logon so we can send messages to the user
-            self.sendLine("BINF %s %s"%(self.bot.sid,self.bot.inf))
+            self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.inf))
             
             dcall_discard(self, 'init_dcall')
 
@@ -415,7 +415,7 @@ class ADCHandler(BaseADCProtocol):
         self.infdict.update(inf)
         if self.main.osm:
             self.main.osm.me.adcinfo = self.formatMyInfo()
-        self.sendLine("BINF %s %s" % (src_sid,self.formatMyInfo()))
+        self.sendLine("BINF %s %s" % (src_sid, self.formatMyInfo()))
         #TODO - broadcast to other users
         
         
@@ -425,7 +425,7 @@ class ADCHandler(BaseADCProtocol):
             return
         
         params = rest.split(' ')
-        text = remove_adc_spaces(params[0])
+        text = adc_unescape(params[0])
         
         inf = {}
         if len(params)>1:
@@ -706,9 +706,9 @@ class ADCHandler(BaseADCProtocol):
         print self.infdict
         self.infdict['CT'] = '0'
         if len(self.infdict['VE']) > 0:
-            self.infdict['VE'] = adc_escape_spaces("%s - %s" % (self.infdict['VE'], get_version_string()))
+            self.infdict['VE'] = adc_escape("%s - %s" % (self.infdict['VE'], get_version_string()))
         else:
-            self.infdict['VE'] = adc_escape_spaces(get_version_string())
+            self.infdict['VE'] = adc_escape(get_version_string())
 
         if local.use_locations:
             # Try to get my location name.
@@ -726,9 +726,9 @@ class ADCHandler(BaseADCProtocol):
                     loc = loc + suffix
 
         if loc is not None and self.infdict.has_key('DE') and self.infdict['DE'][:len(loc)] != loc:
-            self.infdict['DE'] = adc_escape_spaces("%s - %s" % (loc, self.infdict['DE']))
+            self.infdict['DE'] = adc_escape("%s - %s" % (loc, self.infdict['DE']))
 
-        return ' '.join(["%s%s" % (i,adc_escape_spaces(d)) for (i,d) in self.infdict.iteritems()])
+        return ' '.join(["%s%s" % (i,adc_escape(d)) for (i,d) in self.infdict.iteritems()])
 
     """
     def d_Search(self, addr_string, search_string):
@@ -925,9 +925,9 @@ class ADCHandler(BaseADCProtocol):
             sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
         
         if flags & core.SLASHME_BIT:
-            self.sendLine("BMSG %s %s ME1" % (sid, adc_escape_spaces(text)))
+            self.sendLine("BMSG %s %s ME1" % (sid, adc_escape(text)))
         else:
-            self.sendLine("BMSG %s %s" % (sid, adc_escape_spaces(text)))
+            self.sendLine("BMSG %s %s" % (sid, adc_escape(text)))
 
 
     def pushInfo(self, node):
@@ -945,7 +945,7 @@ class ADCHandler(BaseADCProtocol):
 
     def pushTopic(self, topic=None):
         if topic:
-            self.sendLine("IINF CT32 DE%s" % adc_escape_spaces(topic))
+            self.sendLine("IINF CT32 DE%s" % adc_escape(topic))
         else:
             self.sendLine("IINF CT32 DE")
     
@@ -976,7 +976,7 @@ class ADCHandler(BaseADCProtocol):
         #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
     def pushBotMsg(self, text):
-        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape_spaces(text), sid))
+        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), sid))
 
     def pushPrivMsg(self, nick, text):
         
@@ -985,11 +985,11 @@ class ADCHandler(BaseADCProtocol):
         else:
             sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
             
-        self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape_spaces(text), sid))
+        self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape(text), sid))
 
 
     def pushStatus(self, text):
-        self.sendLine("BMSG %s %s" % (self.bot.sid, adc_escape_spaces(text)))
+        self.sendLine("BMSG %s %s" % (self.bot.sid, adc_escape(text)))
 
     
     def scheduleChatRateControl(self):
@@ -1096,7 +1096,7 @@ class ADCHandler(BaseADCProtocol):
             if node.nick != self.nick and node.nick != self.bot.nick and node.adcinfo is not None:
                 self.pushInfo(node)
 
-        self.sendLine("BINF %s %s" % (self.sid,self.formatMyInfo()))
+        self.sendLine("BINF %s %s" % (self.sid, self.formatMyInfo()))
         
         # Grab the current topic from Dtella.
         tm = self.main.osm.tm

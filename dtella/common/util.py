@@ -197,17 +197,11 @@ def get_user_path(filename):
 def remove_dc_escapes(text):
     return text.replace('&#124;','|').replace('&#36;','$')
 
-def adc_escape_lines(text):
-    return text.replace('\n','\\n')
+def adc_escape(text):
+    return text.replace('\\', '\\\\').replace('\n','\\n').replace(' ', '\\s')
     
-def adc_escape_spaces(text):
-    return text.replace(' ','\\s')
-    
-def remove_adc_lines(text):
-    return text.replace('\\n','\n')
-    
-def remove_adc_spaces(text):
-    return text.replace('\\s',' ')
+def adc_unescape(text):
+    return text.replace('\\s',' ').replace('\\n','\n').replace('\\\\', '\\')
 
 def split_info(info):
     # Split a MyINFO string
