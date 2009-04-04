@@ -2101,7 +2101,7 @@ class Node(object):
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
 
         osm = main.osm
 
@@ -2123,8 +2123,10 @@ class Node(object):
 
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        print "in ADC CTM"
 
-    def event_RevConnectToMe(self, main, fail_cb):
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
 
         osm = main.osm
 
@@ -2139,6 +2141,8 @@ class Node(object):
 
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
+    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+        print "in ADC RCM"
 
     def nickRemoved(self, main):
 
@@ -2184,12 +2188,18 @@ class MeNode(Node):
         else:
             fail_cb("I'm not online!")
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
         fail_cb("can't get files from yourself!")
-
-    def event_RevConnectToMe(self, main, fail_cb):
+        
+    def event_ADC_ConnectToMe(self, main, protocl, port, token, fail_cb):
         fail_cb("can't get files from yourself!")
-
+        
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        fail_cb("can't get files from yourself!")
+        
+    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+        fail_cb("can't get files from yourself!")
+        
 verifyClass(IDtellaNickNode, MeNode)
 
 

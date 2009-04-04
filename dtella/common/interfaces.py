@@ -45,9 +45,13 @@ class IDtellaNickNode(Interface):
         pass
     def event_PrivateMessage(main, text, fail_cb):
         pass
-    def event_ConnectToMe(main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(main, port, use_ssl, fail_cb):
         pass
-    def event_RevConnectToMe(main, fail_cb):
+    def event_ADC_ConnectToMe(main, protocol, port, token, fail_cb):
+        pass
+    def event_NMDC_RevConnectToMe(main, fail_cb):
+        pass
+    def event_ADC_RevConnectToMe(main, token, fail_cb):
         pass
     def checkRevConnectWindow():
         pass

@@ -141,12 +141,13 @@ class BaseADCProtocol(LineOnlyReceiver):
 
 class ADC_AbortTransfer_Factory(ClientFactory):
 
-    def __init__(self, cid, token):
+    def __init__(self, cid, token, reason):
         self.cid = cid
         self.token = token
+        self.reason = reason
 
     def buildProtocol(self, addr):
-        p = ADC_AbortTransfer_Out(self.cid, self.token)
+        p = ADC_AbortTransfer_Out(self.cid, self.token, self.reason)
         p.factory = self
         return p
 
@@ -154,15 +155,16 @@ class ADC_AbortTransfer_Factory(ClientFactory):
 class ADC_AbortTransfer_Out(BaseADCProtocol):
 
     # if I initiate the connection:
-    # send $MyNick + $Lock
-    # (catch $Lock)
-    # wait for $Key
-    # -> send $Supports + $Direction + $Key + $Error
+    # send CSUP
+    # (catch CSUP followed by CINF)
+    # send CINF
+    # (catch GFI or GET then abort connection)
 
-    def __init__(self, cid, token):
+    def __init__(self, cid, token, reason):
 
         self.cid = cid
         self.token = token
+        self.reason = reason
 
         # If we're not done in 5 seconds, something's fishy.
         def cb():
@@ -178,31 +180,30 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
         self.addDispatch('SUP', ('C'), self.d_SUP)
         self.addDispatch('INF', ('C'), self.d_INF)
 
+        #Sta
         self.sendLine("CSUP ADBASE ADTIGR")
-        #self.sendLine("$MyNick %s" % self.nick)
-        #self.sendLine("$Lock %s" % LOCK_STR)
 
     
     def d_SUP(self, con, rest=None):
         pass #We will recieve one but ignore it
         
     def d_INF(self, con, rest=None):
+        self.addDispatch('GET', ('C'), self.d_GET)
+        self.addDispatch('GFI', ('C'), self.d_GFI)
+    
         self.sendLine("CINF ID%s TO%s" % (self.cid, self.token))
 
-    """
-    def d_Key(self, key):
-        if self.lock.startswith("EXTENDEDPROTOCOL"):
-            self.sendLine("$Supports ADCGet TTHL TTHF")
-        self.sendLine("$Direction Upload 12345")
-        self.sendLine("$Key %s" % lock2key(self.lock))
-        self.sendLine("$Error File Not Available")
+        
+    def d_GET(self, con, rest=None):
+        self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
         self.transport.loseConnection()
 
+    def d_GFI(self, con, rest=None):
+        self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
+        self.transport.loseConnection()
 
     def connectionLost(self, reason):
         dcall_discard(self, 'timeout_dcall')
-    """
-
 
 class ADC_AbortTransfer_In(BaseADCProtocol):
 
@@ -551,22 +552,56 @@ class ADCHandler(BaseADCProtocol):
                         break
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
-    
-        params = rest.split(' ')
         
-        if(len(params) != 3):
+        show_errors = True
+        
+        try:
+            protocol_str, port_str, token = rest.split(' ')
+        except Exception:
             print "CTM Error: rest=%s" % rest
+            return
             
-        if dst_sid == self.bot.sid:     #User is trying to connect to *Dtella - cancel them
-        #    self.sendLine("DSTA %s %s 241 Cant\\sconnect\\sto\\s*Dtella TO%s PR%s" % (dst_sid, src_sid, params[2], params[0]))
-            reactor.connectTCP(
-                    '127.0.0.1', int(params[1]), ADC_AbortTransfer_Factory(self.bot.cid, params[2]))
+        try:
+            port = int(port_str)
+            if not (1 <= port <= 65535):
+                raise ValueError
+        except ValueError:
+            port = None
+            
+        def fail_cb(reason):
+            if show_errors:
+                if node:
+                    self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
+                else:
+                    self.pushStatus("*** Connection failed: %s" % reason)
+            if port:
+                reactor.connectTCP('127.0.0.1', port,
+                    ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
+
 
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
-            print "ERROR: Client CTM to unfound SID \"%s\"" % dst_sid
+            node = None
+            fail_cb("User doesnt seem to exist")
             return
+
+        if not self.isOnline():
+            fail_cb("you're not online.")
+            return
+        elif not port:
+            fail_cb("invalid port: <%s>" % port_str)
+            return
+        elif dst_sid == self.bot.sid: #User is trying to connect to *Dtella
+            fail_cb("<%s> has no files" % self.bot.nick)
+            return
+        elif self.isLeech():
+            show_errors = False
+            fail_cb(None)
+            return
+        else:
+            print "Should connect to me now"
+            #node.event_ConnectToMe(self.main, port, use_ssl, fail_cb)
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):

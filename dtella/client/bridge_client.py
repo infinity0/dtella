@@ -460,13 +460,17 @@ class NickNode(object):
         self.parent_n.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
         fail_cb("IRC users don't have any files.")
 
-
-    def event_RevConnectToMe(self, main, fail_cb):
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
         fail_cb("IRC users don't have any files.")
 
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        fail_cb("IRC users don't have any files.")
+
+    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+        fail_cb("IRC users don't have any files.")
 
     def checkRevConnectWindow(self):
         return False

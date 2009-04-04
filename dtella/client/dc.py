@@ -640,7 +640,7 @@ class DCHandler(BaseDCProtocol):
             fail_cb(None)
             return
 
-        n.event_ConnectToMe(self.main, port, use_ssl, fail_cb)
+        n.event_NMDC_ConnectToMe(self.main, port, use_ssl, fail_cb)
 
 
     def d_RevConnectToMe(self, _, nick):
@@ -678,7 +678,7 @@ class DCHandler(BaseDCProtocol):
             fail_cb(None)
             return
 
-        n.event_RevConnectToMe(self.main, fail_cb)
+        n.event_NMDC_RevConnectToMe(self.main, fail_cb)
 
 
     def isLeech(self):
