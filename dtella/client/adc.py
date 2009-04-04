@@ -133,24 +133,25 @@ class BaseADCProtocol(LineOnlyReceiver):
     def addDispatch(self, command, contexts, fn):
         self.dispatch[command] = (contexts, fn)
 
-"""
+
 ##############################################################################
 
 # These next 3 classes implement a small subset of the DC client-client
 # protocol, in order to impersonate a remote peer and generate an error.
 
-class AbortTransfer_Factory(ClientFactory):
+class ADC_AbortTransfer_Factory(ClientFactory):
 
-    def __init__(self, nick):
-        self.nick = nick
+    def __init__(self, cid, token):
+        self.cid = cid
+        self.token = token
 
     def buildProtocol(self, addr):
-        p = AbortTransfer_Out(self.nick)
+        p = ADC_AbortTransfer_Out(self.cid, self.token)
         p.factory = self
         return p
 
 
-class AbortTransfer_Out(BaseDCProtocol):
+class ADC_AbortTransfer_Out(BaseADCProtocol):
 
     # if I initiate the connection:
     # send $MyNick + $Lock
@@ -158,10 +159,10 @@ class AbortTransfer_Out(BaseDCProtocol):
     # wait for $Key
     # -> send $Supports + $Direction + $Key + $Error
 
-    def __init__(self, nick):
+    def __init__(self, cid, token):
 
-        self.nick = nick
-        self.lock = ""
+        self.cid = cid
+        self.token = token
 
         # If we're not done in 5 seconds, something's fishy.
         def cb():
@@ -172,19 +173,23 @@ class AbortTransfer_Out(BaseDCProtocol):
 
 
     def connectionMade(self):
-        BaseDCProtocol.connectionMade(self)
+        BaseADCProtocol.connectionMade(self)
 
-        self.addDispatch('$Lock',  2, self.d_Lock)
-        self.addDispatch('$Key',  -1, self.d_Key)
+        self.addDispatch('SUP', ('C'), self.d_SUP)
+        self.addDispatch('INF', ('C'), self.d_INF)
 
-        self.sendLine("$MyNick %s" % self.nick)
-        self.sendLine("$Lock %s" % LOCK_STR)
+        self.sendLine("CSUP ADBASE ADTIGR")
+        #self.sendLine("$MyNick %s" % self.nick)
+        #self.sendLine("$Lock %s" % LOCK_STR)
 
+    
+    def d_SUP(self, con, rest=None):
+        pass #We will recieve one but ignore it
+        
+    def d_INF(self, con, rest=None):
+        self.sendLine("CINF ID%s TO%s" % (self.cid, self.token))
 
-    def d_Lock(self, lock, pk):
-        self.lock = lock
-
-
+    """
     def d_Key(self, key):
         if self.lock.startswith("EXTENDEDPROTOCOL"):
             self.sendLine("$Supports ADCGet TTHL TTHF")
@@ -196,9 +201,10 @@ class AbortTransfer_Out(BaseDCProtocol):
 
     def connectionLost(self, reason):
         dcall_discard(self, 'timeout_dcall')
+    """
 
 
-class AbortTransfer_In(BaseDCProtocol):
+class ADC_AbortTransfer_In(BaseADCProtocol):
 
     # if I receive the connection:
     # receive $MyNick
@@ -229,7 +235,7 @@ class AbortTransfer_In(BaseDCProtocol):
 
 
     def connectionMade(self):
-        BaseDCProtocol.connectionMade(self)
+        BaseADCProtocol.connectionMade(self)
 
         self.addDispatch('$Lock', 2, self.d_Lock)
 
@@ -256,7 +262,7 @@ class AbortTransfer_In(BaseDCProtocol):
 
 ##############################################################################
 
-"""
+
 class ADCHandler(BaseADCProtocol):
     implements(IDtellaStateObserver)
 
@@ -272,9 +278,9 @@ class ADCHandler(BaseADCProtocol):
         self.sid = base64.b32encode(struct.pack('I',0))[:4]
         self.bot = DtellaBot(self, '*Dtella')
         self.bot.sid = base64.b32encode(struct.pack('I',1))[:4]
+        self.bot.cid = base64.b32encode(tiger.hash(self.bot.nick))
         self.bot.inf = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
-                        (base64.b32encode(tiger.hash(self.bot.nick)),
-                        get_version_string(), self.bot.nick,
+                        (self.bot.cid,get_version_string(), self.bot.nick,
                         "Local\\sDtella\\sBot")
 
         # Handlers which can be used before attaching to Dtella
@@ -346,9 +352,8 @@ class ADCHandler(BaseADCProtocol):
         elif self.state != 'ready':
             #TODO broadcast
             return
-        
 
- 
+
     def d_INF(self, con, src_sid=None, rest=None):
     
         inf = adc_infodict(rest)
@@ -433,7 +438,7 @@ class ADCHandler(BaseADCProtocol):
             for i in params[1:]:
                 inf[i[:2]] = i[2:]
 
-        if con == 'E':  #Private Message - must echo back
+        if con == 'E':  #Private Message
         
             if dst_sid == self.bot.sid:
 
@@ -464,7 +469,7 @@ class ADCHandler(BaseADCProtocol):
                 return
 
             try:
-                n = self.main.osm.nkm.lookupNodeFromNick(nick)
+                n = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
             except KeyError:
                 fail_cb("User doesn't seem to exist.")
                 return
@@ -545,136 +550,34 @@ class ADCHandler(BaseADCProtocol):
                             "*** Chat throttled.  Stop typing so much!")
                         break
 
-    def d_CTM(self, con, src_sid , dst_sid, rest):
+    def d_CTM(self, con, src_sid, dst_sid, rest):
     
         params = rest.split(' ')
         
         if(len(params) != 3):
             print "CTM Error: rest=%s" % rest
-    
+            
         if dst_sid == self.bot.sid:     #User is trying to connect to *Dtella - cancel them
-            self.sendLine("DSTA %s %s 241 Cant\\sconnect\\sto\\s*Dtella TO%s PR%s" % (dst_sid, src_sid, params[2], params[0]))
-    
-    
-    """
-    def d_MyNick(self, nick):
-        # This is a fake RevConnect that we should terminate.
-        
-        dcall_discard(self, 'init_dcall')
-        
-        if self.state != 'login_1':
-            self.fatalError("$MyNick not expected.")
-            return
-
-        if not self.main.abort_nick:
-            self.transport.loseConnection()
-            return
-
-        # Transfer my state to the connection abort handler
-        AbortTransfer_In(self.main.abort_nick, self)
-        self.main.abort_nick = None
-
-
-    def d_ValidateNick(self, nick):
-
-        dcall_discard(self, 'init_dcall')
-
-        if self.state != 'login_1':
-            self.fatalError("$ValidateNick not expected.")
-            return
-
-        # Next, we expect $GetNickList+$MyINFO
-        self.state = 'login_2'
-
-        reason = validateNick(nick)
-
-        if reason:
-            self.pushStatus("Your nick is invalid: %s" % reason)
-            self.pushStatus("Please fix it and reconnect.  Goodbye.")
-            self.transport.loseConnection()
-            return
-
-        self.nick = nick
-
-        self.pushHello(self.nick)
-
-
-    def d_GetInfo(self, nick, _):
-
-        if nick == self.bot.nick:
-            dcinfo = "Local Dtella Bot$ $Bot\x01$$0$"
-            self.pushInfo(nick, dcinfo)
-            return
-
-        if not self.isOnline():
-            return
+        #    self.sendLine("DSTA %s %s 241 Cant\\sconnect\\sto\\s*Dtella TO%s PR%s" % (dst_sid, src_sid, params[2], params[0]))
+            reactor.connectTCP(
+                    '127.0.0.1', int(params[1]), ADC_AbortTransfer_Factory(self.bot.cid, params[2]))
 
         try:
-            n = self.main.osm.nkm.lookupNodeFromNick(nick)
+            node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
+            print "ERROR: Client CTM to unfound SID \"%s\"" % dst_sid
             return
 
-        if n.dcinfo:
-            self.pushInfo(n.nick, n.dcinfo)
+
+    def d_RCM(self, con, src_sid, dst_sid, rest):
+        pass
+
+    def d_SCH(self, con, src_sid, rest):
+        pass
         
-
-    def d_MyInfo(self, _1, _2, info):
-
-        if self.state == 'login_1':
-            self.fatalError("Got $MyINFO, expected $ValidateNick")
-            return
-
-        # Save my new info
-        self.info = info.replace('\r','').replace('\n','')
-
-        if self.state == 'login_2':
-            self.removeLoginBlocker('MyINFO')
-
-        elif self.isOnline():
-            self.main.osm.updateMyInfo()
-
-    
-    def removeLoginBlocker(self, blocker):
-
-        #CHECK(self.state == 'login_2')
-
-        try:
-            self.loginblockers.remove(blocker)
-            if self.loginblockers:
-                return
-        except KeyError:
-            return
-
-        # None left, continue connecting...
-
-        if self.main.dch is None:
-            self.attachMeToDtella()
-
-        elif self.main.pending_dch is None:
-            self.state = 'queued'
-            self.main.pending_dch = self
-
-            def cb():
-                self.queued_dcall = None
-                self.main.pending_dch = None
-                self.pushStatus("Nope, it didn't leave.  Goodbye.")
-                self.transport.loseConnection()
-
-            self.pushStatus(
-                "Another DC client is already using Dtella on this computer.")
-            self.pushStatus(
-                "Waiting 5 seconds for it to leave.")
-
-            self.queued_dcall = reactor.callLater(5.0, cb)
-
-        else:
-            self.pushStatus(
-                "Dtella is busy with other DC connections from your "
-                "computer.  Goodbye.")
-            self.transport.loseConnection()
-
-    """
-
+    def d_RES(self, con, src_sid, dst_sid, rest):
+        pass
+        
     def attachMeToDtella(self):
 
         CHECK(self.main.dch is None)
@@ -764,49 +667,7 @@ class ADCHandler(BaseADCProtocol):
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
             self.pushSearchRequest(osm.me.ipp, search_string)
-    
 
-    def d_PrivateMsg(self, nick, _1, _2, _3, text):
-
-        text = remove_dc_escapes(text)
-        
-        if nick == self.bot.nick:
-
-            # No ! is needed for commands in the private message context
-            if text[:1] == '!':
-                text = text[1:]
-
-            def out(text):
-                if text is not None:
-                    self.bot.say(text)
-            
-            self.bot.commandInput(out, text)
-            return
-
-        if len(text) > 10:
-            shorttext = text[:10] + '...'
-        else:
-            shorttext = text
-
-        def fail_cb(detail):
-            self.pushPrivMsg(
-                nick,
-                "*** Your message \"%s\" could not be sent: %s"
-                % (shorttext, detail))
-
-        if not self.isOnline():
-            fail_cb("You're not online.")
-            return
-
-        try:
-            n = self.main.osm.nkm.lookupNodeFromNick(nick)
-        except KeyError:
-            fail_cb("User doesn't seem to exist.")
-            return
-
-        n.event_PrivateMessage(self.main, text, fail_cb)
-
-    
     def d_ConnectToMe(self, nick, addr):
 
         osm = self.main.osm
@@ -931,7 +792,7 @@ class ADCHandler(BaseADCProtocol):
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
         except KeyError: 
-            pass
+            text = "On behalf of %s: %s" % (nick, text)
         
         if flags & core.SLASHME_BIT:
             self.sendLine("BMSG %s %s ME1" % (sid, adc_escape(text)))
@@ -986,6 +847,7 @@ class ADCHandler(BaseADCProtocol):
     def pushBotMsg(self, text):
         self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), self.bot.sid))
 
+
     def pushPrivMsg(self, nick, text):
     
         sid = self.bot.sid  #Default anything that is not a user to be from Dtella
@@ -993,7 +855,7 @@ class ADCHandler(BaseADCProtocol):
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
         except KeyError: 
-            pass
+            text = "On behalf of %s: %s" % (nick, text)
             
         self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape(text), sid))
 
@@ -1201,3 +1063,4 @@ class ADCFactory(ServerFactory):
         p.protocol = core.PROTOCOL_ADC
         p.factory = self
         return p
+    
