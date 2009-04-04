@@ -157,7 +157,6 @@ PROTOCOL_ADC = 0x80
 
 
 class NickManager(object):
-    sid_counter = 2
 
     def __init__(self, main):
         self.main = main
@@ -203,6 +202,14 @@ class NickManager(object):
             n.nickRemoved(self.main)
 
 
+    sid_counter = 2
+    baseSID = base64.b32encode(treehash("\0"))[:4]
+    def generateNewSID(self):
+        sid = base64.b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
+        NickManager.sid_counter += 1#TODO - remove this hack
+        return sid
+
+
     def addNode(self, n):
 
         if not n.nick:
@@ -211,8 +218,10 @@ class NickManager(object):
         so = self.main.getStateObserver()
         lnick = n.nick.lower()
         
-        sid = base64.b32encode(struct.pack('I',NickManager.sid_counter))[:4]
-        NickManager.sid_counter += 1#TODO - remove this hack
+        if isinstance(n, MeNode):
+            sid = self.baseSID
+        else:
+            sid = self.generateNewSID()
         
         if lnick in self.nickmap or sid in self.sidmap:
             raise NickError("collision")

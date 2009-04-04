@@ -82,6 +82,7 @@ class BaseADCProtocol(LineOnlyReceiver):
 
     def sendLine(self, line):
         #print "<:", line
+        #print "dtella says: %s" % line
         LineOnlyReceiver.sendLine(self, line)
 
 
@@ -90,7 +91,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         if(len(line) == 0):
             self.sendLine('')#Keepalive
             return
-        
+        #print "client said: %s" % line
         cmd = line.split(' ', 1)        
         args = {}
         args['con'] = cmd[0][0]
@@ -99,7 +100,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         if args['con'] == 'E': #If its an echo context, echo it back
             self.sendLine(line)
         
-        print "Context: %s Message: %s" % (args['con'],msg)
+        #print "Context: %s Message: %s" % (args['con'],msg)
         
         # Do a dict lookup to find the parameters for this command
         try:
@@ -269,18 +270,18 @@ class ADCHandler(BaseADCProtocol):
 
     def __init__(self, main):
         self.main = main
+        self.info = ''
+        self.infdict = {}
+        self.nick = ''
+        self.sid = core.NickManager.baseSID
 
     def connectionMade(self):
         BaseADCProtocol.connectionMade(self)
 
-        self.info = ''
-        self.infdict = {}
-        self.nick = ''
-        self.sid = base64.b32encode(struct.pack('I',0))[:4]
         self.bot = DtellaBot(self, '*Dtella')
         self.bot.sid = base64.b32encode(struct.pack('I',1))[:4]
         self.bot.cid = base64.b32encode(tiger.hash(self.bot.nick))
-        self.bot.inf = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
+        self.bot.dcinfo = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
                         (self.bot.cid,get_version_string(), self.bot.nick,
                         "Local\\sDtella\\sBot")
 
@@ -336,7 +337,6 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_SUP(self, con, rest=None):
-        print rest
         features = rest.split(' ')
         #if 'ADBASE' not in features or 'ADTIGR' not in features:
         #    print "Client doesn't support ADC/1.0"
@@ -369,7 +369,7 @@ class ADCHandler(BaseADCProtocol):
             del inf['PD']
             
             #Let Dtella logon so we can send messages to the user
-            self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.inf))
+            self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.dcinfo))
             
             dcall_discard(self, 'init_dcall')
 
@@ -825,9 +825,8 @@ class ADCHandler(BaseADCProtocol):
     
 
     def pushChatMessage(self, nick, text, flags=0):
-        #sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
                             #Users such as *, *IRC, ~ChanServ etc
-        print "chat message from %s" % nick
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
         except KeyError: 
@@ -889,7 +888,7 @@ class ADCHandler(BaseADCProtocol):
 
     def pushPrivMsg(self, nick, text):
     
-        #sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
                             #Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
@@ -1001,7 +1000,6 @@ class ADCHandler(BaseADCProtocol):
         me = self.main.osm.me
         me.info = self.infdict
         me.dcinfo = adc_infostring(self.infdict)
-        #me.sid = self.sid
         #self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
 
         for node in self.main.osm.nkm.nickmap.itervalues():
@@ -1102,4 +1100,7 @@ class ADCFactory(ServerFactory):
         p.protocol = core.PROTOCOL_ADC
         p.factory = self
         return p
-    
+
+
+##############################################################################
+
