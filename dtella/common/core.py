@@ -1941,7 +1941,7 @@ class Node(object):
                 self.shared = int(self.info['SS'])
             except KeyError:
                 self.shared = 0
-            print "--- got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
+            #  print "--- got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
 
         else:
             self.dcinfo, self.location, self.shared = (
@@ -1976,7 +1976,7 @@ class Node(object):
                         self.info['AS'] = tags['O']
 
                     self.dcinfo = adc_infostring(self.info)
-                    print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
+                    #print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
                 except ValueError:
                     try:
                         if not info: # bridge node
@@ -1988,7 +1988,7 @@ class Node(object):
                             self.info = adc_infodict(info)
                             self.dcinfo = info
                             self.location = ""
-                            print "WARNING got ADC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
+                            #print "WARNING: got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
                     except:
                         raise Reject
 
@@ -2735,23 +2735,28 @@ class OnlineStateManager(object):
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
                 
-                dc, dt = inf['VE'].split(';')
-                dc = dc.split(' ', 1)
-                dcstr, dcver = dc[0], ""
-                if len(dc) > 1: dcver = dc[1]
-                
-                loc = ""
-                if not inf.has_key('EM'): inf['EM'] = ""
-                if not inf.has_key('DE'):
-                    inf['DE'] = ""
-                elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
-                    loc, inf['DE'] = inf['DE'].split(" ", 1)
-                    loc = loc[1:-1]
-                
-                info_out = "%s<%s,V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
-                    inf['DE'], dcstr, dcver,
-                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
-                    loc, inf['ID'], chr(0), inf['EM'], self.me.shared)
+                if len(inf) == 1 and inf.has_key('VE'): 
+                    info_out = self.me.info_out
+
+                else:
+                    dc, dt = inf['VE'].split(';', 1)
+                    dc = dc.split(' ', 1)
+                    dcstr, dcver = dc[0], ""
+                    if len(dc) > 1: dcver = dc[1]
+                    
+                    loc = ""
+                    if not inf.has_key('EM'): inf['EM'] = ""
+                    if not inf.has_key('DE'):
+                        inf['DE'] = ""
+                    elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
+                        loc, inf['DE'] = inf['DE'].split(" ", 1)
+                        loc = loc[1:-1]
+                    
+                    info_out = "%s<%s,V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                        inf['DE'], dcstr, dcver,
+                        inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
+                        loc, inf['ID'], chr(1), inf['EM'], self.me.shared)
+
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
 
