@@ -43,7 +43,6 @@ import sys
 import socket
 import time
 import getopt
-import dtella.common.core as core
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
@@ -91,7 +90,7 @@ def runDconfigPusher():
     reactor.run()
 
 
-def runClient(dc_port, pflags):
+def runClient(dc_port, adc):
     #Logging for Dtella Client
     setLogFile("dtella.log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
@@ -114,7 +113,7 @@ def runClient(dc_port, pflags):
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
 
-    if ( pflags & core.PROTOCOL_ADC):
+    if adc:
         from dtella.client.adc import ADCFactory
         dfactory = ADCFactory(dtMain, dc_port)
     else:
@@ -228,10 +227,11 @@ def main():
     
 
     if '--adc' in opts:
-        pflags = core.PROTOCOL_ADC
+        dtella.local_config.setADCMode(True)
+        runClient(dc_port, True)
     else:
-        pflags = core.PROTOCOL_NMDC
-    runClient(dc_port,pflags)
+        dtella.local_config.setADCMode(False)
+        runClient(dc_port, False)
 
 
 if __name__=='__main__':

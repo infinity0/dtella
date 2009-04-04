@@ -84,6 +84,10 @@ class MessageCollisionError(Exception):
     pass
 
 
+global adc_mode, adc_allow_nmdc; # TODO HACK, remove later
+adc_mode = local.getADCMode();
+adc_allow_nmdc = True;
+
 # How many seconds our node will last without incoming pings
 ONLINE_TIMEOUT = 30.0
 
@@ -141,8 +145,9 @@ CODE_IP_OK = 0
 CODE_IP_FOREIGN = 1
 CODE_IP_BANNED = 2
 
-#Protocol Flags - applies to the following packets
-PROTOCOL_NMDC = 0x0
+# Protocol Flags - applies to the following packets
+PROTOCOL_MASK = 0x80
+PROTOCOL_NMDC = 0x00
 PROTOCOL_ADC = 0x80
 
 
@@ -951,15 +956,15 @@ class PeerHandler(DatagramProtocol):
 
             nick, rest = self.decodeString1(rest)
 
-            if flags & PROTOCOL_ADC:
-                type = PROTOCOL_ADC
+            if flags & PROTOCOL_MASK == PROTOCOL_ADC:
+                adc = True
             else:
-                type = PROTOCOL_NMDC
+                adc = False
 
-            if protocol == PROTOCOL_ADC:
-                info, rest = self.decodeString1(rest)
-            else:
+            if adc:
                 info, rest = self.decodeString2(rest)
+            else:
+                info, rest = self.decodeString1(rest)
 
             persist = bool(flags & PERSIST_BIT)
             
@@ -977,7 +982,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadBroadcast("Outdated")
 
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, packet_type = type)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, adc)
 
             # They had a nick, now they don't.  This indicates a problem.
             # Stop forwarding and notify the user.
@@ -1436,13 +1441,16 @@ class PeerHandler(DatagramProtocol):
 
         persist = bool(flags & PERSIST_BIT)
         
-        if flags & PROTOCOL_ADC:
-            proto = PROTOCOL_ADC
+        if flags & PROTOCOL_MASK == PROTOCOL_ADC:
+            adc = True
         else:
-            proto = PROTOCOL_NMDC
+            adc = False
 
         nick, rest = self.decodeString1(rest)
-        info, rest = self.decodeString1(rest)
+        if adc:
+            info, rest = self.decodeString2(rest)
+        else:
+            info, rest = self.decodeString1(rest)
         topic, rest = self.decodeString1(rest)
 
         c_nbs, rest = self.decodeNodeList(rest)
@@ -1465,7 +1473,7 @@ class PeerHandler(DatagramProtocol):
         # Check for outdated status, in case an NS already arrived.
         if not self.isOutdatedStatus(n, pktnum):
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol = proto)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, adc)
 
         if topic:
             osm.tm.receivedSyncTopic(n, topic)
@@ -2490,7 +2498,7 @@ class OnlineStateManager(object):
 
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info, protocol = None, packet_type = None):
+                          persist, nick, info, type = 'NMDC'):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -2632,7 +2640,7 @@ class OnlineStateManager(object):
         n.expire_dcall = reactor.callLater(when, cb)
 
 
-    def getStatus(self):
+    def getStatus(self, adc=adc_mode):
 
         status = []
 
@@ -2644,8 +2652,12 @@ class OnlineStateManager(object):
         status.append(self.me.flags())
 
         # My Nick
-        status.append(struct.pack('!B', len(self.me.nick)))
-        status.append(self.me.nick)
+        if adc_mode:
+            status.append(struct.pack('!H', len(self.me.nick)))
+            status.append(self.me.nick)
+        else:
+            status.append(struct.pack('!B', len(self.me.nick)))
+            status.append(self.me.nick)
 
         # My Info
         status.append(struct.pack('!B', len(self.me.info_out)))
@@ -2741,7 +2753,10 @@ class OnlineStateManager(object):
                 packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                 packet.append(pkt_id)
                 packet.append(struct.pack('!H', int(expire)))
-                packet.extend(self.getStatus())
+
+                if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
+                    self.mrm.newMessage(''.join(packet) + ''.join(self.getStatus(False)), tries=8)
+                self.mrm.newMessage(''.join(packet) + ''.join(self.getStatus()), tries=8)
 
             else:
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
@@ -2750,7 +2765,7 @@ class OnlineStateManager(object):
                 packet.append(struct.pack('!H', expire))
                 packet.append(self.me.infohash)
 
-            self.mrm.newMessage(''.join(packet), tries=8)
+                self.mrm.newMessage(''.join(packet), tries=8)
 
         dcall_discard(self, 'sendStatus_dcall')
         cb(sendfull)
@@ -3776,10 +3791,13 @@ class SyncRequestRoutingManager(object):
         uncont = uncont[:16]
 
         if isnew or timedout:
+            if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
+                self.sendSyncReply(src_ipp, cont, uncont, False)
             self.sendSyncReply(src_ipp, cont, uncont)
+            
 
 
-    def sendSyncReply(self, src_ipp, cont, uncont):
+    def sendSyncReply(self, src_ipp, cont, uncont, adc=adc_mode):
         ad = Ad().setRawIPPort(src_ipp)
         osm = self.main.osm
 
@@ -3811,7 +3829,7 @@ class SyncRequestRoutingManager(object):
         packet.append(struct.pack('!H', int(expire)))
 
         # Session ID, Uptime, Flags, Nick, Info
-        packet.extend(osm.getStatus())
+        packet.extend(osm.getStatus(adc))
 
         # If I think I set the topic last, then put it in here.
         # It's up to the receiving end whether they'll believe me.

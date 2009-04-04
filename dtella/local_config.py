@@ -138,3 +138,13 @@ def hostnameToLocation(hostname):
 
     return "Unknown Location"
 
+
+# TODO HACK, remove later
+def setADCMode(f):
+    global adc_mode
+    print "ADC set :", f
+    adc_mode = f
+def getADCMode():
+    global adc_mode
+    print "ADC get :", adc_mode
+    return adc_mode
