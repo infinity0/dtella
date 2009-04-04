@@ -2748,6 +2748,16 @@ class OnlineStateManager(object):
                 if len(inf) == 1 and inf.has_key('VE'): 
                     info_out = self.me.info_out
 
+                elif len(inf) == 3 and inf.has_key('DE'):
+                    if not inf.has_key('DE'):
+                        inf['DE'] = ""
+                    elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
+                        loc, inf['DE'] = inf['DE'].split(" ", 1)
+                        loc = loc[1:-1]
+
+                    info_out = "<%s>$ $%s%s$$0$" % (
+                        inf['VE'], loc, chr(1))
+
                 else:
                     dc, dt = inf['VE'].split(';', 1)
                     dc = dc.split(' ', 1)

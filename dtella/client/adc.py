@@ -825,7 +825,7 @@ class ADCHandler(BaseADCProtocol):
     
 
     def pushChatMessage(self, nick, text, flags=0):
-        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+        #sid = self.bot.sid  #Default anything that is not a user to be from Dtella
                             #Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
@@ -888,7 +888,7 @@ class ADCHandler(BaseADCProtocol):
 
     def pushPrivMsg(self, nick, text):
     
-        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+        #sid = self.bot.sid  #Default anything that is not a user to be from Dtella
                             #Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
@@ -1000,7 +1000,7 @@ class ADCHandler(BaseADCProtocol):
         me = self.main.osm.me
         me.info = self.infdict
         me.dcinfo = adc_infostring(self.infdict)
-        me.sid = self.sid
+        #me.sid = self.sid
         #self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
 
         for node in self.main.osm.nkm.nickmap.itervalues():
