@@ -1961,13 +1961,17 @@ class Node(object):
                         self.info['AS'] = tags['O']
                     self.dcinfo = adc_infostring(self.info)
                 except ValueError:
-                    try: # SHOULD NOT HAPPEN
-                        self.info = adc_infodict(info)
-                        self.dcinfo = info
-                        self.location = ""
-                        print "got ADC infostring in NS packet marked 'NMDC', from '%s'" % self.nick
-                        if not self.nick:
-                            raise Exception
+                    try:
+                        if not info: # bridge node
+                            pass
+                        elif info[0] == '<' and info[-1] == '>': # persistent node
+                            self.info['VE'] = self.dttag
+                            self.dcinfo = adc_infostring(self.info)
+                        else: # SHOULD NOT HAPPEN
+                            self.info = adc_infodict(info)
+                            self.dcinfo = info
+                            self.location = ""
+                            print "got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
                     except:
                         raise Reject
 
