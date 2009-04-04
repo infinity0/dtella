@@ -2727,7 +2727,7 @@ class OnlineStateManager(object):
         # My Uptime and Flags
         status.append(struct.pack('!I', int(seconds() - self.me.uptime)))
         if adc:
-            status.append(chr(ord(self.me.flags()) & PROTOCOL_ADC))
+            status.append(chr(ord(self.me.flags()) | PROTOCOL_ADC))
         else:
             status.append(self.me.flags())
 

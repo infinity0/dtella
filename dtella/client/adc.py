@@ -827,6 +827,7 @@ class ADCHandler(BaseADCProtocol):
     def pushChatMessage(self, nick, text, flags=0):
         #sid = self.bot.sid  #Default anything that is not a user to be from Dtella
                             #Users such as *, *IRC, ~ChanServ etc
+        print "chat message from %s" % nick
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
         except KeyError: 
