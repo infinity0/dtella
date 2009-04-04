@@ -42,7 +42,8 @@ from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 randbytes, validateNick, word_wrap,
                                 parse_incoming_info, get_version_string,
                                 parse_dtella_tag, CHECK, SSLHACK_filter_flags,
-                                adc_infodict, adc_infostring, split_info, split_tag)
+                                adc_infodict, adc_infostring, split_info,
+                                split_tag, b32pad)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -202,7 +203,7 @@ class NickManager(object):
             n.nickRemoved(self.main)
 
 
-    sid_counter = 2
+    sid_counter = 1
     baseSID = base64.b32encode(treehash("\0"))[:4]
     def generateNewSID(self):
         sid = base64.b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
@@ -1943,7 +1944,7 @@ class Node(object):
         old_dcinfo = self.dcinfo
         
         if adc:
-            self.info = adc_infodict(info)
+            self.info.update(adc_infodict(info))
             self.dcinfo = info
             self.location = ""
             try:
@@ -1965,11 +1966,11 @@ class Node(object):
                         self.info['DE'] = "[%s] %s" % (self.location, self.info['DE'])
 
                     self.info['SS'] = str(self.shared)
-                    cid = self.location[-28:0]
-                    if len(cid) == 28 and cid[0:2] == '__' and cid[-2:0] == '__':
+                    cid = self.location[-44:0]
+                    if len(cid) == 44 and cid[0:2] == '__' and cid[-2:0] == '__':
                         self.info['ID'] = cid[2:-2]
                     else:
-                        self.info['ID'] = base64.b32encode(treehash(self.nick))
+                        self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
 
                     self.info['EM'] = infs[3]
 
@@ -1994,10 +1995,10 @@ class Node(object):
                             self.info['VE'] = self.dttag
                             self.dcinfo = adc_infostring(self.info)
                         else: # SHOULD NOT HAPPEN
-                            self.info = adc_infodict(info)
+                            self.info.update(adc_infodict(info))
                             self.dcinfo = info
                             self.location = ""
-                            #print "WARNING: got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
+                            print "WARNING: got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
                     except:
                         raise Reject
 
@@ -2748,14 +2749,14 @@ class OnlineStateManager(object):
         if adc:
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
-            #print "PREPARING NS ADC packet ----------"
+            print "PREPARING NS ADC packet ----------"
             #print self.me.info_out
         else:
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
                 
                 if len(inf) == 1 and inf.has_key('VE'): 
-                    info_out = self.me.info_out
+                    info_out = "<%s>$ $%s$$0$" % (inf['VE'], chr(1))
 
                 elif len(inf) == 3 and inf.has_key('DE'):
                     if not inf.has_key('DE'):
@@ -2764,8 +2765,8 @@ class OnlineStateManager(object):
                         loc, inf['DE'] = inf['DE'].split(" ", 1)
                         loc = loc[1:-1]
 
-                    info_out = "<%s>$ $%s%s$$0$" % (
-                        inf['VE'], loc, chr(1))
+                    info_out = "<%s>$ $%s%s$$%s$" % (
+                        inf['VE'], loc, chr(1), inf['CT'])
 
                 else:
                     dc, dt = inf['VE'].split(';', 1)
@@ -2788,6 +2789,7 @@ class OnlineStateManager(object):
 
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
+                print "INFO_OUT_NMDC: " + info_out
 
             else:
                 status.append(struct.pack('!B', len(self.me.info_out)))
@@ -2815,7 +2817,7 @@ class OnlineStateManager(object):
         me.persist = self.main.state.persistent
         me.dttag = get_version_string()
 
-        if dch:
+        if dch:#TTTTT
             me.info_out = dch.formatMyInfo()
             nick = dch.nick
         else:

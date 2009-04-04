@@ -328,8 +328,8 @@ def SSLHACK_filter_flags(info_str):
     return info_str
 
 def b32pad(n):
-    _, leftover = divmod(len(n), 8)
-    n += (8-leftover)*'='
+    _, leftover = divmod(len(n)-1, 8)
+    n += (7-leftover)*'='
     return n
     
 def format_bytes(n):

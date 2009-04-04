@@ -82,7 +82,7 @@ class BaseADCProtocol(LineOnlyReceiver):
 
     def sendLine(self, line):
         #print "<:", line
-        #print "dtella says: %s" % line
+        #print "> %s" % line
         LineOnlyReceiver.sendLine(self, line)
 
 
@@ -91,7 +91,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         if(len(line) == 0):
             self.sendLine('')#Keepalive
             return
-        #print "client said: %s" % line
+        print "< %s" % line
         cmd = line.split(' ', 1)        
         args = {}
         args['con'] = cmd[0][0]
@@ -360,6 +360,7 @@ class ADCHandler(BaseADCProtocol):
         inf = adc_infodict(rest)
         
         if self.state == 'IDENTIFY':
+            print "-----------YES, HERE"
             inf['PD'] = b32pad(inf['PD'])
             inf['ID'] = b32pad(inf['ID'])
 
