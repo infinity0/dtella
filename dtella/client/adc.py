@@ -28,7 +28,7 @@ from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, remove_dc_escapes, dcall_discard,
                                 format_bytes, dcall_timeleft,
                                 get_version_string, lock2key, CHECK, adc_escape,
-                                b32pad, adc_unescape)
+                                b32pad, adc_unescape, adc_infostring, adc_infodict)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
@@ -351,10 +351,7 @@ class ADCHandler(BaseADCProtocol):
  
     def d_INF(self, con, src_sid=None, rest=None):
     
-        fields = rest.split(' ')
-        inf = {}
-        for i in fields:
-            inf[i[:2]] = adc_unescape(i[2:])
+        inf = adc_infodict(rest)
         
         if self.state == 'IDENTIFY':
             inf['PD'] = b32pad(inf['PD'])
@@ -413,9 +410,13 @@ class ADCHandler(BaseADCProtocol):
             return
         
         self.infdict.update(inf)
+        self.infstr = self.formatMyInfo()
+
         if self.main.osm:
-            self.main.osm.me.adcinfo = self.formatMyInfo()
-        self.sendLine("BINF %s %s" % (src_sid, self.formatMyInfo()))
+            self.main.osm.me.info = self.infdict
+            self.main.osm.me.dcinfo = self.infstr
+            
+        self.sendLine("BINF %s %s" % (src_sid, self.infstr))
         #TODO - broadcast to other users
         
         
@@ -700,7 +701,7 @@ class ADCHandler(BaseADCProtocol):
         self.state = 'ready'
         self.main.addDCHandler(self)
 
-    
+
     def formatMyInfo(self):
 
         print self.infdict
@@ -731,7 +732,13 @@ class ADCHandler(BaseADCProtocol):
         if loc is not None and self.infdict.has_key('DE') and self.infdict['DE'][:len(loc)] != loc:
             self.infdict['DE'] = "%s - %s" % (loc, self.infdict['DE'])
 
-        return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in self.infdict.iteritems()])
+        info = adc_infostring(self.infdict)
+        if len(info) > 65535:
+            self.pushStatus("*** Your info string is too long!")
+            info = ''
+        
+        return info
+
 
     """
     def d_Search(self, addr_string, search_string):
@@ -934,12 +941,10 @@ class ADCHandler(BaseADCProtocol):
 
 
     def pushInfo(self, node):
-        print "pushInfo: %s" % node.nick
-        if node.sid and node.adcinfo:
-            self.sendLine("BINF %s %s" % (node.sid, node.adcinfo))
+        if node.sid and node.dcinfo:
+            self.sendLine("BINF %s %s" % (node.sid, node.dcinfo))
         else:
-            print "+ Node: %s has no adcinfo" % node.nick
-        #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
+            print "+ Node: %s has no dcinfo" % node.nick
 
 
     def pushTopic(self, topic=None):
@@ -947,7 +952,8 @@ class ADCHandler(BaseADCProtocol):
             self.sendLine("IINF CT32 DE%s" % adc_escape(topic))
         else:
             self.sendLine("IINF CT32 DE")
-    
+
+
     def pushQuit(self, node):
         if node.sid:
             self.sendLine("IQUI %s" % node.sid)
@@ -970,7 +976,7 @@ class ADCHandler(BaseADCProtocol):
     
     def pushSearchRequest(self, n, ipp, search_string):
         if n.sid:
-            self.sendLine("BSCH %s %s" % (n.sid,adc_escape_spaces(search_string)))
+            self.sendLine("BSCH %s %s" % (n.sid,adc_escape(search_string)))
         else:
             print "+ no SID for node \"%s\"" % node.nick
         
@@ -979,7 +985,8 @@ class ADCHandler(BaseADCProtocol):
         #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
     def pushBotMsg(self, text):
-        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape_spaces(text), self.bot.sid))
+        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), self.bot.sid))
+
     def pushPrivMsg(self, nick, text):
     
         sid = self.bot.sid  #Default anything that is not a user to be from Dtella
@@ -1092,15 +1099,16 @@ class ADCHandler(BaseADCProtocol):
         # from GetNickList - addapted to just send BINF for all online users
 
         me = self.main.osm.me
-        me.adcinfo = self.formatMyInfo()
+        me.info = self.infdict
+        me.dcinfo = adc_infostring(self.infdict)
         me.sid = self.sid
         #self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
 
         for node in self.main.osm.nkm.nickmap.itervalues():
-            if node.nick != self.nick and node.nick != self.bot.nick and node.adcinfo is not None:
+            if node.nick != self.nick and node.nick != self.bot.nick and node.dcinfo is not None:
                 self.pushInfo(node)
 
-        self.sendLine("BINF %s %s" % (self.sid, self.formatMyInfo()))
+        self.sendLine("BINF %s %s" % (self.sid, me.dcinfo))
         
         # Grab the current topic from Dtella.
         tm = self.main.osm.tm
@@ -1162,7 +1170,7 @@ class ADCHandler(BaseADCProtocol):
 
 
     def event_UpdateInfo(self, n):
-        if n.adcinfo is not None:
+        if n.dcinfo is not None:
             self.pushInfo(n)
 
 

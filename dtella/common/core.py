@@ -29,6 +29,7 @@ import socket
 import base64
 from binascii import hexlify
 from hashlib import md5
+from tiger import treehash
 
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet import reactor, defer
@@ -40,7 +41,8 @@ import dtella.common.crypto
 from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 randbytes, validateNick, word_wrap,
                                 parse_incoming_info, get_version_string,
-                                parse_dtella_tag, CHECK, SSLHACK_filter_flags)
+                                parse_dtella_tag, CHECK, SSLHACK_filter_flags,
+                                adc_infodict, adc_infostring, split_info, split_tag)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -1856,7 +1858,7 @@ class Node(object):
         # General Info
         self.nick = ''
         self.dcinfo = ''
-        self.adcinfo = ''
+        self.info = {}
         self.location = ''
         self.shared = 0
 
@@ -1925,10 +1927,39 @@ class Node(object):
 
     def setInfo(self, info, adc=adc_mode):
 
-        print ("ADC" if adc else "NMDC") + "dtella INFO for %s: %s" % (self.nick, info)
+        print ("ADC" if adc else "NMDC") + "dtella INFO for %s" % self.nick
         old_dcinfo = self.dcinfo
-        self.dcinfo, self.location, self.shared = (
-            parse_incoming_info(SSLHACK_filter_flags(info)))
+        
+        if adc:
+            self.info = adc_infodict(info)
+            self.dcinfo = info
+            self.location = ""
+            try:
+                self.shared = int(self.info['SS'])
+            except KeyError:
+                self.shared = 0
+        else:
+            self.dcinfo, self.location, self.shared = (
+                parse_incoming_info(SSLHACK_filter_flags(info)))
+            
+            if adc_mode: # BACKWARDS COMPAT
+                try:
+                    infs = split_info(info)
+                    self.info['NI'] = self.nick
+                    self.info['DE'], self.info['VE'] = split_tag(infs[0])
+                    self.info['SS'] = str(self.shared)
+                    self.info['ID'] = base64.b32encode(treehash(self.nick))
+                    self.info['EM'] = infs[3]
+                    self.dcinfo = adc_infostring(self.info)
+                    print self.dcinfo
+                except ValueError:
+                    try: # SHOULD NOT HAPPEN
+                        self.info = adc_infodict(info)
+                        self.dcinfo = info
+                        self.location = ""
+                        print self.dcinfo
+                    except:
+                        raise Reject
 
         if self.sesid is None:
             # Node is uninitialized
@@ -2695,7 +2726,10 @@ class OnlineStateManager(object):
             me.info_out = dch.formatMyInfo()
             nick = dch.nick
         else:
-            me.info_out = "<%s>" % me.dttag
+            if adc_mode:
+                me.info_out = "VE%s" % me.dttag
+            else:
+                me.info_out = "<%s>" % me.dttag
             nick = ''
 
         if me.nick == nick:
@@ -2765,6 +2799,7 @@ class OnlineStateManager(object):
 
                 if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
                     packet = self.mrm.broadcastHeader('NS', self.me.ipp)
+                    pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
                     packet.append(pkt_id)
                     packet.append(struct.pack('!H', int(expire)))
                     packet.extend(self.getStatus(False))

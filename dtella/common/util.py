@@ -203,6 +203,15 @@ def adc_escape(text):
 def adc_unescape(text):
     return text.replace('\\s',' ').replace('\\n','\n').replace('\\\\', '\\')
 
+def adc_infostring(infdict):
+    return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in infdict.iteritems()])
+
+def adc_infodict(infstring):
+    inf = {}
+    for i in infstring.split(' '):
+        inf[i[:2]] = adc_unescape(i[2:])
+    return inf
+
 def split_info(info):
     # Split a MyINFO string
     # [0:'description<tag>', 1:' ', 2:'speed_', 3:'email', 4:'sharesize', 5:'']
