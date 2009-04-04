@@ -2647,15 +2647,16 @@ class OnlineStateManager(object):
         # My Session ID
         status.append(self.me.sesid)
 
-        # My Uptime and Flags
+        # My Uptime
         status.append(struct.pack('!I', int(seconds() - self.me.uptime)))
-        status.append(self.me.flags())
 
-        # My Nick
-        if adc_mode:
+        # My Flags and Nick
+        if adc:
+            status.append(chr(ord(self.me.flags()) & PROTOCOL_ADC))
             status.append(struct.pack('!H', len(self.me.nick)))
             status.append(self.me.nick)
         else:
+            status.append(self.me.flags())
             status.append(struct.pack('!B', len(self.me.nick)))
             status.append(self.me.nick)
 
@@ -2753,11 +2754,18 @@ class OnlineStateManager(object):
                 packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                 packet.append(pkt_id)
                 packet.append(struct.pack('!H', int(expire)))
+                packet.extend(self.getStatus())
+
+                self.mrm.newMessage(''.join(packet), tries=8)
 
                 if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
-                    self.mrm.newMessage(''.join(packet) + ''.join(self.getStatus(False)), tries=8)
-                self.mrm.newMessage(''.join(packet) + ''.join(self.getStatus()), tries=8)
+                    packet = self.mrm.broadcastHeader('NS', self.me.ipp)
+                    packet.append(pkt_id)
+                    packet.append(struct.pack('!H', int(expire)))
+                    packet.extend(self.getStatus(False))
 
+                    self.mrm.newMessage(''.join(packet), tries=8)
+ 
             else:
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
                 packet.append(pkt_id)
