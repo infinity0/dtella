@@ -1241,8 +1241,8 @@ class PeerHandler(DatagramProtocol):
             if src_n:
                 # Looks good
                 dch = self.main.getOnlineDCH()
-                if dch:
-                    dch.pushSearchRequest(src_ipp, string)
+                if dch and (src_n.protocol == dch.protocol):
+                    dch.pushSearchRequest(src_n,src_ipp, string)
 
             else:
                 # From an invalid node
@@ -1340,10 +1340,12 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Extra data")
 
             notice = bool(flags & NOTICE_BIT)
+            
+            print "Handling PM from %s" % n.nick
 
-            if notice:
-                nick = "*N %s" % n.nick
-                dch.pushChatMessage(nick, text)
+            if notice:  #No equivelent in ADC but kept for NMDC compatability
+                #nick = "*N %s" % n.nick
+                dch.pushChatMessage(n.nick, text)
             else:
                 dch.pushPrivMsg(n.nick, text)
 

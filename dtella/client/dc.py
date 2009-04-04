@@ -536,7 +536,7 @@ class DCHandler(BaseDCProtocol):
 
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
-            self.pushSearchRequest(osm.me.ipp, search_string)
+            self.pushSearchRequest(osm.me, osm.me.ipp, search_string)
 
 
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
@@ -768,7 +768,7 @@ class DCHandler(BaseDCProtocol):
         self.sendLine('')
 
 
-    def pushChatMessage(self, nick, text):
+    def pushChatMessage(self, nick, text, flags=0):
         self.sendLine("<%s> %s" % (nick, text))
 
 
@@ -802,12 +802,12 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
 
-    def pushSearchRequest(self, ipp, search_string):
+    def pushSearchRequest(self, n, ipp, search_string):#Altered by andyhhp for better compatability with ADC
         ad = Ad().setRawIPPort(ipp)
         self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
 
-    def pushPrivMsg(self, nick, text):
+    def pushPrivMsg(self, nick, text, flags=0):
         self.sendLine("$To: %s From: %s $<%s> %s"
                       % (self.nick, nick, nick, text))
 
@@ -1002,7 +1002,7 @@ class DCFactory(ServerFactory):
     
     def __init__(self, main, listen_port):
         self.main = main
-        self.protocol = core.PROTOCOL_NMDC
+
         self.listen_port = listen_port # spliced into search results
         
     def buildProtocol(self, addr):
@@ -1010,7 +1010,7 @@ class DCFactory(ServerFactory):
             return None
 
         p = DCHandler(self.main)
-
+        p.protocol = core.PROTOCOL_NMDC
         p.factory = self
         return p
 

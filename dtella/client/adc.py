@@ -917,12 +917,12 @@ class ADCHandler(BaseADCProtocol):
     
 
     def pushChatMessage(self, nick, text, flags=0):
-        if(nick == self.nick):
-            sid = self.sid
-        elif(nick == self.bot.nick or nick == '*IRC' or nick == '*ChanServ'):
-            sid = self.bot.sid
-        else:
-            sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
+        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+                            #Users such as *, *IRC, ~ChanServ etc
+        try:
+            sid = self.main.osm.nkm.lookupSIDFromNick(nick)
+        except KeyError: 
+            pass
         
         if flags & core.SLASHME_BIT:
             self.sendLine("BMSG %s %s ME1" % (sid, adc_escape(text)))
@@ -935,11 +935,7 @@ class ADCHandler(BaseADCProtocol):
         if node.sid and node.adcinfo:
             self.sendLine("BINF %s %s" % (node.sid, node.adcinfo))
         else:
-            if node.nick == self.nick:
-                print "attempting to generate callstack"
-                self.main.osm.nkm.lookupSIDFromNick(node.nick)
-            else:
-                print "+ Node: %s has no adcinfo" % node.nick
+            print "+ Node: %s has no adcinfo" % node.nick
         #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
 
 
@@ -953,7 +949,7 @@ class ADCHandler(BaseADCProtocol):
         if node.sid:
             self.sendLine("IQUI %s" % node.sid)
         else:
-            print "+ Node: %s has no SID" % node.nick
+            print "+ Node \"%s\" has no SID" % node.nick
 
     
     def pushConnectToMe(self, ad, use_ssl):
@@ -969,21 +965,26 @@ class ADCHandler(BaseADCProtocol):
         #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
     
-    def pushSearchRequest(self, ipp, search_string):
-        pass
+    def pushSearchRequest(self, n, ipp, search_string):
+        if n.sid:
+            self.sendLine("BSCH %s %s" % (n.sid,adc_escape_spaces(search_string)))
+        else:
+            print "+ no SID for node \"%s\"" % node.nick
+        
         #print "pushSearchRequest: %s %s" % (binascii.hexlify(ipp), search_string)
         #ad = Ad().setRawIPPort(ipp)
         #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
     def pushBotMsg(self, text):
-        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), sid))
-
+        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape_spaces(text), self.bot.sid))
     def pushPrivMsg(self, nick, text):
-        
-        if(nick == self.bot.nick or nick == '*IRC' or nick == '*ChanServ'):
-            sid = self.bot.sid
-        else:
-            sid = self.main.osm.nkm.lookupNodeFromNick(nick).sid
+    
+        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
+                            #Users such as *, *IRC, ~ChanServ etc
+        try:
+            sid = self.main.osm.nkm.lookupSIDFromNick(nick)
+        except KeyError: 
+            pass
             
         self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape(text), sid))
 
@@ -1168,7 +1169,7 @@ class ADCHandler(BaseADCProtocol):
         #elif flags & core.SLASHME_BIT:
         #    self.pushChatMessage("*", "%s %s" % (nick, text))
         #else:
-        self.pushChatMessage(n, text, flags)
+        self.pushChatMessage(nick, text, flags)
 
 verifyClass(IDtellaStateObserver, ADCHandler)
 
@@ -1180,7 +1181,6 @@ class ADCFactory(ServerFactory):
     
     def __init__(self, main, listen_port):
         self.main = main
-        self.protocol = core.PROTOCOL_ADC
         self.listen_port = listen_port # spliced into search results
         
     def buildProtocol(self, addr):
@@ -1188,6 +1188,6 @@ class ADCFactory(ServerFactory):
             return None
 
         p = ADCHandler(self.main)
-
+        p.protocol = core.PROTOCOL_ADC
         p.factory = self
         return p
