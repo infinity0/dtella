@@ -952,9 +952,9 @@ class PeerHandler(DatagramProtocol):
             nick, rest = self.decodeString1(rest)
 
             if flags & PROTOCOL_ADC:
-                protocol = PROTOCOL_ADC
+                type = PROTOCOL_ADC
             else:
-                protocol = PROTOCOL_NMDC
+                type = PROTOCOL_NMDC
 
             if protocol == PROTOCOL_ADC:
                 info, rest = self.decodeString1(rest)
@@ -977,7 +977,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadBroadcast("Outdated")
 
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, packet_type = type)
 
             # They had a nick, now they don't.  This indicates a problem.
             # Stop forwarding and notify the user.
@@ -1437,9 +1437,9 @@ class PeerHandler(DatagramProtocol):
         persist = bool(flags & PERSIST_BIT)
         
         if flags & PROTOCOL_ADC:
-            protocol = PROTOCOL_ADC
+            proto = PROTOCOL_ADC
         else:
-            protocol = PROTOCOL_NMDC
+            proto = PROTOCOL_NMDC
 
         nick, rest = self.decodeString1(rest)
         info, rest = self.decodeString1(rest)
@@ -1465,7 +1465,7 @@ class PeerHandler(DatagramProtocol):
         # Check for outdated status, in case an NS already arrived.
         if not self.isOutdatedStatus(n, pktnum):
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, protocol = proto)
 
         if topic:
             osm.tm.receivedSyncTopic(n, topic)
@@ -2490,7 +2490,7 @@ class OnlineStateManager(object):
 
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info, protocol):
+                          persist, nick, info, protocol = None, packet_type = None):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -2518,7 +2518,6 @@ class OnlineStateManager(object):
         n.sesid = sesid
         n.uptime = uptime
         n.persist = persist
-        n.protocol = protocol
 
         # Save version info
         n.dttag = parse_dtella_tag(info)

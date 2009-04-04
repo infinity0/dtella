@@ -31,7 +31,7 @@ class DtellaBot(object):
 
 
     def say(self, txt):
-        self.dch.pushPrivMsg(self.nick, txt)
+        self.dch.pushBotMsg(txt)
 
 
     def commandInput(self, out, line, prefix=''):

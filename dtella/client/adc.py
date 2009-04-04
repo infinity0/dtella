@@ -914,73 +914,8 @@ class ADCHandler(BaseADCProtocol):
             return True
 
         return False
-    """
+    
 
-    def d_PublicMsg(self, text):
-
-        text = remove_dc_escapes(text)
-
-        # Route commands to the bot
-        if text[:1] == '!':
-
-            def out(out_text, flag=[True]):
-
-                # If the bot produces output, inject our text input before
-                # the first line.
-                if flag[0]:
-                    self.pushStatus("You commanded: %s" % text)
-                    flag[0] = False
-
-                if out_text is not None:
-                    self.pushStatus(out_text)
-            
-            if self.bot.commandInput(out, text[1:], '!'):
-                return
-
-        if not self.isOnline():
-            self.pushStatus("*** You must be online to chat!")
-            return
-
-        if self.main.osm.isModerated():
-            self.pushStatus(
-                "*** Can't send text; the chat is currently moderated.")
-            return
-
-        text = text.replace('\r\n','\n').replace('\r','\n')
-
-        for line in text.split('\n'):
-
-            # Skip empty lines
-            if not line:
-                continue
-
-            # Limit length
-            if len(line) > 1024:
-                line = line[:1024-12] + ' [Truncated]'
-
-            flags = 0
-
-            # Check for /me
-            if len(line) > 4 and line[:4].lower() in ('/me ','+me ','!me '):
-                line = line[4:]
-                flags |= core.SLASHME_BIT
-
-            # Check rate limiting
-            if self.chat_counter > 0:
-
-                # Send now
-                self.chat_counter -= 1
-                self.broadcastChatMessage(flags, line)
-
-            else:
-                # Put in a queue
-                if len(self.chatq) < 5:
-                    self.chatq.append( (flags, line) )
-                else:
-                    self.pushStatus(
-                        "*** Chat throttled.  Stop typing so much!")
-                    break
-    """
     def pushChatMessage(self, nick, text, flags=0):
         if(nick == self.nick):
             sid = self.sid
@@ -1040,6 +975,8 @@ class ADCHandler(BaseADCProtocol):
         #ad = Ad().setRawIPPort(ipp)
         #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
+    def pushBotMsg(self, text):
+        self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape_spaces(text), sid))
 
     def pushPrivMsg(self, nick, text):
         

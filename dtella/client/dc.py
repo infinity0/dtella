@@ -811,6 +811,9 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$To: %s From: %s $<%s> %s"
                       % (self.nick, nick, nick, text))
 
+    def pushBotMsg(self, text):#Added by andyhhp for a slight recode of dtellabot for easier ADC use
+        self.sendLine("$To: %s From: %s $<%s> %s"
+                      % (self.nick, self.bot.nick, self.bot.nick, text))
 
     def pushStatus(self, text):
         self.pushChatMessage(self.bot.nick, text)
