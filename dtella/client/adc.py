@@ -704,7 +704,6 @@ class ADCHandler(BaseADCProtocol):
 
     def formatMyInfo(self):
 
-        print self.infdict
         self.infdict['CT'] = '0'
 
         if len(self.infdict['VE']) > 0:

@@ -1927,7 +1927,6 @@ class Node(object):
 
     def setInfo(self, info, adc=adc_mode):
 
-        print ("ADC" if adc else "NMDC") + "dtella INFO for %s" % self.nick
         old_dcinfo = self.dcinfo
         
         if adc:
@@ -1946,18 +1945,29 @@ class Node(object):
                 try:
                     infs = split_info(info)
                     self.info['NI'] = self.nick
-                    self.info['DE'], self.info['VE'] = split_tag(infs[0])
+                    self.info['DE'], rest = split_tag(infs[0])
                     self.info['SS'] = str(self.shared)
                     self.info['ID'] = base64.b32encode(treehash(self.nick))
                     self.info['EM'] = infs[3]
+                    self.info['VE'], rest = rest.split(' ')
+                    tags = {}
+                    for i in rest.split(','):
+                        k, v = i.split(':')
+                        tags[k] = v
+                    self.info['VE'] = self.info['VE'] + tags['V'] + " - " + self.dttag
+                    self.info['SL'] = tags['S']
+                    self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
+                    if tags.has_key('O'):
+                        self.info['AS'] = tags['O']
                     self.dcinfo = adc_infostring(self.info)
-                    print self.dcinfo
                 except ValueError:
                     try: # SHOULD NOT HAPPEN
                         self.info = adc_infodict(info)
                         self.dcinfo = info
                         self.location = ""
-                        print self.dcinfo
+                        print "got ADC infostring in NS packet marked 'NMDC', from '%s'" % self.nick
+                        if not self.nick:
+                            raise Exception
                     except:
                         raise Reject
 
@@ -2540,6 +2550,7 @@ class OnlineStateManager(object):
             n = self.lookup_ipp[src_ipp]
             in_nodes = True
         except KeyError:
+            print "GOT HERE, refreshNodeStatus for non-existing node %s **************" % nick # TODO REMOVE
             n = Node(src_ipp)
             in_nodes = False
 

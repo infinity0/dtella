@@ -148,7 +148,7 @@ class BridgeClientProtocol(core.PeerHandler):
 
             # Update basic status
             n = osm.refreshNodeStatus(
-                src_ipp, None, expire, sesid, uptime, persist, '', '', protocol)
+                src_ipp, None, expire, sesid, uptime, persist, '', '', False)
 
             # Update bridge-specific status
             osm.bcm.refreshBridgeNodeStatus(
@@ -230,7 +230,7 @@ class BridgeClientProtocol(core.PeerHandler):
 
             # Update basic status
             n = osm.refreshNodeStatus(
-                src_ipp, None, expire, sesid, uptime, persist, '', '', protocol)
+                src_ipp, None, expire, sesid, uptime, persist, '', '', False)
 
             # Update bridge-specific status
             osm.bcm.refreshBridgeNodeStatus(
