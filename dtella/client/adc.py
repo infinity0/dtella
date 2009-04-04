@@ -609,10 +609,10 @@ class ADCHandler(BaseADCProtocol):
 
         self.infdict['CT'] = '0'
 
-        if len(self.infdict['VE']) > 0:
+        if self.infdict.has_key('VE') and len(self.infdict['VE']) > 0:
             verstr = get_version_string()
             if verstr not in self.infdict['VE']:
-                self.infdict['VE'] = "%s - %s" % (self.infdict['VE'], verstr)
+                self.infdict['VE'] = "%s;%s" % (self.infdict['VE'], verstr)
         else:
             self.infdict['VE'] = get_version_string()
 
@@ -631,8 +631,11 @@ class ADCHandler(BaseADCProtocol):
                 if suffix:
                     loc = loc + suffix
 
-        if loc is not None and self.infdict.has_key('DE') and self.infdict['DE'][:len(loc)] != loc:
-            self.infdict['DE'] = "%s - %s" % (loc, self.infdict['DE'])
+        if loc is not None:
+            if not self.infdict.has_key('DE'):
+                self.infdict['DE'] = "[%s] " % loc # space must be here to make parsing easier
+            elif loc not in self.infdict['DE']:
+                self.infdict['DE'] = "[%s] %s" % (loc, self.infdict['DE'])
 
         info = adc_infostring(self.infdict)
         if len(info) > 65535:

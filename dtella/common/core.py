@@ -1937,29 +1937,36 @@ class Node(object):
                 self.shared = int(self.info['SS'])
             except KeyError:
                 self.shared = 0
+            print "got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
+
         else:
             self.dcinfo, self.location, self.shared = (
                 parse_incoming_info(SSLHACK_filter_flags(info)))
             
-            if adc_mode: # BACKWARDS COMPAT
+            if adc_mode and adc_allow_nmdc: # BACKWARDS COMPAT
                 try:
                     infs = split_info(info)
                     self.info['NI'] = self.nick
                     self.info['DE'], rest = split_tag(infs[0])
                     self.info['SS'] = str(self.shared)
-                    self.info['ID'] = base64.b32encode(treehash(self.nick))
+                    cid = self.location[-28:0]
+                    if len(cid) == 28 and cid[0:2] == '__' and cid[-2:0] == '__':
+                        self.info['ID'] = cid[2:-2]
+                    else:
+                        self.info['ID'] = base64.b32encode(treehash(self.nick))
                     self.info['EM'] = infs[3]
                     self.info['VE'], rest = rest.split(' ')
                     tags = {}
                     for i in rest.split(','):
                         k, v = i.split(':')
                         tags[k] = v
-                    self.info['VE'] = self.info['VE'] + tags['V'] + " - " + self.dttag
+                    self.info['VE'] = self.info['VE'] + " " + tags['V'] + ";" + self.dttag
                     self.info['SL'] = tags['S']
                     self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
                     self.dcinfo = adc_infostring(self.info)
+                    print "got NMDC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
                 except ValueError:
                     try:
                         if not info: # bridge node
@@ -1971,7 +1978,7 @@ class Node(object):
                             self.info = adc_infodict(info)
                             self.dcinfo = info
                             self.location = ""
-                            print "got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
+                            print "got ADC infostring in NS packet marked 'NMDC' from %s: %s" % (self.nick, info)
                     except:
                         raise Reject
 
@@ -2554,7 +2561,6 @@ class OnlineStateManager(object):
             n = self.lookup_ipp[src_ipp]
             in_nodes = True
         except KeyError:
-            print "GOT HERE, refreshNodeStatus for non-existing node %s **************" % nick # TODO REMOVE
             n = Node(src_ipp)
             in_nodes = False
 
@@ -2698,22 +2704,50 @@ class OnlineStateManager(object):
         # My Session ID
         status.append(self.me.sesid)
 
-        # My Uptime
+        # My Uptime and Flags
         status.append(struct.pack('!I', int(seconds() - self.me.uptime)))
-
-        # My Flags and Nick
         if adc:
             status.append(chr(ord(self.me.flags()) & PROTOCOL_ADC))
-            status.append(struct.pack('!H', len(self.me.nick)))
-            status.append(self.me.nick)
         else:
             status.append(self.me.flags())
-            status.append(struct.pack('!B', len(self.me.nick)))
-            status.append(self.me.nick)
+
+        # My Nick
+        status.append(struct.pack('!B', len(self.me.nick)))
+        status.append(self.me.nick)
 
         # My Info
-        status.append(struct.pack('!B', len(self.me.info_out)))
-        status.append(self.me.info_out)
+        if adc:
+            status.append(struct.pack('!H', len(self.me.info_out)))
+            status.append(self.me.info_out)
+        else:
+            if adc_mode: # convert adc infostring to nmdc infostring
+                inf = adc_infodict(self.me.info_out)
+                print inf
+                
+                dc, dt = inf['VE'].split(';')
+                dc = dc.split(' ')
+                dcstr, dcver = dc[0], ""
+                if len(dc) > 1: dcver = dc[1]
+                
+                loc = ""
+                if not inf.has_key('EM'): inf['EM'] = ""
+                if not inf.has_key('DE'):
+                    inf['DE'] = ""
+                elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
+                    loc, inf['DE'] = inf['DE'].split(" ")
+                    loc = loc[1:-1]
+                
+                info_out = "%s<%s,V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                    inf['DE'], dcstr, dcver,
+                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
+                    loc, inf['ID'], chr(0), inf['EM'], self.me.shared)
+                print info_out
+                status.append(struct.pack('!B', len(info_out)))
+                status.append(info_out)
+
+            else:
+                status.append(struct.pack('!B', len(self.me.info_out)))
+                status.append(self.me.info_out)
 
         return status
 
