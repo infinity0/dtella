@@ -1911,6 +1911,7 @@ class Node(object):
 
     def setInfo(self, info):
 
+        print "dtella INFO for %s: %s" % (self.nick, info)
         old_dcinfo = self.dcinfo
         self.dcinfo, self.location, self.shared = (
             parse_incoming_info(SSLHACK_filter_flags(info)))

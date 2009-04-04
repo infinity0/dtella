@@ -329,10 +329,11 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_SUP(self, con, rest=None):
+        print rest
         features = rest.split(' ')
-        if 'ADBASE' not in features or 'ADTIGR' not in features:
-            print "Client doestn support ADC/1.0"
-            return
+        #if 'ADBASE' not in features or 'ADTIGR' not in features:
+        #    print "Client doesn't support ADC/1.0"
+        #    return
             
         if self.state == 'PROTOCOL':
         
@@ -702,6 +703,7 @@ class ADCHandler(BaseADCProtocol):
     
     def formatMyInfo(self):
 
+        print self.infdict
         self.infdict['CT'] = '0'
         if len(self.infdict['VE']) > 0:
             self.infdict['VE'] = adc_escape_spaces("%s - %s" % (self.infdict['VE'], get_version_string()))
@@ -723,7 +725,7 @@ class ADCHandler(BaseADCProtocol):
                 if suffix:
                     loc = loc + suffix
 
-        if loc is not None and self.infdict['DE'][:len(loc)] != loc:
+        if loc is not None and self.infdict.has_key('DE') and self.infdict['DE'][:len(loc)] != loc:
             self.infdict['DE'] = adc_escape_spaces("%s - %s" % (loc, self.infdict['DE']))
 
         return ' '.join(["%s%s" % (i,adc_escape_spaces(d)) for (i,d) in self.infdict.iteritems()])
@@ -994,13 +996,17 @@ class ADCHandler(BaseADCProtocol):
 
 
     def pushInfo(self, node):
-        #print "pushInfo: %s" % nick
+        print "pushInfo: %s" % node.nick
         if node.sid and node.adcinfo:
             self.sendLine("BINF %s %s" % (node.sid, node.adcinfo))
         else:
             if node.nick == self.nick:
                 print "attempting to generate callstack"
+<<<<<<< Updated upstream:dtella/client/adc.py
                 #self.osm.nkm.lookupSIDFromNick(node)
+=======
+                self.main.osm.nkm.lookupSIDFromNick(node)
+>>>>>>> Stashed changes:dtella/client/adc.py
             else:
                 print "+ Node: %s has no adcinfo" % node.nick
         #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
