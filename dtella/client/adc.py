@@ -1002,11 +1002,7 @@ class ADCHandler(BaseADCProtocol):
         else:
             if node.nick == self.nick:
                 print "attempting to generate callstack"
-<<<<<<< Updated upstream:dtella/client/adc.py
-                #self.osm.nkm.lookupSIDFromNick(node)
-=======
                 self.main.osm.nkm.lookupSIDFromNick(node)
->>>>>>> Stashed changes:dtella/client/adc.py
             else:
                 print "+ Node: %s has no adcinfo" % node.nick
         #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
