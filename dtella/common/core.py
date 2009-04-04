@@ -950,15 +950,19 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket('!IH4sIB+', rest)
 
             nick, rest = self.decodeString1(rest)
-            info, rest = self.decodeString1(rest)
 
-            persist = bool(flags & PERSIST_BIT)
-            
             if flags & PROTOCOL_ADC:
                 protocol = PROTOCOL_ADC
             else:
                 protocol = PROTOCOL_NMDC
 
+            if protocol == PROTOCOL_ADC:
+                info, rest = self.decodeString1(rest)
+            else:
+                info, rest = self.decodeString2(rest)
+
+            persist = bool(flags & PERSIST_BIT)
+            
             if rest:
                 raise BadPacketError("Extra data")
 

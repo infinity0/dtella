@@ -1002,7 +1002,7 @@ class ADCHandler(BaseADCProtocol):
         else:
             if node.nick == self.nick:
                 print "attempting to generate callstack"
-                self.main.osm.nkm.lookupSIDFromNick(node)
+                self.main.osm.nkm.lookupSIDFromNick(node.nick)
             else:
                 print "+ Node: %s has no adcinfo" % node.nick
         #self.sendLine('$MyINFO $ALL %s %s' % (nick, dcinfo))
