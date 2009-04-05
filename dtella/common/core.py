@@ -1958,7 +1958,6 @@ class Node(object):
 
             if adc:
                 self.info.update(adc_infodict(info))
-                self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                 self.dcinfo = adc_infostring(self.info)
                 self.location = ""
                 try:
@@ -1975,23 +1974,23 @@ class Node(object):
                     infs = [dc_unescape(i) for i in split_info(info)]
                     self.info['NI'] = self.nick
                     self.info['DE'], rest = split_tag(infs[0])
-                    if self.location:
-                        self.info['DE'] = "[%s] %s" % (dc_unescape(self.location), self.info['DE'])
-
                     self.info['SS'] = str(self.shared)
-                    cid = self.location[-44:0]
-                    if len(cid) == 44 and cid[0:2] == '__' and cid[-2:0] == '__':
-                        # extract the CID from the location
-                        try:
-                            cidraw = base64.b32decode(cid[2:-2])
-                            self.info['ID'] = cid[2:-2]
-                        except:
-                            raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
-                    else:
-                        # NMDC node, so generate a throwaway CID that will never be used
-                        self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
-
                     self.info['EM'] = infs[3]
+
+                    if self.location:
+                        cid = self.location[-44:]
+                        if len(cid) == 44 and cid[0:2] == '__' and cid[-2:0] == '__':
+                            # extract the CID from the location
+                            try:
+                                cidraw = base64.b32decode(cid[2:-2])
+                                self.info['ID'] = cid[2:-2]
+                                self.location = self.location[:-44]
+                            except:
+                                raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
+                        else:
+                            # NMDC node, so generate a throwaway CID that will never be used
+                            self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
+                        self.info['DE'] = "[%s] %s" % (dc_unescape(self.location), self.info['DE'])
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients
                     tags = {}
@@ -2795,6 +2794,7 @@ class OnlineStateManager(object):
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
                     dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
+            print "> ADCINFO %s " % info_out
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
 
