@@ -223,8 +223,10 @@ class NickManager(object):
             sid = self.baseSID
         else:
             sid = self.generateNewSID()
+            while sid in self.sidmap:
+                sid = self.generateNewSID()
         
-        if lnick in self.nickmap or sid in self.sidmap:
+        if lnick in self.nickmap
             raise NickError("collision")
             
         if so:
