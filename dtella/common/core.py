@@ -1978,6 +1978,7 @@ class Node(object):
                     self.info['EM'] = infs[3]
 
                     if self.location:
+                        cid = self.location[-44:]
                         if len(cid) == 44 and cid[:2] == '__' and cid[-2:] == '__':
                             # extract the CID from the location
                             try:
