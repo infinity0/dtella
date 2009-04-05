@@ -1881,9 +1881,9 @@ class Node(object):
         self.shared = 0
 
         self.dttag = ""
-        if not adc_mode or adc_allow_nmdc
+        if not adc_mode or adc_allow_nmdc:
             self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
-        else
+        else:
             self.protocol = PROTOCOL_ADC
 
         self.infohash = None
@@ -1951,13 +1951,10 @@ class Node(object):
         old_dcinfo = self.dcinfo
         
         if adc_mode:
-            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
 
             if adc:
                 self.protocol = PROTOCOL_ADC  # if we ever see an ADC packet, it means they are using ADC-Dtella
                 self.info.update(adc_infodict(info))
-                self.dcinfo = adc_infostring(self.info)
-                self.location = ""
                 try:
                     self.shared = int(self.info['SS'])
                 except KeyError:
@@ -2001,16 +1998,17 @@ class Node(object):
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
 
-                    self.dcinfo = adc_infostring(self.info)
-
                 except ValueError:
                     if not info: # bridge node
                         pass
                     elif info[0] == '<' and info[-1] == '>': # persistent node
                         self.info['VE'] = dc_unescape(self.dttag)
-                        self.dcinfo = adc_infostring(self.info)
                     else:
                         raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
+
+            self.location = ""
+            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+            self.dcinfo = adc_infostring(self.info)
 
         else:
             if adc: return False # we dont want to parse this
