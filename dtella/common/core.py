@@ -1359,10 +1359,6 @@ class PeerHandler(DatagramProtocol):
 
     def handlePacket_AP(self, ad, data):
         # Direct: ADC Reverse Connect To Me
-    
-
-    def handlePacket_PM(self, ad, data):
-        # Direct: Private Message
         def cb(dch, n, rest):
         
             flags, rest = self.decodePacket('!B+', rest)
@@ -1376,6 +1372,10 @@ class PeerHandler(DatagramProtocol):
             
         self.handlePrivMsg(ad, data, cb)
 
+
+    def handlePacket_PM(self, ad, data):
+        # Direct: Private Message
+        
         def cb(dch, n, rest):
 
             flags, rest = self.decodePacket('!B+', rest)
