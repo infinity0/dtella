@@ -878,7 +878,7 @@ class ADCHandler(BaseADCProtocol):
         reactor.connectTCP(ip, port, AbortTransfer_Factory(self.nick))
 
     def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
-        self.sendLine("DCTM %s %s %s %s %s" % (self.sid, node.sid,
+        self.sendLine("DCTM %s %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, port, token))
 
     def push_NMDC_RevConnectToMe(self, nick):
