@@ -2011,6 +2011,7 @@ class Node(object):
                                 cidraw = base64.b32decode(cid[2:-2])
                                 self.info['ID'] = cid[2:-2]
                                 self.location = self.location[:-44]
+                                self.protocol = PROTOCOL_ADC # ADC-mode nodes send this
                             except:
                                 raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                         else:
