@@ -1330,8 +1330,7 @@ class PeerHandler(DatagramProtocol):
         self.handlePrivMsg(ad, data, cb)
 
     def handlePacket_AC(self, ad, data):
-        #print "Handle AC"
-        #ADC CTM
+        #Direct: ADC CTM
         def cb(dch, n, rest):
         
             flags, rest = self.decodePacket('!B+', rest)
@@ -1358,9 +1357,24 @@ class PeerHandler(DatagramProtocol):
 
         self.handlePrivMsg(ad, data, cb)
 
+    def handlePacket_AP(self, ad, data):
+        # Direct: ADC Reverse Connect To Me
+    
 
     def handlePacket_PM(self, ad, data):
         # Direct: Private Message
+        def cb(dch, n, rest):
+        
+            flags, rest = self.decodePacket('!B+', rest)
+            protocol_str, rest = self.decodeString1(rest)
+            token , rest = self.decodeString1(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+                
+            dch.push_ADC_RevConnectToMe(n, protocol_str, token)
+            
+        self.handlePrivMsg(ad, data, cb)
 
         def cb(dch, n, rest):
 
@@ -2182,7 +2196,6 @@ class Node(object):
         packet.append(token)
         packet = ''.join(packet)
         
-        print "Sending AC packet"
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
@@ -2202,6 +2215,24 @@ class Node(object):
 
     def event_ADC_RevConnectToMe(self, main, token, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_ADC)
+        osm = main.osm
+
+        ack_key = self.getPMAckKey()
+        flags = 0 # for forward compatability
+
+        packet = ['AM']#ADC RCM
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(self.nickHash())
+        
+        packet.append(struct.pack('!BB', flags, len(protocol)))
+        packet.append(protocol)
+        packet.append(struct.pack('!B', len(token)))
+        packet.append(token)
+        packet = ''.join(packet)
+        
+        self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
         
 
     def nickRemoved(self, main):
