@@ -28,7 +28,7 @@ import twisted.python.log
 
 from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, dc_unescape, dcall_discard,
-                                format_bytes, dcall_timeleft,
+                                format_bytes, dcall_timeleft, stdlines,
                                 get_version_string, lock2key, CHECK)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad

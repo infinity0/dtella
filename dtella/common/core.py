@@ -980,7 +980,7 @@ class PeerHandler(DatagramProtocol):
             elif not adc_mode or adc_allow_nmdc:
                 info, rest = self.decodeString1(rest)
             else:
-                raise Reject
+                raise Reject("NMDC are nodes not allowed on this network")
 
             persist = bool(flags & PERSIST_BIT)
             
@@ -1465,12 +1465,14 @@ class PeerHandler(DatagramProtocol):
             adc = False
 
         nick, rest = self.decodeString1(rest)
+
         if adc:
             info, rest = self.decodeString2(rest)
         elif not adc_mode or adc_allow_nmdc:
             info, rest = self.decodeString1(rest)
         else:
-            raise Reject
+            raise Reject("NMDC nodes are not allowed on this network")
+
         topic, rest = self.decodeString1(rest)
 
         c_nbs, rest = self.decodeNodeList(rest)
@@ -1945,22 +1947,22 @@ class Node(object):
 
         old_dcinfo = self.dcinfo
         
-        if adc:
-            self.info.update(adc_infodict(info))
+        if adc_mode:
             self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
-            self.dcinfo = adc_infostring(self.info)
-            self.location = ""
-            try:
-                self.shared = int(self.info['SS'])
-            except KeyError:
-                self.shared = 0
 
-        else:
-            self.dcinfo, self.location, self.shared = (
-                parse_incoming_info(SSLHACK_filter_flags(info)))
-            
-            if adc_mode: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+            if adc:
+                self.info.update(adc_infodict(info))
                 self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+                self.dcinfo = adc_infostring(self.info)
+                self.location = ""
+                try:
+                    self.shared = int(self.info['SS'])
+                except KeyError:
+                    self.shared = 0
+
+            else: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+                self.dcinfo, self.location, self.shared = (
+                    parse_incoming_info(SSLHACK_filter_flags(info)))
 
                 try:
                     # data in info{} is plaintext, so dc_unescape everything that goes into it
@@ -2007,6 +2009,11 @@ class Node(object):
                     else:
                         raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
 
+        else:
+            if adc: return False # we dont want to parse this
+            self.dcinfo, self.location, self.shared = (
+                parse_incoming_info(SSLHACK_filter_flags(info)))
+
         if self.sesid is None:
             # Node is uninitialized
             self.infohash = None
@@ -2023,7 +2030,7 @@ class Node(object):
         self.nick = ''
         if self.dttag:
             if adc_mode:
-                self.setInfo("VE%s" % adc_escape(self.dttag))
+                self.setInfo("VE%s" % self.dttag)
             else:
                 self.setInfo("<%s>" % self.dttag)
         else:
@@ -2755,40 +2762,39 @@ class OnlineStateManager(object):
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
 
-        else:
-            if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
-                inf = adc_infodict(self.me.info_out)
-                # everything in inf{} is plaintext, so escape everything that comes out
-                
-                if len(inf) == 1 and inf.has_key('VE'): # offline nodes have this info
-                    info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
-
-                else:
-                    i = inf['VE'].rindex(';Dt') # this must exist due to ADCHandler.formatMyInfo
-                    dc, dt = dc_escape(inf['VE'][:i]), dc_escape(inf['VE'][i+1:])
-                    dc = dc.split(' ', 1)
-                    dcstr, dcver = dc[0], ""
-                    if len(dc) > 1: dcver = dc[1]
-                    
-                    loc = ""
-                    if not inf.has_key('EM'): inf['EM'] = ""
-                    if not inf.has_key('DE'):
-                        inf['DE'] = ""
-                    elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
-                        loc, inf['DE'] = inf['DE'].split(" ", 1)
-                        loc = loc[1:-1]
-                    
-                    info_out = "%s<%s V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
-                        dc_escape(inf['DE']), dcstr, dcver,
-                        inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
-                        dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
-
-                status.append(struct.pack('!B', len(info_out)))
-                status.append(info_out)
+        elif adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
+            inf = adc_infodict(self.me.info_out)
+            # everything in inf{} is plaintext, so escape everything that comes out
+            
+            if len(inf) == 1 and inf.has_key('VE'): # offline nodes have this info
+                info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
 
             else:
-                status.append(struct.pack('!B', len(self.me.info_out)))
-                status.append(self.me.info_out)
+                i = inf['VE'].rindex(';Dt') # this must exist due to ADCHandler.formatMyInfo
+                dc, dt = dc_escape(inf['VE'][:i]), dc_escape(inf['VE'][i+1:])
+                dc = dc.split(' ', 1)
+                dcstr, dcver = dc[0], ""
+                if len(dc) > 1: dcver = dc[1]
+                
+                loc = ""
+                if not inf.has_key('EM'): inf['EM'] = ""
+                if not inf.has_key('DE'):
+                    inf['DE'] = ""
+                elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
+                    loc, inf['DE'] = inf['DE'].split(" ", 1)
+                    loc = loc[1:-1]
+                
+                info_out = "%s<%s V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                    dc_escape(inf['DE']), dcstr, dcver,
+                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
+                    dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
+
+            status.append(struct.pack('!B', len(info_out)))
+            status.append(info_out)
+
+        else:
+            status.append(struct.pack('!B', len(self.me.info_out)))
+            status.append(self.me.info_out)
 
         return status
 
