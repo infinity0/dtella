@@ -1978,8 +1978,7 @@ class Node(object):
                     self.info['EM'] = infs[3]
 
                     if self.location:
-                        cid = self.location[-44:]
-                        if len(cid) == 44 and cid[0:2] == '__' and cid[-2:0] == '__':
+                        if len(cid) == 44 and cid[:2] == '__' and cid[-2:] == '__':
                             # extract the CID from the location
                             try:
                                 cidraw = base64.b32decode(cid[2:-2])
@@ -2794,7 +2793,6 @@ class OnlineStateManager(object):
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
                     dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
-            print "> ADCINFO %s " % info_out
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
 
