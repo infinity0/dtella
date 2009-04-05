@@ -207,7 +207,7 @@ class NickManager(object):
     baseSID = base64.b32encode(treehash("\0"))[:4]
     def generateNewSID(self):
         sid = base64.b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
-        NickManager.sid_counter += 1#TODO - remove this hack
+        NickManager.sid_counter += 1
         return sid
 
 
@@ -226,7 +226,7 @@ class NickManager(object):
             while sid in self.sidmap:
                 sid = self.generateNewSID()
         
-        if lnick in self.nickmap
+        if lnick in self.nickmap:
             raise NickError("collision")
             
         if so:
@@ -1990,19 +1990,14 @@ class Node(object):
                     self.dcinfo = adc_infostring(self.info)
                     #print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
                 except ValueError:
-                    try:
-                        if not info: # bridge node
-                            pass
-                        elif info[0] == '<' and info[-1] == '>': # persistent node
-                            self.info['VE'] = self.dttag
-                            self.dcinfo = adc_infostring(self.info)
-                        else: # SHOULD NOT HAPPEN
-                            self.info.update(adc_infodict(info))
-                            self.dcinfo = info
-                            self.location = ""
-                            print "WARNING: got ADC infostring in NS packet marked 'NMDC' from %s" % self.nick
-                    except:
-                        raise Reject
+                    if not info: # bridge node
+                        pass
+                    elif info[0] == '<' and info[-1] == '>': # persistent node
+                        self.info['VE'] = self.dttag
+                        self.dcinfo = adc_infostring(self.info)
+                    else: # SHOULD NOT HAPPEN
+                        print "could not parse NMDC infostring into ADC infodict: " + info
+                        raise
 
         if self.sesid is None:
             # Node is uninitialized
@@ -2751,8 +2746,7 @@ class OnlineStateManager(object):
         if adc:
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
-            #print "PREPARING NS ADC packet ----------"
-            #print self.me.info_out
+
         else:
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
@@ -2784,14 +2778,13 @@ class OnlineStateManager(object):
                         loc, inf['DE'] = inf['DE'].split(" ", 1)
                         loc = loc[1:-1]
                     
-                    info_out = "%s<%s,V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                    info_out = "%s<%s V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
                         inf['DE'], dcstr, dcver,
                         inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
                         loc, inf['ID'], chr(1), inf['EM'], self.me.shared)
 
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
-                #print "INFO_OUT_NMDC: " + info_out
 
             else:
                 status.append(struct.pack('!B', len(self.me.info_out)))
