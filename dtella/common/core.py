@@ -2213,7 +2213,7 @@ class Node(object):
 
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
-    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+    def event_ADC_RevConnectToMe(self, main, protocol, token, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_ADC)
         osm = main.osm
 
@@ -2291,7 +2291,7 @@ class MeNode(Node):
         CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
         
-    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+    def event_ADC_RevConnectToMe(self, protocol, main, token, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
         

@@ -617,7 +617,23 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
-        pass
+    
+        def fail_cb(reason, bot = False):
+            #if show_errors:
+            #if node:
+            #    self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
+            #else:
+            self.pushStatus("*** Connection failed: %s" % reason)
+            #if port:
+            #    if bot:
+            #        reactor.connectTCP('127.0.0.1', port,
+            #            ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
+            #    else:
+            #        reactor.connectTCP('127.0.0.1', port,
+            #            ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
+                        
+        protocol_str, token = rest.split(' ')
+        self.main.osm.nkm.lookupNodeFromSID(dst_sid).event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
     def d_SCH(self, con, src_sid, rest):
         pass
@@ -637,8 +653,9 @@ class ADCHandler(BaseADCProtocol):
 
         dcall_discard(self, 'queued_dcall')
 
-        self.addDispatch('MSG',                 ('B','E'),  self.d_MSG)
-        self.addDispatch('CTM',                 ('D'),      self.d_CTM)
+        self.addDispatch('MSG',('B','E'),  self.d_MSG)
+        self.addDispatch('CTM',('D'),      self.d_CTM)
+        self.addDispatch('RCM',('D'),      self.d_RCM)
         # Add the post-login handlers
         #self.addDispatch('$ConnectToMe',      2, self.d_NMDC_ConnectToMe)
         #self.addDispatch('$RevConnectToMe',   2, self.d_NMDC_RevConnectToMe)

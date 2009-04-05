@@ -511,7 +511,7 @@ class NickNode(object):
         CHECK(main.dch.protocol == core.PROTOCOL_NMDC)
         fail_cb("IRC users don't have any files.")
 
-    def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+    def event_ADC_RevConnectToMe(self, main, protocol, token, fail_cb):
         CHECK(main.dch.protocol == core.PROTOCOL_ADC)
         fail_cb("IRC users don't have any files.")
 

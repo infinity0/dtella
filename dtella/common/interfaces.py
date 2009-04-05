@@ -51,7 +51,7 @@ class IDtellaNickNode(Interface):
         pass
     def event_NMDC_RevConnectToMe(main, fail_cb):
         pass
-    def event_ADC_RevConnectToMe(main, token, fail_cb):
+    def event_ADC_RevConnectToMe(main, protocol, token, fail_cb):
         pass
     def checkRevConnectWindow():
         pass
