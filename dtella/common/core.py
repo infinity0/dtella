@@ -1325,10 +1325,23 @@ class PeerHandler(DatagramProtocol):
             ad = Ad().setRawIPPort(n.ipp)
             ad.port = port
             use_ssl = bool(flags & USE_SSL_BIT)
-            dch.pushConnectToMe(ad, use_ssl)
+            dch.push_NMDC_ConnectToMe(ad, use_ssl)
 
         self.handlePrivMsg(ad, data, cb)
 
+    def handlePacket_AC(self, ad, data):
+        #ADC CTM
+        def cb(dch, n, rest):
+        
+            flags, rest = self.decodPacket('!B+', rest)
+            protocol_str, rest = self.decodeString(rest)
+            port , rest = self.decodePacket('!H+', rest)
+            token , rest = self.decodeString(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+                
+            dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
 
     def handlePacket_CP(self, ad, data):
         # Direct: RevConnectToMe
@@ -1338,7 +1351,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Extra data")
 
             n.openRevConnectWindow()
-            dch.pushRevConnectToMe(n.nick)
+            dch.push_NMDC_RevConnectToMe(n.nick)
 
         self.handlePrivMsg(ad, data, cb)
 
@@ -1949,11 +1962,12 @@ class Node(object):
     def setInfo(self, info, adc=adc_mode):
 
         old_dcinfo = self.dcinfo
-        
+
         if adc_mode:
 
             if adc:
                 self.protocol = PROTOCOL_ADC  # if we ever see an ADC packet, it means they are using ADC-Dtella
+                
                 self.info.update(adc_infodict(info))
                 try:
                     self.shared = int(self.info['SS'])
@@ -2125,7 +2139,7 @@ class Node(object):
 
 
     def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
-
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         osm = main.osm
 
         ack_key = self.getPMAckKey()
@@ -2147,10 +2161,28 @@ class Node(object):
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
-        print "in ADC CTM"
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
+        osm = main.osm
+
+        ack_key = self.getPMAckKey()
+        flags = 0 # for forward compatability
+
+        packet = ['AC']#ADC CTM
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(self.nickHash())
+        
+        packet.append(struct.pack('!BB', flags, len(protocol)))
+        packet.append(protocol)
+        packet.append(struct.pack('!HB', port, len(token)))
+        packet.append(token)
+        packet = ''.join(packet)
+        
+        self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
-
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         osm = main.osm
 
         ack_key = self.getPMAckKey()
@@ -2165,7 +2197,8 @@ class Node(object):
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_ADC_RevConnectToMe(self, main, token, fail_cb):
-        print "in ADC RCM"
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
+        
 
     def nickRemoved(self, main):
 
@@ -2212,15 +2245,19 @@ class MeNode(Node):
             fail_cb("I'm not online!")
 
     def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
         
-    def event_ADC_ConnectToMe(self, main, protocl, port, token, fail_cb):
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
         
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
         
     def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
         
 verifyClass(IDtellaNickNode, MeNode)

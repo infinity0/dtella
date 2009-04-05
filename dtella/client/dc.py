@@ -453,8 +453,8 @@ class DCHandler(BaseDCProtocol):
         dcall_discard(self, 'queued_dcall')
 
         # Add the post-login handlers
-        self.addDispatch('$ConnectToMe',      2, self.d_ConnectToMe)
-        self.addDispatch('$RevConnectToMe',   2, self.d_RevConnectToMe)
+        self.addDispatch('$ConnectToMe',      2, self.d_NMDC_ConnectToMe)
+        self.addDispatch('$RevConnectToMe',   2, self.d_NMDC_RevConnectToMe)
         self.addDispatch('$Search',          -2, self.d_Search)
         self.addDispatch('$To:',             -5, self.d_PrivateMsg)
         self.addDispatch("<%s>" % self.nick, -1, self.d_PublicMsg)
@@ -580,7 +580,7 @@ class DCHandler(BaseDCProtocol):
         n.event_PrivateMessage(self.main, text, fail_cb)
 
 
-    def d_ConnectToMe(self, nick, addr):
+    def d_NMDC_ConnectToMe(self, nick, addr):
 
         osm = self.main.osm
 
@@ -643,7 +643,7 @@ class DCHandler(BaseDCProtocol):
         n.event_NMDC_ConnectToMe(self.main, port, use_ssl, fail_cb)
 
 
-    def d_RevConnectToMe(self, _, nick):
+    def d_NMDC_RevConnectToMe(self, _, nick):
 
         osm = self.main.osm
 
@@ -791,14 +791,14 @@ class DCHandler(BaseDCProtocol):
         self.sendLine('$Quit %s' % nick)
 
 
-    def pushConnectToMe(self, ad, use_ssl):
+    def push_NMDC_ConnectToMe(self, ad, use_ssl):
         line = "$ConnectToMe %s %s" % (self.nick, ad.getTextIPPort())
         if use_ssl:
             line += 'S'
         self.sendLine(line)
 
 
-    def pushRevConnectToMe(self, nick):
+    def push_NMDC_RevConnectToMe(self, nick):
         self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
 

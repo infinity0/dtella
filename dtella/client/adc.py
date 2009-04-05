@@ -190,6 +190,7 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
         pass #We will recieve one but ignore it
         
     def d_INF(self, con, rest=None):
+        print "in ur INF"
         self.addDispatch('GET', ('C'), self.d_GET)
         self.addDispatch('GFI', ('C'), self.d_GFI)
     
@@ -574,40 +575,45 @@ class ADCHandler(BaseADCProtocol):
         except ValueError:
             port = None
             
-        def fail_cb(reason):
+        def fail_cb(reason, bot = False):
             if show_errors:
                 if node:
                     self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
                 else:
                     self.pushStatus("*** Connection failed: %s" % reason)
             if port:
-                reactor.connectTCP('127.0.0.1', port,
-                    ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
+                if bot:
+                    reactor.connectTCP('127.0.0.1', port,
+                        ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
+                else:
+                    reactor.connectTCP('127.0.0.1', port,
+                        ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
 
 
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
             node = None
-            fail_cb("User doesnt seem to exist")
+            if dst_sid == self.bot.sid:
+                fail_cb("<%s> has no files" % self.bot.nick,True)
+            else:
+                fail_cb("User doesnt seem to exist")
             return
 
         if not self.isOnline():
-            fail_cb("you're not online.")
+            fail_cb("You are not online.")
             return
         elif not port:
-            fail_cb("invalid port: <%s>" % port_str)
-            return
-        elif dst_sid == self.bot.sid: #User is trying to connect to *Dtella
-            fail_cb("<%s> has no files" % self.bot.nick)
+            fail_cb("Invalid port: <%s>" % port_str)
             return
         elif self.isLeech():
             show_errors = False
             fail_cb(None)
             return
+        elif node.protocol != self.protocol:
+            fail_cb("User is not using the ADC Protocol so you cant connect to them")
         else:
-            print "Should connect to me now"
-            #node.event_ConnectToMe(self.main, port, use_ssl, fail_cb)
+            node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
@@ -634,8 +640,8 @@ class ADCHandler(BaseADCProtocol):
         self.addDispatch('MSG',                 ('B','E'),  self.d_MSG)
         self.addDispatch('CTM',                 ('D'),      self.d_CTM)
         # Add the post-login handlers
-        #self.addDispatch('$ConnectToMe',      2, self.d_ConnectToMe)
-        #self.addDispatch('$RevConnectToMe',   2, self.d_RevConnectToMe)
+        #self.addDispatch('$ConnectToMe',      2, self.d_NMDC_ConnectToMe)
+        #self.addDispatch('$RevConnectToMe',   2, self.d_NMDC_RevConnectToMe)
         #self.addDispatch('$Search',          -2, self.d_Search)
         #self.addDispatch('$To:',             -5, self.d_PrivateMsg)
         #self.addDispatch("<%s>" % self.nick, -1, self.d_PublicMsg)
@@ -712,7 +718,7 @@ class ADCHandler(BaseADCProtocol):
         if self.main.state.localsearch:
             self.pushSearchRequest(osm.me.ipp, search_string)
 
-    def d_ConnectToMe(self, nick, addr):
+    def d_NMDC_ConnectToMe(self, nick, addr):
 
         osm = self.main.osm
 
@@ -775,7 +781,7 @@ class ADCHandler(BaseADCProtocol):
         n.event_ConnectToMe(self.main, port, use_ssl, fail_cb)
 
 
-    def d_RevConnectToMe(self, _, nick):
+    def d_NMDC_RevConnectToMe(self, _, nick):
 
         osm = self.main.osm
 
@@ -865,15 +871,17 @@ class ADCHandler(BaseADCProtocol):
             print "+ Node \"%s\" has no SID" % node.nick
 
     
-    def pushConnectToMe(self, ad, use_ssl):
-        print "CTM"
-        #line = "$ConnectToMe %s %s" % (self.nick, ad.getTextIPPort())
-        #if use_ssl:
-        #    line += 'S'
-        #self.sendLine(line)
+    def push_NMDC_ConnectToMe(self, ad, use_ssl):
+        #We are recieving an NMDC connect to me so create an NMDC AbortOut to deal with it
+        ip, port = ad.getAddrTuple()
+        from dc import AbortTransfer_Factory
+        reactor.connectTCP(ip, port, AbortTransfer_Factory(self.nick))
 
+    def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
+        self.sendLine("DCTM %s %s %s %s %s" % (self.sid, node.sid,
+                            protocol_str, port, token))
 
-    def pushRevConnectToMe(self, nick):
+    def push_NMDC_RevConnectToMe(self, nick):
         print "$RevCTM"
         #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
