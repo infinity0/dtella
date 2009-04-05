@@ -31,7 +31,7 @@ from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
                                 Reject, NickError)
 
 from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
-                                split_info, b32pad, adc_infostring)
+                                split_info, b32pad, adc_infostring, get_version_string)
 
 import dtella.common.ipv4 as ipv4
 from dtella.common.ipv4 import Ad
@@ -440,8 +440,25 @@ class NickNode(object):
                 self.info['DE'] = "[%s] %s" % (self.location, infs[0])
                 self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
                 self.info['SS'], self.info['SL'] = "0", "0"
-                self.info['EM'], self.info['VE'] = "", ""
-                self.info['HN'], self.info['HR'], self.info['HO'] = "0","0","0"
+                self.info['VE'] = get_version_string()
+                self.info['HN'] = '1'
+                
+                optype = infs[0][1]
+                
+                if optype in ('~','&','@'): #user is an op
+                    self.info['HR'], self.info['HO'] = '1','1'
+                else:
+                    self.info['HR'], self.info['HO'] = '0','0'
+                    
+                if optype == '~':
+                    self.info['CT'] = '30'
+                elif optype == '&':
+                    self.info['CT'] = '14'
+                elif optype == '@':
+                    self.info['CT'] = '6'
+                else:
+                    self.info['CT'] = '2'
+                    
                 self.dcinfo = adc_infostring(self.info)
             except ValueError:
                 raise
@@ -481,15 +498,19 @@ class NickNode(object):
 
 
     def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
+        CHECK(main.osm.dhc.protocol == PROTOCOL_NMDC)
         fail_cb("IRC users don't have any files.")
 
     def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        CHECK(main.osm.dhc.protocol == PROTOCOL_ADC)
         fail_cb("IRC users don't have any files.")
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        CHECK(main.osm.dhc.protocol == PROTOCOL_NMDC)
         fail_cb("IRC users don't have any files.")
 
     def event_ADC_RevConnectToMe(self, main, token, fail_cb):
+        CHECK(main.osm.dhc.protocol == PROTOCOL_ADC)
         fail_cb("IRC users don't have any files.")
 
     def checkRevConnectWindow(self):
