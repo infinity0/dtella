@@ -1000,9 +1000,6 @@ class PeerHandler(DatagramProtocol):
             n = osm.refreshNodeStatus(
                 src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, adc)
 
-            if adc: # if we ever see an ADC packet, it means they are using ADC-Dtella
-                n.protocol = PROTOCOL_ADC
-
             # They had a nick, now they don't.  This indicates a problem.
             # Stop forwarding and notify the user.
             if nick and not n.nick:
@@ -1492,9 +1489,6 @@ class PeerHandler(DatagramProtocol):
         except KeyError:
             n = None
 
-        if adc: # if we ever see an ADC packet, it means they are using ADC-Dtella
-            n.protocol = PROTOCOL_ADC
-
         if self.isFromBridgeNode(n, src_ipp):
             raise BadPacketError("Bridge can't use YR")
 
@@ -1887,7 +1881,10 @@ class Node(object):
         self.shared = 0
 
         self.dttag = ""
-        self.protocol = None
+        if not adc_mode or adc_allow_nmdc
+            self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
+        else
+            self.protocol = PROTOCOL_ADC
 
         self.infohash = None
 
@@ -1957,6 +1954,7 @@ class Node(object):
             self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
 
             if adc:
+                self.protocol = PROTOCOL_ADC  # if we ever see an ADC packet, it means they are using ADC-Dtella
                 self.info.update(adc_infodict(info))
                 self.dcinfo = adc_infostring(self.info)
                 self.location = ""
