@@ -1996,8 +1996,8 @@ class Node(object):
                         self.info['VE'] = self.dttag
                         self.dcinfo = adc_infostring(self.info)
                     else: # SHOULD NOT HAPPEN
-                        print "could not parse NMDC infostring into ADC infodict: " + info
-                        raise
+                        raise BadPacketError("Could not parse NMDC infostring into ADC infodict: " + info)
+
 
         if self.sesid is None:
             # Node is uninitialized

@@ -20,13 +20,18 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
+import base64
+from tiger import treehash
+
 from twisted.internet import reactor
 
+import dtella.local_config as local
 import dtella.common.core as core
 from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
                                 Reject, NickError)
 
-from dtella.common.util import RandSet, dcall_discard, parse_incoming_info
+from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
+                                split_info, b32pad, adc_infostring)
 
 import dtella.common.ipv4 as ipv4
 from dtella.common.ipv4 import Ad
@@ -40,6 +45,12 @@ import random
 from zope.interface import implements
 from zope.interface.verify import verifyClass
 from dtella.common.interfaces import IDtellaNickNode
+
+
+global adc_mode, adc_allow_nmdc; # TODO HACK, remove later
+adc_mode = local.getADCMode();
+adc_allow_nmdc = True;
+
 
 class ChunkError(Exception):
     pass
@@ -101,11 +112,6 @@ class BridgeClientProtocol(core.PeerHandler):
 
             persist = bool(flags & core.PERSIST_BIT)
             
-            if flags & core.PROTOCOL_ADC:
-                protocol = core.PROTOCOL_ADC
-            else:
-                protocol = core.PROTOCOL_NMDC
-
             (hashes, rest
              ) = self.decodeString1(rest, 16)
             
@@ -171,11 +177,6 @@ class BridgeClientProtocol(core.PeerHandler):
 
         persist = bool(flags & core.PERSIST_BIT)
         
-        if flags & core.PROTOCOL_ADC:
-            protocol = core.PROTOCOL_ADC
-        else:
-            protocol = core.PROTOCOL_NMDC
-
         (hashes, rest
          ) = self.decodeString1(rest, 16)
         
@@ -418,7 +419,7 @@ class NickNode(object):
         self.nick = nick
         
         self.dcinfo = ""
-        self.adcinfo = ""
+        self.info = {}
         self.location = ""
         self.shared = 0
         self.setInfo(info)
@@ -430,6 +431,21 @@ class NickNode(object):
     def setInfo(self, info):
         old_dcinfo = self.dcinfo
         self.dcinfo, self.location, self.shared = parse_incoming_info(info)
+
+        if adc_mode: # BACKWARDS COMPAT
+            try:
+                infs = split_info(info)
+                self.info['NI'] = self.nick
+                self.info['DE'] = "[%s] %s" % (self.location, infs[0])
+                self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
+                self.info['SS'], self.info['SL'] = "0", "0"
+                self.info['EM'], self.info['VE'] = "", ""
+                self.info['HN'], self.info['HR'], self.info['HO'] = "0","0","0"
+                self.dcinfo = adc_infostring(self.info)
+            except ValueError:
+                raise
+                #raise BadPacketError("Could not parse NMDC infostring into ADC infodict: " + info)
+
         return (self.dcinfo != old_dcinfo)
 
 
