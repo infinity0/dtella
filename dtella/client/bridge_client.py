@@ -429,7 +429,7 @@ class NickNode(object):
         self.mode = mode
 
 
-    def setInfo(self, info):
+    def setInfo(self, info, adc=adc_mode):
         old_dcinfo = self.dcinfo
         self.dcinfo, self.location, self.shared = parse_incoming_info(info)
 

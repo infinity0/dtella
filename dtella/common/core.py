@@ -1983,8 +1983,6 @@ class Node(object):
         if adc_mode:
 
             if adc:
-                self.protocol = PROTOCOL_ADC  # if we ever see an ADC packet, it means they are using ADC-Dtella
-                
                 self.info.update(adc_infodict(info))
                 try:
                     self.shared = int(self.info['SS'])
@@ -2678,6 +2676,9 @@ class OnlineStateManager(object):
         except KeyError:
             n = Node(src_ipp)
             in_nodes = False
+
+        if adc: # if we ever see an ADC packet, it means they are using ADC-Dtella
+            n.protocol = PROTOCOL_ADC
 
         self.main.logPacket("Status: %s %d (%s)" %
                             (hexlify(src_ipp), expire, nick))
