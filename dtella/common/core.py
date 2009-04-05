@@ -2749,7 +2749,7 @@ class OnlineStateManager(object):
         if adc:
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
-            print "PREPARING NS ADC packet ----------"
+            #print "PREPARING NS ADC packet ----------"
             #print self.me.info_out
         else:
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
@@ -2789,7 +2789,7 @@ class OnlineStateManager(object):
 
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
-                print "INFO_OUT_NMDC: " + info_out
+                #print "INFO_OUT_NMDC: " + info_out
 
             else:
                 status.append(struct.pack('!B', len(self.me.info_out)))

@@ -91,7 +91,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         if(len(line) == 0):
             self.sendLine('')#Keepalive
             return
-        print "< %s" % line
+        #print "< %s" % line
         cmd = line.split(' ', 1)        
         args = {}
         args['con'] = cmd[0][0]
@@ -360,7 +360,6 @@ class ADCHandler(BaseADCProtocol):
         inf = adc_infodict(rest)
         
         if self.state == 'IDENTIFY':
-            print "-----------YES, HERE"
             inf['PD'] = b32pad(inf['PD'])
             inf['ID'] = b32pad(inf['ID'])
 
@@ -384,6 +383,14 @@ class ADCHandler(BaseADCProtocol):
                 return
 
             self.nick = inf['NI']
+
+            # update MeNode
+            self.infdict.update(inf)
+            self.infstr = self.formatMyInfo()
+            if self.main.osm:
+                self.main.osm.me.info = self.infdict
+                self.main.osm.me.dcinfo = self.infstr
+            self.sendLine("BINF %s %s" % (src_sid, self.infstr))
 
             #login procedue - replaced from removeLoginBlockers
             if self.main.dch is None:
@@ -413,20 +420,17 @@ class ADCHandler(BaseADCProtocol):
                 self.transport.loseConnection()
                 
             self.state = 'ready'
-        elif self.state != 'ready':
-            return
-        
-        self.infdict.update(inf)
-        self.infstr = self.formatMyInfo()
 
-        if self.main.osm:
-            self.main.osm.me.info = self.infdict
-            self.main.osm.me.dcinfo = self.infstr
-            
-        self.sendLine("BINF %s %s" % (src_sid, self.infstr))
-        #TODO - broadcast to other users
-        
-        
+        elif self.state == 'ready':
+            # update MeNode
+            self.infdict.update(inf)
+            self.infstr = self.formatMyInfo()
+            if self.main.osm:
+                self.main.osm.me.info = self.infdict
+                self.main.osm.me.dcinfo = self.infstr
+            self.sendLine("BINF %s %s" % (src_sid, self.infstr))
+
+
     def d_MSG(self, con, src_sid=None, dst_sid=None, rest=None):
         
         if not rest:
