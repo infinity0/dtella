@@ -433,6 +433,7 @@ class NickNode(object):
         self.dcinfo, self.location, self.shared = parse_incoming_info(info)
 
         if adc_mode: # BACKWARDS COMPAT
+            self.protocol = core.PROTOCOL_ADC
             try:
                 infs = split_info(info)
                 self.info['NI'] = self.nick
@@ -445,6 +446,9 @@ class NickNode(object):
             except ValueError:
                 raise
                 #raise BadPacketError("Could not parse NMDC infostring into ADC infodict: " + info)
+        
+        else:
+            self.protocol = core.PROTOCOL_NMDC
 
         return (self.dcinfo != old_dcinfo)
 
