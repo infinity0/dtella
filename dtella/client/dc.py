@@ -27,7 +27,7 @@ from twisted.python.runtime import seconds
 import twisted.python.log
 
 from dtella.common.util import (validateNick, word_wrap, split_info,
-                                split_tag, remove_dc_escapes, dcall_discard,
+                                split_tag, dc_unescape, dcall_discard,
                                 format_bytes, dcall_timeleft,
                                 get_version_string, lock2key, CHECK)
 from dtella.client.dtellabot import DtellaBot
@@ -541,7 +541,7 @@ class DCHandler(BaseDCProtocol):
 
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
 
-        text = remove_dc_escapes(text)
+        text = dc_unescape(text)
         
         if nick == self.bot.nick:
 
@@ -699,7 +699,7 @@ class DCHandler(BaseDCProtocol):
 
     def d_PublicMsg(self, text):
 
-        text = remove_dc_escapes(text)
+        text = dc_unescape(text)
 
         # Route commands to the bot
         if text[:1] == '!':
@@ -727,7 +727,7 @@ class DCHandler(BaseDCProtocol):
                 "*** Can't send text; the chat is currently moderated.")
             return
 
-        text = text.replace('\r\n','\n').replace('\r','\n')
+        text = stdlines(text)
 
         for line in text.split('\n'):
 

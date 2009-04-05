@@ -193,8 +193,13 @@ def get_user_path(filename):
 
         return "%s/%s" % (path, filename)
 
+def stdlines(text):
+    return text.replace('\r\n', '\n').replace('\r','\n')
 
-def remove_dc_escapes(text):
+def dc_escape(text):
+    return text.replace('|','&#124;').replace('$','&#36;')
+
+def dc_unescape(text):
     return text.replace('&#124;','|').replace('&#36;','$')
 
 def adc_escape(text):

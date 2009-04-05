@@ -25,10 +25,11 @@ from twisted.python.runtime import seconds
 import twisted.python.log
 
 from dtella.common.util import (validateNick, word_wrap, split_info,
-                                split_tag, remove_dc_escapes, dcall_discard,
-                                format_bytes, dcall_timeleft,
-                                get_version_string, lock2key, CHECK, adc_escape,
-                                b32pad, adc_unescape, adc_infostring, adc_infodict)
+                                split_tag, dc_escape, dc_unescape,
+                                dcall_discard, format_bytes, dcall_timeleft,
+                                get_version_string, lock2key, CHECK, b32pad,
+                                adc_escape, adc_unescape,
+                                adc_infostring, adc_infodict)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core

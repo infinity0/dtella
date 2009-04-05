@@ -3,7 +3,7 @@ from twisted.python.runtime import seconds
 import twisted.python.log
 
 from dtella.common.util import (validateNick, word_wrap, split_info,
-                                split_tag, remove_dc_escapes, dcall_discard,
+                                split_tag, dcall_discard,
                                 format_bytes, dcall_timeleft,
                                 get_version_string, lock2key, CHECK)
 from dtella.common.ipv4 import Ad

@@ -43,7 +43,7 @@ from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 parse_incoming_info, get_version_string,
                                 parse_dtella_tag, CHECK, SSLHACK_filter_flags,
                                 adc_infodict, adc_infostring, split_info,
-                                split_tag, b32pad)
+                                split_tag, b32pad, dc_escape, dc_unescape)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -1947,57 +1947,65 @@ class Node(object):
         
         if adc:
             self.info.update(adc_infodict(info))
-            self.dcinfo = info
+            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+            self.dcinfo = adc_infostring(self.info)
             self.location = ""
             try:
                 self.shared = int(self.info['SS'])
             except KeyError:
                 self.shared = 0
-            #  print "--- got ADC infostring in NS packet marked 'ADC' from %s" % self.nick
 
         else:
             self.dcinfo, self.location, self.shared = (
                 parse_incoming_info(SSLHACK_filter_flags(info)))
             
-            if adc_mode: # BACKWARDS COMPAT
+            if adc_mode: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+                self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+
                 try:
-                    infs = split_info(info)
+                    # data in info{} is plaintext, so dc_unescape everything that goes into it
+                    infs = [dc_unescape(i) for i in split_info(info)]
                     self.info['NI'] = self.nick
                     self.info['DE'], rest = split_tag(infs[0])
                     if self.location:
-                        self.info['DE'] = "[%s] %s" % (self.location, self.info['DE'])
+                        self.info['DE'] = "[%s] %s" % (dc_unescape(self.location), self.info['DE'])
 
                     self.info['SS'] = str(self.shared)
                     cid = self.location[-44:0]
                     if len(cid) == 44 and cid[0:2] == '__' and cid[-2:0] == '__':
-                        self.info['ID'] = cid[2:-2]
+                        # extract the CID from the location
+                        try:
+                            cidraw = base64.b32decode(cid[2:-2])
+                            self.info['ID'] = cid[2:-2]
+                        except:
+                            raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                     else:
+                        # NMDC node, so generate a throwaway CID that will never be used
                         self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
 
                     self.info['EM'] = infs[3]
 
-                    self.info['VE'], rest = rest.split(' ')
+                    self.info['VE'], rest = rest.split(' ') # as per standard clients
                     tags = {}
                     for i in rest.split(','):
                         k, v = i.split(':')
                         tags[k] = v
-                    self.info['VE'] = self.info['VE'] + " " + tags['V'] + ";" + self.dttag
+                    self.info['VE'] = self.info['VE'] + " " + tags['V'] + ";" + dc_unescape(self.dttag)
                     self.info['SL'] = tags['S']
                     self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
 
                     self.dcinfo = adc_infostring(self.info)
-                    #print "---- got NMDC infostring in NS packet marked 'NMDC' from %s" % self.nick
+
                 except ValueError:
                     if not info: # bridge node
                         pass
                     elif info[0] == '<' and info[-1] == '>': # persistent node
-                        self.info['VE'] = self.dttag
+                        self.info['VE'] = dc_unescape(self.dttag)
                         self.dcinfo = adc_infostring(self.info)
-                    else: # SHOULD NOT HAPPEN
-                        raise BadPacketError("Could not parse NMDC infostring into ADC infodict: " + info)
-
+                    else:
+                        raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
 
         if self.sesid is None:
             # Node is uninitialized
@@ -2750,22 +2758,14 @@ class OnlineStateManager(object):
         else:
             if adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
                 inf = adc_infodict(self.me.info_out)
+                # everything in inf{} is plaintext, so escape everything that comes out
                 
-                if len(inf) == 1 and inf.has_key('VE'): 
-                    info_out = "<%s>$ $%s$$0$" % (inf['VE'], chr(1))
-
-                elif len(inf) == 3 and inf.has_key('DE'):
-                    if not inf.has_key('DE'):
-                        inf['DE'] = ""
-                    elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
-                        loc, inf['DE'] = inf['DE'].split(" ", 1)
-                        loc = loc[1:-1]
-
-                    info_out = "<%s>$ $%s%s$$%s$" % (
-                        inf['VE'], loc, chr(1), inf['CT'])
+                if len(inf) == 1 and inf.has_key('VE'): # offline nodes have this info
+                    info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
 
                 else:
-                    dc, dt = inf['VE'].split(';', 1)
+                    i = inf['VE'].rindex(';Dt') # this must exist due to ADCHandler.formatMyInfo
+                    dc, dt = dc_escape(inf['VE'][:i]), dc_escape(inf['VE'][i+1:])
                     dc = dc.split(' ', 1)
                     dcstr, dcver = dc[0], ""
                     if len(dc) > 1: dcver = dc[1]
@@ -2779,9 +2779,9 @@ class OnlineStateManager(object):
                         loc = loc[1:-1]
                     
                     info_out = "%s<%s V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
-                        inf['DE'], dcstr, dcver,
+                        dc_escape(inf['DE']), dcstr, dcver,
                         inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
-                        loc, inf['ID'], chr(1), inf['EM'], self.me.shared)
+                        dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
                 status.append(struct.pack('!B', len(info_out)))
                 status.append(info_out)
