@@ -394,6 +394,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Too Short")
 
             kind = data[:2]
+            #print "Kind: %s" % kind
 
             if not kind.isalpha():
                 raise BadPacketError("Kind not alphabetical")
@@ -1358,6 +1359,7 @@ class PeerHandler(DatagramProtocol):
         self.handlePrivMsg(ad, data, cb)
 
     def handlePacket_AP(self, ad, data):
+        print "Handle AP"
         # Direct: ADC Reverse Connect To Me
         def cb(dch, n, rest):
         
@@ -2218,7 +2220,7 @@ class Node(object):
         ack_key = self.getPMAckKey()
         flags = 0 # for forward compatability
 
-        packet = ['AM']#ADC RCM
+        packet = ['AP']#ADC RCM
         packet.append(osm.me.ipp)
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
