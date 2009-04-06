@@ -2053,7 +2053,7 @@ class Node(object):
                 except KeyError:
                     self.shared = 0
 
-            else: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+            elif adc_allow_nmdc: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
                 '''
                 NMDC-BACK-COMPAT:
                 We need to parse the NMDC-formatted infostring into a form
@@ -2117,6 +2117,9 @@ class Node(object):
                         self.info['VE'] = dc_unescape(self.dttag)
                     else:
                         raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
+                        
+            else:
+                raise Reject
 
             self.location = ""
             # set the IP field for a node.
@@ -2135,9 +2138,12 @@ class Node(object):
             # Node is uninitialized
             self.infohash = None
         else:
-            self.infohash = md5(
-                self.sesid + self.flags() + self.nick + '|' + info
-                ).digest()[:4]
+            if not (adc_mode and adc_allow_nmdc and adc):
+            # if we are in backwards-compat mode and this is an ADC infostring
+            # then we DON'T want to set the infohash
+                self.infohash = md5(
+                    self.sesid + self.flags() + self.nick + '|' + info
+                    ).digest()[:4]
 
         return self.dcinfo != old_dcinfo
 
@@ -2974,6 +2980,13 @@ class OnlineStateManager(object):
 
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
+            
+            if self.me.infohash is None:
+            # We want to use this as our infohash; also, we must set it here,
+            # as there is no other place to do this reliably.
+                self.me.infohash = md5(
+                self.me.sesid + self.me.flags() + self.me.nick + '|' + info_out
+                ).digest()[:4]
 
         else:
             status.append(struct.pack('!B', len(self.me.info_out)))
@@ -3069,6 +3082,7 @@ class OnlineStateManager(object):
             pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
 
             if sendfull:
+                print 'send NS'
                 packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                 packet.append(pkt_id)
                 packet.append(struct.pack('!H', int(expire)))
@@ -3086,6 +3100,7 @@ class OnlineStateManager(object):
                     self.mrm.newMessage(''.join(packet), tries=8)
  
             else:
+                print 'send NH'
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
                 packet.append(pkt_id)
 
