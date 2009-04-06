@@ -2285,7 +2285,7 @@ class Node(object):
         packet.append(struct.pack('!HB', port, len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        print "sending CTM %s" % packet
+        print "sending CTM"
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
@@ -2321,7 +2321,7 @@ class Node(object):
         packet.append(struct.pack('!B', len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        print "sending RCM %s" % packet
+        print "sending RCM"
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
         
 

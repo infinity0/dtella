@@ -567,7 +567,7 @@ class ADCHandler(BaseADCProtocol):
                         break
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
-        
+        print "recieved %sCTM: %s" % (con, rest)
         show_errors = True
         
         try:
@@ -625,6 +625,7 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
+        print "recieved %sRCM: %s" % (con, rest)
         
         show_errors = True
         cancel = True
@@ -941,6 +942,8 @@ class ADCHandler(BaseADCProtocol):
         reactor.connectTCP(ip, port, AbortTransfer_Factory(self.nick))
 
     def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
+        print "DCTM %s %s %s %s %s" % (node.sid, self.sid,
+                            protocol_str, port, token)
         self.sendLine("DCTM %s %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, port, token))
 
@@ -949,6 +952,8 @@ class ADCHandler(BaseADCProtocol):
         #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
+        print "DRCM %s %s %s %s" % (node.sid, self.sid,
+                                protocol_str, token)
         self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, token))
     
