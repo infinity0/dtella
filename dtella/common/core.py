@@ -87,9 +87,39 @@ class MessageCollisionError(Exception):
     pass
 
 
+'''
+Various sections of code are marked with NMDC-BACK-COMPAT. These are for
+backwards-compatibility with NMDC-only Dtella nodes.
+
+The intended usage is to help facilitate a smooth transition between an
+ADC-based network and a DC-based network. During the transition, adc_allow_nmdc
+(in your DNS config) must be set to True. All Dtella nodes will be able to
+connect to the network, and NMDC-only will be able to fully interact with other
+NMDC nodes. However, interactions between NMDC-only and ADC nodes are limited
+to chat and private message, and interactions between ADC nodes will be limited
+depending on the proportion of the ADC nodes in the network, since NMDC-only
+nodes will Reject the ADC-specific Dtella packets that it receives.
+
+When the transition is over, it is recommended to switch the adc_allow_nmdc
+flag to False, at which point the nodes will reject any NMDC-backwards-compat
+packets, and also prevent NMDC-only nodes from joining the network by using a
+different handshake packet.
+'''
+
+''' TODO:
+- write new handshake packet
+- ask paul about rejections
+- document everything
+'''
+
 global adc_mode, adc_allow_nmdc; # TODO HACK, remove later
 adc_mode = local.getADCMode();
 adc_allow_nmdc = True;
+
+# Protocol Flags
+PROTOCOL_MASK = 0x80
+PROTOCOL_NMDC = 0x00
+PROTOCOL_ADC = 0x80
 
 # How many seconds our node will last without incoming pings
 ONLINE_TIMEOUT = 30.0
@@ -148,11 +178,6 @@ CODE_IP_OK = 0
 CODE_IP_FOREIGN = 1
 CODE_IP_BANNED = 2
 
-# Protocol Flags - applies to the following packets
-PROTOCOL_MASK = 0x80
-PROTOCOL_NMDC = 0x00
-PROTOCOL_ADC = 0x80
-
 
 ##############################################################################
 
@@ -203,9 +228,13 @@ class NickManager(object):
             n.nickRemoved(self.main)
 
 
-    sid_counter = 1
-    baseSID = base64.b32encode(treehash("\0"))[:4]
+    sid_counter = 2
+    baseSID = base64.b32encode(treehash("\0"))[:4] # semi-reserved SID for the conecting client
     def generateNewSID(self):
+        '''
+        Generates a new session ID
+        This does NOT keep track of collisions; it is done in addNode.
+        '''
         sid = base64.b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
         NickManager.sid_counter += 1
         return sid
@@ -219,7 +248,7 @@ class NickManager(object):
         so = self.main.getStateObserver()
         lnick = n.nick.lower()
         
-        if isinstance(n, MeNode):
+        if isinstance(n, MeNode): # always use this SID for the connecting client
             sid = self.baseSID
         else:
             sid = self.generateNewSID()
@@ -975,6 +1004,16 @@ class PeerHandler(DatagramProtocol):
             else:
                 adc = False
 
+            '''
+            NMDC-BACK-COMPAT:
+            A sizeable proportion of ADC infostrings are longer than 255
+            characters, so we need to use a string2 for these packets. Under
+            the back-compat mode, old-style packets are *also* sent, which
+            contain the minimum subset of information that is needed to
+            register that client as a valid user to both NMDC and ADC clients.
+            
+            YR packets are also affected by this.
+            '''
             if adc:
                 info, rest = self.decodeString2(rest)
             elif not adc_mode or adc_allow_nmdc:
@@ -1390,7 +1429,8 @@ class PeerHandler(DatagramProtocol):
             
             print "Handling PM from %s" % n.nick
 
-            if notice:  #No equivelent in ADC but kept for NMDC compatability
+            if notice: #No equivelent in ADC but kept for NMDC compatability
+                #TODO: make separate versions for ADC/NMDC
                 #nick = "*N %s" % n.nick
                 dch.pushChatMessage(n.nick, text)
             else:
@@ -1497,6 +1537,16 @@ class PeerHandler(DatagramProtocol):
 
         nick, rest = self.decodeString1(rest)
 
+        '''
+        NMDC-BACK-COMPAT:
+        A sizeable proportion of ADC infostrings are longer than 255
+        characters, so we need to use a string2 for these packets. Under
+        the back-compat mode, old-style packets are *also* sent, which
+        contain the minimum subset of information that is needed to
+        register that client as a valid user to both NMDC and ADC clients.
+        
+        NS packets are also affected by this.
+        '''
         if adc:
             info, rest = self.decodeString2(rest)
         elif not adc_mode or adc_allow_nmdc:
@@ -1912,6 +1962,14 @@ class Node(object):
         self.shared = 0
 
         self.dttag = ""
+        '''
+        NMDC-BACK-COMPAT:
+        This allows the ADC client frontend of Dtella to see which nodes are
+        running what protocol, and take action accordingly. This is only needed
+        in the case of backwards-compat mode. Nodes are assumed to be ADC until
+        an ADC-node specific packet is seen: either one that contains an ADC
+        infostring, or an NMDC infostring with an ADC CID encoded into it.
+        '''
         if not adc_mode or adc_allow_nmdc:
             self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
         else:
@@ -1978,7 +2036,12 @@ class Node(object):
 
 
     def setInfo(self, info, adc=adc_mode):
-
+        '''
+        @param info The infostring of the client
+        @param adc Whether the infostring is in the ADC or NMDC format.
+                   Defaults to the mode that the Dtella node is running in.
+        @return Whether the infostring has changed
+        '''
         old_dcinfo = self.dcinfo
 
         if adc_mode:
@@ -1991,6 +2054,23 @@ class Node(object):
                     self.shared = 0
 
             else: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+                '''
+                NMDC-BACK-COMPAT:
+                We need to parse the NMDC-formatted infostring into a form
+                required by the ADC protocol. Luckily, everything is in there
+                already, with the exception of the Client ID.
+                
+                For ADC-Dtella nodes, this has been (somewhat arbitrarily)
+                encoded into the Location/Connection field of the back-compat
+                packet, so here we just extract it. We also mark the node as
+                an ADC node, through the .protocol field.
+                
+                For NMDC-Dtella nodes, we only need a CID so that our ADC
+                client recognises the remote client as a valid ADC client 
+                (so that they appear in our nodelist and we can receive chat
+                messages from them). Apart from this, the CID never leaves our
+                own Dtella node. So, we can just generate any random one.
+                '''
                 self.dcinfo, self.location, self.shared = (
                     parse_incoming_info(SSLHACK_filter_flags(info)))
 
@@ -2011,6 +2091,7 @@ class Node(object):
                                 self.info['ID'] = cid[2:-2]
                                 self.location = self.location[:-44]
                                 self.protocol = PROTOCOL_ADC # ADC-mode nodes send this
+                                # this is required due to reconnecting clients not triggering a YR
                             except:
                                 raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                         else:
@@ -2038,11 +2119,15 @@ class Node(object):
                         raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
 
             self.location = ""
+            # set the IP field for a node.
+            # TODO: decide whether to keep this. apparently, sending this implies active mode
             self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
             self.dcinfo = adc_infostring(self.info)
 
         else:
-            if adc: return False # we dont want to parse this
+            if adc:
+                # we want to keep NMDC-mode behaviour close as possible to the original
+                return False 
             self.dcinfo, self.location, self.shared = (
                 parse_incoming_info(SSLHACK_filter_flags(info)))
 
@@ -2679,6 +2764,13 @@ class OnlineStateManager(object):
             n = Node(src_ipp)
             in_nodes = False
 
+        '''
+        NMDC-BACK-COMPAT:
+        The adc argument indicates whether the triggering packet was formatted
+        as an ADC or NMDC infostring. If an ADC infostring is ever observed,
+        we mark the node as such. (We don't mark NMDC infostrings as NMDC,
+        since this could be ADC nodes sending backwards-compat packets.)
+        '''
         if adc: # if we ever see an ADC packet, it means they are using ADC-Dtella
             n.protocol = PROTOCOL_ADC
 
@@ -2816,7 +2908,10 @@ class OnlineStateManager(object):
 
 
     def getStatus(self, adc=adc_mode):
-
+        '''
+        @param adc Whether to construct an ADC or NMDC infostring.
+                   Defaults to the mode that the Dtella node is running in.
+        '''
         status = []
 
         # My Session ID
@@ -2838,7 +2933,14 @@ class OnlineStateManager(object):
             status.append(struct.pack('!H', len(self.me.info_out)))
             status.append(self.me.info_out)
 
-        elif adc_mode: # BACKWARDS COMPAT: convert adc infostring to nmdc infostring
+        elif adc_mode: # BACKWARDS COMPAT: convert adc infodict to nmdc infostring
+            '''
+            NMDC-BACK-COMPAT:
+            This is straightforward; we just put as much information as is
+            relevant into the NMDC infostring. We encode the CID of our ADC
+            client, which it gave to this node on login, into the location
+            part of the infostring.
+            '''
             inf = adc_infodict(self.me.info_out)
             # everything in inf{} is plaintext, so escape everything that comes out
             
@@ -2974,7 +3076,7 @@ class OnlineStateManager(object):
 
                 self.mrm.newMessage(''.join(packet), tries=8)
 
-                if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
+                if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT: send both packets
                     packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                     pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
                     packet.append(pkt_id)
@@ -4016,7 +4118,7 @@ class SyncRequestRoutingManager(object):
         uncont = uncont[:16]
 
         if isnew or timedout:
-            if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT
+            if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT: send both packets
                 self.sendSyncReply(src_ipp, cont, uncont, False)
             self.sendSyncReply(src_ipp, cont, uncont)
             

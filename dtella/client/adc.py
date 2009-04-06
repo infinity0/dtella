@@ -282,7 +282,7 @@ class ADCHandler(BaseADCProtocol):
         BaseADCProtocol.connectionMade(self)
 
         self.bot = DtellaBot(self, '*Dtella')
-        self.bot.sid = base64.b32encode(struct.pack('I',1))[:4]
+        self.bot.sid = base64.b32encode(chr(1))[:4]
         self.bot.cid = base64.b32encode(tiger.hash(self.bot.nick))
         self.bot.dcinfo = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
                         (self.bot.cid,get_version_string(), self.bot.nick,
