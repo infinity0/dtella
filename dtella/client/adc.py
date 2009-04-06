@@ -182,7 +182,6 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
         self.addDispatch('SUP', ('C'), self.d_SUP)
         self.addDispatch('INF', ('C'), self.d_INF)
 
-        #Sta
         self.sendLine("CSUP ADBASE ADTIGR")
 
     
@@ -190,7 +189,7 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
         pass #We will recieve one but ignore it
         
     def d_INF(self, con, rest=None):
-        print "in ur INF"
+
         self.addDispatch('GET', ('C'), self.d_GET)
         self.addDispatch('GFI', ('C'), self.d_GFI)
     
@@ -217,9 +216,11 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
     # wait for $Key
     # -> send $Error
 
-    def __init__(self, nick, dch):
+    def __init__(self, cid, token, dch, reason=None):
 
-        self.nick = nick
+        self.cid = cid
+        self.token = token
+        self.reason = reason
         
         # Steal connection from the DCHandler
         self.factory = dch.factory
@@ -229,6 +230,7 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
         # Steal the rest of the data
         self._buffer = dch._buffer
         dch.lineReceived = self.lineReceived
+        
 
         # If we're not done in 5 seconds, something's fishy.
         def cb():
@@ -240,25 +242,27 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
 
     def connectionMade(self):
         BaseADCProtocol.connectionMade(self)
+        
+        self.addDispatch('INF', ('C'), self.d_INF)
+        self.addDispatch('STA', ('C'), self.d_STA)
+        self.addDispatch('GET', ('C'), self.d_GET)
+        self.addDispatch('GFI', ('C'), self.d_GFI)
+        
+        self.sendLine("CSUP ADBASE ADTIGR")
 
-        self.addDispatch('$Lock', 2, self.d_Lock)
+    def d_STA(self, con, rest):
+        pass
 
-
-    def d_Lock(self, lock, pk):
-        self.sendLine("$MyNick %s" % self.nick)
-        self.sendLine("$Lock %s" % LOCK_STR)
-        if lock.startswith("EXTENDEDPROTOCOL"):
-            self.sendLine("$Supports ADCGet TTHL TTHF")
-        self.sendLine("$Direction Upload 12345")
-        self.sendLine("$Key %s" % lock2key(lock))
-
-        self.addDispatch('$Key', -1, self.d_Key)
-
-
-    def d_Key(self, key):
-        self.sendLine("$Error File Not Available")
+    def d_INF(self, con, rest):
+        self.sendLine("CINF ID%s" % self.cid)
+        
+    def d_GET(self, con, rest):
+        self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
         self.transport.loseConnection()
 
+    def d_GFI(self, con, rest):
+        self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
+        self.transport.loseConnection()
 
     def connectionLost(self, reason):
         dcall_discard(self, 'timeout_dcall')
@@ -290,7 +294,7 @@ class ADCHandler(BaseADCProtocol):
 
         # Handlers which can be used before attaching to Dtella
         self.addDispatch('$KillDtella',     None, self.d_KillDtella)
-        self.addDispatch('SUP',             ('H','F','T','C'),self.d_SUP)
+        self.addDispatch('SUP',             ('H','C'),self.d_SUP)
         self.addDispatch('INF',             ('B'),self.d_INF)
         
         #self.addDispatch('$MyNick',         1, self.d_MyNick)
@@ -312,7 +316,7 @@ class ADCHandler(BaseADCProtocol):
         def cb():
             self.init_dcall = None
             #self.sendLine("$Lock FOO Pk=BAR")#TODO investiage
-            self.pushTopic()
+            #self.pushTopic()
 
         if self.main.abort_nick:
             self.init_dcall = reactor.callLater(1.0, cb)
@@ -344,18 +348,21 @@ class ADCHandler(BaseADCProtocol):
         #if 'ADBASE' not in features or 'ADTIGR' not in features:
         #    print "Client doesn't support ADC/1.0"
         #    return
-            
-        if self.state == 'PROTOCOL':
         
-            self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
-            self.sendLine("ISID %s" % self.sid)
-            self.sendLine("IINF CT32 NIADC-Dtella@Cambridge")
+        if con == 'C':  #Fake RCM reply
+            ADC_AbortTransfer_In(ADCHandler.fake_cid, ADCHandler.fake_token, self, ADCHandler.fake_reason)
+        else:
             
+            if self.state == 'PROTOCOL':
             
-            self.state = 'IDENTIFY'
-        elif self.state != 'ready':
-            #TODO broadcast
-            return
+                self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
+                self.sendLine("ISID %s" % self.sid)
+                self.sendLine("IINF CT32 NIADC-Dtella@Cambridge")
+                
+                
+                self.state = 'IDENTIFY'
+            else:
+                print "Error in %sSUP - rest: %s" % (con, rest)
 
 
     def d_INF(self, con, src_sid=None, rest=None):
@@ -618,23 +625,60 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
-    
+        
+        show_errors = True
+        cancel = True
+        
+        try:
+            protocol_str, token = rest.split(' ')
+        except Exception:
+            print "CTM Error: rest=%s" % rest
+            return
+            
+            
         def fail_cb(reason, bot = False):
-            #if show_errors:
-            #if node:
-            #    self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
-            #else:
-            self.pushStatus("*** Connection failed: %s" % reason)
-            #if port:
-            #    if bot:
-            #        reactor.connectTCP('127.0.0.1', port,
-            #            ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
-            #    else:
-            #        reactor.connectTCP('127.0.0.1', port,
-            #            ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
-                        
-        protocol_str, token = rest.split(' ')
-        self.main.osm.nkm.lookupNodeFromSID(dst_sid).event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
+            if show_errors:
+                if node:
+                    self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
+                else:
+                    self.pushStatus("*** Connection failed: %s" % reason)
+                    
+
+            if bot:
+                ADCHandler.fake_cid = self.bot.cid
+                ADCHandler.fake_token = token
+                ADCHandler.fake_reason = reason
+                self.sendLine("DCTM %s %s %s %s %s"% (dst_sid, src_sid, protocol_str, self.factory.listen_port, token))
+            else:
+                old_i4 = node.info['I4']
+                ADCHandler.fake_cid = node.info['ID']
+                ADCHandler.fake_token = token
+                ADCHandler.fake_reason = reason
+                self.sendLine("BINF %s I4127.0.0.1" % dst_sid)
+                self.sendLine("DCTM %s %s %s %s %s"% (dst_sid, src_sid, protocol_str, self.factory.listen_port, token))
+                self.sendLine("BINF %s I4%s" % (dst_sid, old_i4))
+
+        try:
+            node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
+        except KeyError:
+            node = None
+            if dst_sid == self.bot.sid:
+                fail_cb("<%s> has no files" % self.bot.nick,True)
+            else:
+                fail_cb("User doesnt seem to exist")
+            return
+
+        if not self.isOnline():
+            fail_cb("You are not online.")
+            return
+        elif self.isLeech():
+            show_errors = False
+            fail_cb(None)
+            return
+        elif node.protocol != self.protocol:
+            fail_cb("User is not using the ADC Protocol so you cant connect to them")
+        else:
+            node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
     def d_SCH(self, con, src_sid, rest):
         pass
