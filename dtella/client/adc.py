@@ -629,12 +629,12 @@ class ADCHandler(BaseADCProtocol):
         show_errors = True
         cancel = True
         
+        #older clients dont send a token as part of RCM
+        #if this happens, fill in a default one
         try:
             protocol_str, token = rest.split(' ')
         except Exception:
-            print "CTM Error: rest=%s" % rest
-            return
-            
+            protocol_str, token = rest, "123456"
             
         def fail_cb(reason, bot = False):
             if show_errors:
@@ -642,7 +642,6 @@ class ADCHandler(BaseADCProtocol):
                     self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
                 else:
                     self.pushStatus("*** Connection failed: %s" % reason)
-                    
 
             if bot:
                 ADCHandler.fake_cid = self.bot.cid
@@ -698,9 +697,9 @@ class ADCHandler(BaseADCProtocol):
 
         dcall_discard(self, 'queued_dcall')
 
-        self.addDispatch('MSG',('B','E'),  self.d_MSG)
-        self.addDispatch('CTM',('D'),      self.d_CTM)
-        self.addDispatch('RCM',('D'),      self.d_RCM)
+        self.addDispatch('MSG', ('B','E'),  self.d_MSG)
+        self.addDispatch('CTM', ('D'),      self.d_CTM)
+        self.addDispatch('RCM', ('D'),      self.d_RCM)
         # Add the post-login handlers
         #self.addDispatch('$ConnectToMe',      2, self.d_NMDC_ConnectToMe)
         #self.addDispatch('$RevConnectToMe',   2, self.d_NMDC_RevConnectToMe)
