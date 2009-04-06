@@ -394,7 +394,6 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Too Short")
 
             kind = data[:2]
-            #print "Kind: %s" % kind
 
             if not kind.isalpha():
                 raise BadPacketError("Kind not alphabetical")
