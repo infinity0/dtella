@@ -2860,8 +2860,13 @@ class OnlineStateManager(object):
                     loc, inf['DE'] = inf['DE'].split(" ", 1)
                     loc = loc[1:-1]
                 
-                info_out = "%s<%s V:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
-                    dc_escape(inf['DE']), dcstr, dcver,
+                if inf.has_key('I4'):
+                    mode = "A"
+                else:
+                    mode = "P"
+                
+                info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                    dc_escape(inf['DE']), dcstr, dcver, mode,
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
                     dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
 

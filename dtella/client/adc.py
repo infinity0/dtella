@@ -275,6 +275,7 @@ class ADCHandler(BaseADCProtocol):
         self.info = ''
         self.infdict = {}
         self.nick = ''
+        self.locstr = ''
         self.sid = core.NickManager.baseSID
 
     def connectionMade(self):
@@ -685,21 +686,23 @@ class ADCHandler(BaseADCProtocol):
             try:
                 ad = Ad().setRawIPPort(self.main.osm.me.ipp)
                 loc = self.main.location[ad.getTextIP()]
-            except (AttributeError, KeyError):
-                loc = None
-
-            # If I got a location name, splice it into my connection field
-            if loc:
                 # Append location suffix, if it exists
                 suffix = self.main.state.suffix
                 if suffix:
                     loc = loc + suffix
+            except (AttributeError, KeyError):
+                loc = None
 
-        if loc is not None:
-            if not self.infdict.has_key('DE'):
-                self.infdict['DE'] = "[%s] " % loc # space must be here to make parsing easier
-            elif loc not in self.infdict['DE']:
-                self.infdict['DE'] = "[%s] %s" % (loc, self.infdict['DE'])
+            if loc:
+                if not self.infdict.has_key('DE'):
+                    self.infdict['DE'] = "[%s]" % loc
+                    self.locstr = loc
+                elif not self.locstr:
+                    self.infdict['DE'] = "[%s] %s" % (loc, self.infdict['DE'])
+                    self.locstr = loc
+                elif self.infdict['DE'].index("[%s]" % self.locstr) == 0:
+                    self.infdict['DE'] = ("[%s]" % loc) + self.infdict['DE'][len("[%s]" % self.locstr):]
+                    self.locstr = loc
 
         info = adc_infostring(self.infdict)
         if len(info) > 65535:
