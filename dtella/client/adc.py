@@ -949,8 +949,8 @@ class ADCHandler(BaseADCProtocol):
         #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
-        self.sendLine("DRCM %s %s %s" % (node.sid, self.sid,
-                            protocol_str))
+        self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
+                            protocol_str, token))
     
     def pushSearchRequest(self, n, ipp, search_string):
         if n.sid:

@@ -1379,7 +1379,7 @@ class PeerHandler(DatagramProtocol):
             
             if rest:
                 raise BadPacketError("Extra data")
-                
+            print "handlePacket AC: protocol %s, port %s, token %s" % (protocol_str, port, token)
             dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
             
         self.handlePrivMsg(ad, data, cb)
@@ -1397,7 +1397,6 @@ class PeerHandler(DatagramProtocol):
         self.handlePrivMsg(ad, data, cb)
 
     def handlePacket_AP(self, ad, data):
-        print "Handle AP"
         # Direct: ADC Reverse Connect To Me
         def cb(dch, n, rest):
         
@@ -1407,7 +1406,7 @@ class PeerHandler(DatagramProtocol):
             
             if rest:
                 raise BadPacketError("Extra data")
-                
+            print "handlePacket AP: protocol %s, token %s" % (protocol_str, token)
             dch.push_ADC_RevConnectToMe(n, protocol_str, token)
             
         self.handlePrivMsg(ad, data, cb)
@@ -2286,7 +2285,7 @@ class Node(object):
         packet.append(struct.pack('!HB', port, len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        
+        print "sending CTM %s" % packet
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
@@ -2322,7 +2321,7 @@ class Node(object):
         packet.append(struct.pack('!B', len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        
+        print "sending RCM %s" % packet
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
         
 
