@@ -48,9 +48,9 @@ from zope.interface.verify import verifyClass
 from dtella.common.interfaces import IDtellaNickNode
 
 
-global adc_mode, adc_allow_nmdc; # TODO HACK, remove later
+global adc_mode, nmdc_back_compat; # TODO HACK, remove later
 adc_mode = local.getADCMode();
-adc_allow_nmdc = True;
+nmdc_back_compat = True;
 
 
 class ChunkError(Exception):

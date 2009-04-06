@@ -88,33 +88,42 @@ class MessageCollisionError(Exception):
 
 
 '''
-Various sections of code are marked with NMDC-BACK-COMPAT. These are for
-backwards-compatibility with NMDC-only Dtella nodes.
+Various sections of code are marked with NMDC-BACK-COMPAT. These sections are
+to provide backwards-compatibility with NMDC-only Dtella nodes.
 
-The intended usage is to help facilitate a smooth transition between an
-ADC-based network and a DC-based network. During the transition, adc_allow_nmdc
-(in your DNS config) must be set to True. All Dtella nodes will be able to
-connect to the network, and NMDC-only will be able to fully interact with other
-NMDC nodes. However, interactions between NMDC-only and ADC nodes are limited
-to chat and private message, and interactions between ADC nodes will be limited
-depending on the proportion of the ADC nodes in the network, since NMDC-only
-nodes will Reject the ADC-specific Dtella packets that it receives.
+Any new network should comprise entirely of ADC-mode or NMDC-mode nodes, but
+compatibility between these is supported through the nmdc_back_compat flag in
+the seed config for your local network. The intended use is to help facilitate
+a smoother transition from a network of the old NMDC-only nodes, to one of the
+new ADC-capable nodes - NOT to sustain a hybrid network, which is impossible.
 
-When the transition is over, it is recommended to switch the adc_allow_nmdc
-flag to False, at which point the nodes will reject any NMDC-backwards-compat
-packets, and also prevent NMDC-only nodes from joining the network by using a
-different handshake packet.
+During the transition, nmdc_back_compat (in your seed config) must be set to
+True. New nodes will continue to use the old handshake packet, and accept old
+nodes as part of the network.
+
+When the transition is over, it is recommended to switch the nmdc_back_compat
+flag to False. At this point, the new nodes will prevent old nodes from joining
+the network by using a different (incompatible) handshake packet.
+
+If upgrading from a DC-based network of the old nodes, to an ADC-based network
+of the new nodes, there are some additional effects to be considered:
+
+All Dtella nodes will be able to connect to the network, and NMDC clients will
+be able to fully interact with other NMDC clients. However, interaction between
+NMDC and ADC clients will be limited to [priv]chat, and interaction between ADC
+clients will be limited depending on the proportion of the ADC-mode nodes in
+the network, since NMDC-mode nodes will Reject the ADC-specific Dtella packets
+that it receives.
 '''
 
 ''' TODO:
-- write new handshake packet
-- ask paul about rejections
+- find a way for all nodes to switch nmdc_back_compat off at the same time
 - document everything
 '''
 
-global adc_mode, adc_allow_nmdc; # TODO HACK, remove later
+global adc_mode, nmdc_back_compat; # TODO HACK, remove later
 adc_mode = local.getADCMode();
-adc_allow_nmdc = True;
+nmdc_back_compat = True;
 
 # Protocol Flags
 PROTOCOL_MASK = 0x80
@@ -760,10 +769,57 @@ class PeerHandler(DatagramProtocol):
                 (osm and osm.bsm and src_ipp == osm.me.ipp))
 
 
+    def verifyProtocolFlags(self, rest):
+        '''
+        Check whether the flag's protocol bits match the protocol of this node.
+        If there is no flag, then either reject or pass the node depending on
+        whether nmdc_back_compat is True.
+        
+        @param rest Leftover data after packet parsing. MUST NOT be part of the
+                    required data of an NMDC-only node protocol packet.
+        '''
+        if rest:
+            flags, rest = self.decodePacket('!B', rest)
+
+            proto = flags & PROTOCOL_MASK
+            if proto == PROTOCOL_ADC and adc_mode:
+                pass
+            elif proto == PROTOCOL_NMDC and not adc_mode:
+                pass
+            else:
+                raise Reject("Incompatible DC protocol")
+
+        elif not nmdc_back_compat:
+            raise Reject("Obsolete Dtella nodes are barred from this network")
+
+        return rest
+
+
+    def appendProtocolFlags(self, packet):
+        '''
+        Append the flag of the current protocol to the packet. Older nodes do
+        not have this flag, so if nmdc_back_compat is True, just does nothing.
+
+        @param packet The packet we want to append to. MUST NOT have data of an
+                      NMDC-only packet added to after this method is called.
+        '''
+        if not nmdc_back_compat:
+            if adc_mode:
+                packet.append(struct.pack('!B', PROTOCOL_ADC))
+            else:
+                packet.append(struct.pack('!B', PROTOCOL_NMDC))
+
+        return packet
+
+
     def handlePacket_IQ(self, ad, data):
         # Initialization Request; someone else is trying to get online
-        (kind, myip, port
-         ) = self.decodePacket('!2s4sH', data)
+        (kind, myip, port, rest
+         ) = self.decodePacket('!2s4sH+', data)
+
+        rest = self.verifyProtocolFlags(rest)
+        if rest:
+            raise BadPacketError("Extra data")
 
         if port == 0:
             raise BadPacketError("Zero Port")
@@ -899,6 +955,8 @@ class PeerHandler(DatagramProtocol):
         packet.append(struct.pack('!B', len(ic_peercache)))
         packet.extend(ic_peercache)
 
+        packet = self.appendProtocolFlags(packet)
+
         # Send IC packet to alternate port, undo NAT remapping
         if ad.orig_ip:
             ad.ip = ad.orig_ip
@@ -925,6 +983,8 @@ class PeerHandler(DatagramProtocol):
         packet.append(struct.pack('!B', len(ir_peercache)))
         packet.extend(ir_peercache)
 
+        packet = self.appendProtocolFlags(packet)
+
         # Send IR packet to dtella port
         self.sendPacket(''.join(packet), src_ad.getAddrTuple())
 
@@ -947,6 +1007,7 @@ class PeerHandler(DatagramProtocol):
 
         pc, rest = self.decodeNodeTimeList(rest)
 
+        rest = self.verifyProtocolFlags(rest)
         if rest:
             raise BadPacketError("Extra data")
 
@@ -975,6 +1036,7 @@ class PeerHandler(DatagramProtocol):
         nd, rest = self.decodeNodeTimeList(rest)
         pc, rest = self.decodeNodeTimeList(rest)
 
+        rest = self.verifyProtocolFlags(rest)
         if rest:
             raise BadPacketError("Extra data")
 
@@ -998,6 +1060,7 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket('!IH4sIB+', rest)
 
             nick, rest = self.decodeString1(rest)
+            print "receive NS from %s" % nick
 
             if flags & PROTOCOL_MASK == PROTOCOL_ADC:
                 adc = True
@@ -1016,7 +1079,7 @@ class PeerHandler(DatagramProtocol):
             '''
             if adc:
                 info, rest = self.decodeString2(rest)
-            elif not adc_mode or adc_allow_nmdc:
+            elif not adc_mode or nmdc_back_compat:
                 info, rest = self.decodeString1(rest)
             else:
                 raise Reject("NMDC are nodes not allowed on this network")
@@ -1402,7 +1465,7 @@ class PeerHandler(DatagramProtocol):
         
             flags, rest = self.decodePacket('!B+', rest)
             protocol_str, rest = self.decodeString1(rest)
-            token , rest = self.decodeString1(rest)
+            token, rest = self.decodeString1(rest)
             
             if rest:
                 raise BadPacketError("Extra data")
@@ -1548,7 +1611,7 @@ class PeerHandler(DatagramProtocol):
         '''
         if adc:
             info, rest = self.decodeString2(rest)
-        elif not adc_mode or adc_allow_nmdc:
+        elif not adc_mode or nmdc_back_compat:
             info, rest = self.decodeString1(rest)
         else:
             raise Reject("NMDC nodes are not allowed on this network")
@@ -1701,6 +1764,7 @@ class InitialContactManager(DatagramProtocol):
             packet = ['IQ']
             packet.append(ad.getRawIP())
             packet.append(struct.pack('!H', self.main.state.udp_port))
+            packet = self.main.ph.appendProtocolFlags(packet)
 
             self.main.logPacket("IQ -> %s:%d" % ad.getAddrTuple())
 
@@ -1969,7 +2033,7 @@ class Node(object):
         an ADC-node specific packet is seen: either one that contains an ADC
         infostring, or an NMDC infostring with an ADC CID encoded into it.
         '''
-        if not adc_mode or adc_allow_nmdc:
+        if not adc_mode or nmdc_back_compat:
             self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
         else:
             self.protocol = PROTOCOL_ADC
@@ -2052,7 +2116,7 @@ class Node(object):
                 except KeyError:
                     self.shared = 0
 
-            elif adc_allow_nmdc: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+            elif nmdc_back_compat: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
                 '''
                 NMDC-BACK-COMPAT:
                 We need to parse the NMDC-formatted infostring into a form
@@ -2137,7 +2201,7 @@ class Node(object):
             # Node is uninitialized
             self.infohash = None
         else:
-            if not (adc_mode and adc_allow_nmdc and adc):
+            if not (adc_mode and nmdc_back_compat and adc):
             # if we are in backwards-compat mode and this is an ADC infostring
             # then we DON'T want to set the infohash
                 self.infohash = md5(
@@ -3081,7 +3145,6 @@ class OnlineStateManager(object):
             pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
 
             if sendfull:
-                print 'send NS'
                 packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                 packet.append(pkt_id)
                 packet.append(struct.pack('!H', int(expire)))
@@ -3089,7 +3152,7 @@ class OnlineStateManager(object):
 
                 self.mrm.newMessage(''.join(packet), tries=8)
 
-                if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT: send both packets
+                if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
                     packet = self.mrm.broadcastHeader('NS', self.me.ipp)
                     pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
                     packet.append(pkt_id)
@@ -3099,7 +3162,6 @@ class OnlineStateManager(object):
                     self.mrm.newMessage(''.join(packet), tries=8)
  
             else:
-                print 'send NH'
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
                 packet.append(pkt_id)
 
@@ -4132,7 +4194,7 @@ class SyncRequestRoutingManager(object):
         uncont = uncont[:16]
 
         if isnew or timedout:
-            if adc_mode and adc_allow_nmdc: # BACKWARDS-COMPAT: send both packets
+            if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
                 self.sendSyncReply(src_ipp, cont, uncont, False)
             self.sendSyncReply(src_ipp, cont, uncont)
             
