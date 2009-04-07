@@ -2148,6 +2148,7 @@ class Node(object):
         if adc_mode:
 
             if adc:
+                print "received ADC infostring from %s" % self.nick
                 self.info.update(adc_infodict(info))
                 try:
                     self.shared = int(self.info['SS'])
@@ -2155,9 +2156,11 @@ class Node(object):
                     self.shared = 0
 
                 if self.info.has_key('I4') and self.info['I4']:
-                    self.info['I4'], self.info['U4'] = Ad().setRawIPPort(self.ipp).getAddrTuple()
-                    self.info['U4'] = str(self.info['U4'])
+                    self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                 # otherwise do nothing (no I4 == not changed, empty I4 == leave as is)
+
+                if self.info.has_key('U4'):
+                    print "U4 for %s is %s" % (self.nick, self.info['U4'])
 
             elif nmdc_back_compat: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
                 '''
@@ -2222,10 +2225,9 @@ class Node(object):
 
                     if tags.has_key('M'):
                         if tags['M'] == 'A':
-                            self.info['I4'], self.info['U4'] = Ad().setRawIPPort(self.ipp).getAddrTuple()
-                            self.info['U4'] = str(self.info['U4'])
+                            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                         else:
-                            self.info['I4'], self.info['U4'] = "", ""
+                            self.info['I4'] = ""
 
                 except ValueError:
                     if not info: # bridge node
