@@ -702,8 +702,8 @@ class ADCHandler(BaseADCProtocol):
         else:           #Passive search
             flags = 0x1
         
-        packet.append(struct.pack('!BH', flags, len(search_string)))
-        packet.append(search_string)
+        packet.append(struct.pack('!BH', flags, len(rest)))
+        packet.append(rest)
         
         osm.mrm.newMessage(''.join(packet), tries=4)
 
