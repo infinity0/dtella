@@ -40,12 +40,12 @@ network_key = 'DC-Comics-Reloaded'
 # This is the name of the "hub" which is seen by the user's DC client.
 # "Dtella@____" is the de-facto standard, but nobody's stopping you
 # from picking something else.
-hub_name = "Dtella@Cambridge"
+hub_name = "ADC-Dtella@Global"
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.
 # It should be set to some sane value to prevent the person managing DNS from
 # setting the minshare to 99999TiB, and effectively disabling the network.
-minshare_cap = 100 * (1024**2)   # (=100MiB)
+minshare_cap = 1 * (1024**2)   # (=100MiB)
 
 # This is a list of subnets (in CIDR notation) which will be permitted on
 # the network.  Make sure you get this right initially, because you can't
@@ -65,7 +65,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "cambridge.config.dtella.org"
+    hostname = "none.config.dtella.org"
     )
 
 # -- Use Google Spreadsheet --

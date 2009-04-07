@@ -347,6 +347,7 @@ class ADCHandler(BaseADCProtocol):
         features = rest.split(' ')
         if 'ADBASE' not in features or 'ADTIGR' not in features:
             print "Client doesn't support ADC/1.0"
+            self.transport.loseConnection()
             return
         
         if con == 'C':  #Fake RCM reply
@@ -357,7 +358,7 @@ class ADCHandler(BaseADCProtocol):
             
                 self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
                 self.sendLine("ISID %s" % self.sid)
-                self.sendLine("IINF CT32 NIADC-Dtella@Cambridge")
+                self.sendLine("IINF CT32 NI%s" % adc_escape(local.hub_name))
                 
                 
                 self.state = 'IDENTIFY'
@@ -374,7 +375,8 @@ class ADCHandler(BaseADCProtocol):
             inf['ID'] = b32pad(inf['ID'])
 
             if base64.b32encode( tiger.hash( base64.b32decode(inf['PD']))) != inf['ID']:
-                print "Invalid security check"
+                self.sendLine("ISTA 227 Invalid\\sPID");
+                self.transport.loseConnection()
                 return
             del inf['PD']
             
@@ -389,6 +391,7 @@ class ADCHandler(BaseADCProtocol):
             if reason:
                 self.pushStatus("Your nick is invalid: %s" % reason)
                 self.pushStatus("Please fix it and reconnect.  Goodbye.")
+                self.sendLine("ISTA 221 Invalid\\sNick")
                 self.transport.loseConnection()
                 return
 
@@ -679,11 +682,99 @@ class ADCHandler(BaseADCProtocol):
             node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
     def d_SCH(self, con, src_sid, rest):
-        pass
+        #Search request
+
+        if not self.isOnline():
+            self.pushStatus("Can't Search: Not online!")
+            return
+
+        if len(rest) > 65535:
+            self.pushStatus("Search string too long")
+            return
+
+        osm = self.main.osm
+
+        packet = osm.mrm.broadcastHeader('AQ', osm.me.ipp)
+        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
+        
+        if con == 'B':  #Active mode search
+            flags = 0
+        else:           #Passive search
+            flags = 0x1
+        
+        packet.append(struct.pack('!BH', flags, len(search_string)))
+        packet.append(search_string)
+        
+        osm.mrm.newMessage(''.join(packet), tries=4)
+
+        # If local searching is enabled, send the search to myself
+        if self.main.state.localsearch:
+            self.push_ADC_SearchRequest(self.main.osm.me, rest, flags)
         
     def d_RES(self, con, src_sid, dst_sid, rest):
-        pass
+    
+        if not self.isOnline():
+            return
         
+        try:
+            node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
+        except KeyError:
+            return
+            
+        if node.protocol != self.protocol:
+            return
+            
+        def fail_cb(reason):
+            pass
+        
+        osm = self.main.osm
+
+        ack_key = node.getPMAckKey()
+
+        packet = ['AR']
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(node.nickHash())
+        
+        packet.append(struct.pack('!H', len(rest)))
+        packet.append(rest)
+        packet = ''.join(packet)
+        
+        node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
+        
+    def d_STA(self, con, src_sid, dst_sid, rest):
+    
+        if not self.isOnline():
+            return
+        
+        try:
+            node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
+        except KeyError:
+            return
+            
+        if node.protocol != self.protocol:
+            return
+            
+        def fail_cb(reason):
+            pass
+        
+        osm = self.main.osm
+
+        ack_key = node.getPMAckKey()
+
+        packet = ['AE']
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(node.nickHash())
+        
+        packet.append(struct.pack('!H', len(rest)))
+        packet.append(rest)
+        packet = ''.join(packet)
+        
+        node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
+
     def attachMeToDtella(self):
 
         CHECK(self.main.dch is None)
@@ -699,12 +790,9 @@ class ADCHandler(BaseADCProtocol):
         self.addDispatch('MSG', ('B','E'),  self.d_MSG)
         self.addDispatch('CTM', ('D'),      self.d_CTM)
         self.addDispatch('RCM', ('D'),      self.d_RCM)
-        # Add the post-login handlers
-        #self.addDispatch('$ConnectToMe',      2, self.d_NMDC_ConnectToMe)
-        #self.addDispatch('$RevConnectToMe',   2, self.d_NMDC_RevConnectToMe)
-        #self.addDispatch('$Search',          -2, self.d_Search)
-        #self.addDispatch('$To:',             -5, self.d_PrivateMsg)
-        #self.addDispatch("<%s>" % self.nick, -1, self.d_PublicMsg)
+        self.addDispatch('SCH', ('B','F'),  self.d_SCH)
+        self.addDispatch('RES', ('D'),      self.d_RES)
+        self.addDispatch('STA', ('D'),      self.d_STA)
 
         # Announce my presence.
         # If Dtella's online too, this will trigger an event_DtellaUp.
@@ -752,136 +840,7 @@ class ADCHandler(BaseADCProtocol):
             info = ''
         
         return info
-
-
-    """
-    def d_Search(self, addr_string, search_string):
-        # Send a search request
-
-        if not self.isOnline():
-            self.pushStatus("Can't Search: Not online!")
-            return
-
-        if len(search_string) > 255:
-            self.pushStatus("Search string too long")
-            return
-
-        osm = self.main.osm
-
-        packet = osm.mrm.broadcastHeader('SQ', osm.me.ipp)
-        packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
-
-        packet.append(struct.pack('!B', len(search_string)))
-        packet.append(search_string)
-        
-        osm.mrm.newMessage(''.join(packet), tries=4)
-
-        # If local searching is enabled, send the search to myself
-        if self.main.state.localsearch:
-            self.pushSearchRequest(osm.me.ipp, search_string)
-
-    def d_NMDC_ConnectToMe(self, nick, addr):
-
-        osm = self.main.osm
-
-        err_visible = True
-
-        # Extract TCP port number from connect message.
-        try:
-            use_ssl = False
-            port_str = addr[addr.rindex(':')+1:]
-
-            # Some DC clients append an 'S' for SSL mode.
-            if port_str.endswith('S'):
-                use_ssl = True
-                port_str = port_str[:-1]
-
-            port = int(port_str)
-            if not (1 <= port <= 65535):
-                raise ValueError
-        except ValueError:
-            port = None
-
-        def fail_cb(detail):
-            if err_visible:
-                self.pushStatus(
-                    "*** Connection to <%s> failed: %s" % (nick, detail))
-
-            # Don't try to abort SSL connections for now; too messy.
-            if port and not use_ssl:
-                reactor.connectTCP(
-                    '127.0.0.1', port, AbortTransfer_Factory(nick))
-
-
-        if not self.isOnline():
-            fail_cb("you're not online.")
-            return
-
-        if not port:
-            fail_cb("malformed address: <%s>" % addr)
-            return
-
-        try:
-            n = osm.nkm.lookupNodeFromNick(nick)
-        except KeyError:
-            if nick == self.bot.nick:
-                fail_cb("can't get files from yourself!")
-            else:
-                fail_cb("user doesn't seem to exist.")
-            return
-
-        if n.checkRevConnectWindow():
-            # If we're responding to a RevConnect, disable errors
-            err_visible = False
-
-        elif self.isLeech():
-            # I'm a leech
-            err_visible = False
-            fail_cb(None)
-            return
-
-        n.event_ConnectToMe(self.main, port, use_ssl, fail_cb)
-
-
-    def d_NMDC_RevConnectToMe(self, _, nick):
-
-        osm = self.main.osm
-
-        err_visible = True
-
-        def fail_cb(detail):
-            if err_visible:
-                self.pushStatus(
-                    "*** Connection to <%s> failed: %s" % (nick, detail))
-
-            self.main.abort_nick = nick
-            self.sendLine(
-                "$ConnectToMe %s 127.0.0.1:%d"
-                % (self.nick, self.factory.listen_port))
-
-        if not self.isOnline():
-            fail_cb("you're not online.")
-            return
-
-        try:
-            n = osm.nkm.lookupNodeFromNick(nick)
-        except KeyError:
-            if nick == self.bot.nick:
-                fail_cb("can't get files from yourself!")
-            else:
-                fail_cb("user doesn't seem to exist.")
-            return
-
-        if self.isLeech():
-            # I'm a leech
-            err_visible = False
-            fail_cb(None)
-            return
-
-        n.event_RevConnectToMe(self.main, fail_cb)
-
-
-    """
+  
     def isLeech(self):
         # If I don't meet the minimum share, yell and return True
 
@@ -945,25 +904,29 @@ class ADCHandler(BaseADCProtocol):
                             protocol_str, port, token))
 
     def push_NMDC_RevConnectToMe(self, nick):
-        #We are recieving an NMDC $RevConnectToMe so
-        #send a $ConnectToMe back, which will be triggered 
         print "$RevCTM"
-        #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
+      
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
         self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, token))
     
-    def pushSearchRequest(self, n, ipp, search_string):
-        if n.sid:
-            self.sendLine("BSCH %s %s" % (n.sid,adc_escape(search_string)))
-        else:
-            print "+ no SID for node \"%s\"" % node.nick
-        
-        #print "pushSearchRequest: %s %s" % (binascii.hexlify(ipp), search_string)
-        #ad = Ad().setRawIPPort(ipp)
-        #self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
+    def push_NMDC_SearchRequest(self, n, ipp, search_string):
+        pass    #ignore NMDC searches as we cant respond to them
 
+
+    def push_ADC_SearchRequest(self, n, search_str, flags):
+        if flags & 0x1: #F context
+            self.sendLine("FSCH %s %s" % (n.sid, search_str))
+        else:           #B context
+            self.sendLine("BSCH %s %s" % (n.sid, search_str))
+
+    def push_ADC_SearchResponce(self, n, str):
+        self.sendLine("DRES %s %s %s" %(n.sid, self.sid, str))
+
+    def push_ADC_Error(self, n, str):
+        self.sendLine("DSTA %s %s %s" %(n.sid, self.sid, str))
+    
     def pushBotMsg(self, text):
         self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), self.bot.sid))
 
@@ -1140,8 +1103,7 @@ class ADCHandler(BaseADCProtocol):
 
     def event_AddNick(self, n):
         pass #nothing to do - no $Hello for ADC
-        #if not self.isProtectedNick(n.nick):
-        #    self.pushHello(n.nick)
+             #This is all done with a BINF (equv of $MyINFO $ALL)
     
 
     def event_RemoveNick(self, n, reason):
@@ -1155,11 +1117,6 @@ class ADCHandler(BaseADCProtocol):
 
 
     def event_ChatMessage(self, n, nick, text, flags):
-        #if flags & core.NOTICE_BIT:
-        #    self.pushChatMessage(("*N# %s" % nick), text)
-        #elif flags & core.SLASHME_BIT:
-        #    self.pushChatMessage("*", "%s %s" % (nick, text))
-        #else:
         self.pushChatMessage(nick, text, flags)
 
 verifyClass(IDtellaStateObserver, ADCHandler)

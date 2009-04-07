@@ -1359,7 +1359,7 @@ class PeerHandler(DatagramProtocol):
                 # Looks good
                 dch = self.main.getOnlineDCH()
                 if dch and (src_n.protocol == dch.protocol):
-                    dch.pushSearchRequest(src_n,src_ipp, string)
+                    dch.push_NMDC_SearchRequest(src_n,src_ipp, string)
 
             else:
                 # From an invalid node
@@ -1473,7 +1473,46 @@ class PeerHandler(DatagramProtocol):
             
         self.handlePrivMsg(ad, data, cb)
 
+    def handlePacket_AQ(self, ad, data):
+        #Broadcast: ADC Search reQuest
+        
+        def cb(dch, n, rest):
+            flags, rest = self.decodePacket('!B+', rest)
+            search_str, rest = self.decodeString2(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+                
+            dch.push_ADC_SearchRequest(n, search_str, flags)
+        
+        self.handleBroadcast(ad, data, cb)
+        
+    def handlePacket_AR(self, ad, data):
+        #Direct: ADC Search Result
+        
+        def cb(dch, n, rest):
+            str = self.decodeString2(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+            
+            dch.push_ADC_SearchResponce(n, str)
+        
+        self.handlePrivMsg(ad, data, cb)
 
+    def handlePacket_AE(self, ad, data):
+        #Direct: ADC Error
+        
+        def cb(dch, n, rest):
+            str = self.decodeString1(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+            
+            dch.push_ADC_Error(n, str)
+        
+        self.handlePrivMsg(ad, data, cb)
+        
     def handlePacket_PM(self, ad, data):
         # Direct: Private Message
         

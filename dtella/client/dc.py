@@ -536,7 +536,7 @@ class DCHandler(BaseDCProtocol):
 
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
-            self.pushSearchRequest(osm.me, osm.me.ipp, search_string)
+            self.push_NMDC_SearchRequest(osm.me, osm.me.ipp, search_string)
 
 
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
@@ -802,7 +802,7 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
 
-    def pushSearchRequest(self, n, ipp, search_string):#Altered by andyhhp for better compatability with ADC
+    def push_NMDC_SearchRequest(self, n, ipp, search_string):#Altered by andyhhp for better compatability with ADC
         ad = Ad().setRawIPPort(ipp)
         self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
