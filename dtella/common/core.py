@@ -2138,7 +2138,7 @@ class Node(object):
                 messages from them). Apart from this, the CID never leaves our
                 own Dtella node. So, we can just generate any random one.
                 '''
-                self.dcinfo, self.location, self.shared = (
+                info, self.location, self.shared = (
                     parse_incoming_info(SSLHACK_filter_flags(info)))
 
                 try:
@@ -2149,14 +2149,15 @@ class Node(object):
                     self.info['SS'] = str(self.shared)
                     self.info['EM'] = infs[3]
 
-                    if self.location:
-                        cid = self.location[-44:]
+                    location = infs[2][:-1]
+                    if location:
+                        cid = location[-44:]
                         if len(cid) == 44 and cid[:2] == '__' and cid[-2:] == '__':
                             # extract the CID from the location
                             try:
                                 cidraw = base64.b32decode(cid[2:-2])
                                 self.info['ID'] = cid[2:-2]
-                                self.location = self.location[:-44]
+                                location = location[:-44]
                                 self.protocol = PROTOCOL_ADC # ADC-mode nodes send this
                                 # this is required due to reconnecting clients not triggering a YR
                             except:
@@ -2164,7 +2165,7 @@ class Node(object):
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
                             self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
-                        self.info['DE'] = "[%s] %s" % (dc_unescape(self.location), self.info['DE'])
+                        self.info['DE'] = "[%s] %s" % (dc_unescape(location), self.info['DE'])
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients
                     tags = {}
@@ -2832,7 +2833,7 @@ class OnlineStateManager(object):
 
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info, adc):
+                          persist, nick, info, adc=adc_mode):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -3031,13 +3032,16 @@ class OnlineStateManager(object):
                 dcstr, dcver = dc[0], ""
                 if len(dc) > 1: dcver = dc[1]
                 
-                loc = ""
                 if not inf.has_key('EM'): inf['EM'] = ""
                 if not inf.has_key('DE'):
                     inf['DE'] = ""
-                elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
-                    loc, inf['DE'] = inf['DE'].split(" ", 1)
-                    loc = loc[1:-1]
+                
+                loctag = "[%s]" % self.main.getOnlineDCH().locstr
+                
+                if inf['DE'].index(loctag) == 0:
+                    inf['DE'] = inf['DE'][len(loctag):]
+                    if inf['DE']:
+                        inf['DE'] = inf['DE'][1:]
 
                 if inf.has_key('I4') and inf['I4']:
                     mode = "A"
@@ -3046,12 +3050,12 @@ class OnlineStateManager(object):
 
                 info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
                     dc_escape(inf['DE']), dcstr, dcver, mode,
-                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
-                    dc_escape(loc), inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
+                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt, dc_escape(loctag[1:-1]),
+                    inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
-            print "MyInfo_out %s" % info_out
+
             if self.me.infohash is None:
             # We want to use this as our infohash; also, we must set it here,
             # as there is no other place to do this reliably.
