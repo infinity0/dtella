@@ -1345,6 +1345,7 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket("!I+", rest)
 
             string, rest = self.decodeString1(rest)
+            print "got SQ %s" % string
             if rest:
                 raise BadPacketError("Extra data")
 
@@ -1358,14 +1359,61 @@ class PeerHandler(DatagramProtocol):
             if src_n:
                 # Looks good
                 dch = self.main.getOnlineDCH()
-                if dch and (src_n.protocol == dch.protocol):
-                    dch.push_NMDC_SearchRequest(src_ipp, string)
+                if dch:
+                    # BACKWARDS-COMPAT
+                    if adc_mode and nmdc_back_compat and \
+                        string[:8] == "????????" and len(string) > 8:
+                        flags, string = self.decodePacket('!B+', dc_unescape(string[8:]))
+                        dch.push_ADC_SearchRequest(src_n, string, flags)
+                    else:
+                        dch.push_NMDC_SearchRequest(src_ipp, string)
 
             else:
                 # From an invalid node
                 raise Reject
 
         self.handleBroadcast(ad, data, check_cb)
+
+
+    def handlePacket_AQ(self, ad, data):
+        # Broadcast: ADC Search reQuest
+        if not adc_mode: return
+        
+        def cb(n, src_ipp, rest):
+
+            pktnum, flags, rest = self.decodePacket('!IB+', rest)
+
+            search_str, rest = self.decodeString2(rest)
+            if rest:
+                raise BadPacketError("Extra data")
+
+            if src_ipp == osm.me.ipp:
+                raise BadBroadcast("Spoofed search")
+
+            if not osm.syncd:
+                # Not syncd, forward blindly
+                return
+
+            if src_n:
+                dch = self.main.getOnlineDCH()
+                if dch:
+                    dch.push_ADC_SearchRequest(n, search_str, flags)
+
+        self.handleBroadcast(ad, data, cb)
+
+
+    def handlePacket_AR(self, ad, data):
+        # Direct: ADC Search Result
+
+        def cb(dch, n, rest):
+            str, rest = self.decodeString2(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+            
+            dch.push_ADC_SearchResponce(n, str)
+        
+        self.handlePrivMsg(ad, data, cb)
 
 
     def handlePacket_AK(self, ad, data):
@@ -1431,7 +1479,7 @@ class PeerHandler(DatagramProtocol):
         self.handlePrivMsg(ad, data, cb)
 
     def handlePacket_AC(self, ad, data):
-        #Direct: ADC CTM
+        # Direct: ADC CTM
         def cb(dch, n, rest):
         
             flags, rest = self.decodePacket('!B+', rest)
@@ -1473,35 +1521,9 @@ class PeerHandler(DatagramProtocol):
             
         self.handlePrivMsg(ad, data, cb)
 
-    def handlePacket_AQ(self, ad, data):
-        #Broadcast: ADC Search reQuest
-        
-        def cb(n, src_ipp, rest):
-            pktnum, rest = self.decodePacket('!I+', rest)
-            flags, rest = self.decodePacket('!B+', rest)
-            search_str, rest = self.decodeString2(rest)
-            if rest:
-                raise BadPacketError("Extra data")
-            
-            dch = self.main.getOnlineDCH().push_ADC_SearchRequest(n, search_str, flags)
-        
-        self.handleBroadcast(ad, data, cb)
-        
-    def handlePacket_AR(self, ad, data):
-        #Direct: ADC Search Result
-
-        def cb(dch, n, rest):
-            str, rest = self.decodeString2(rest)
-            
-            if rest:
-                raise BadPacketError("Extra data")
-            
-            dch.push_ADC_SearchResponce(n, str)
-        
-        self.handlePrivMsg(ad, data, cb)
 
     def handlePacket_AE(self, ad, data):
-        #Direct: ADC Error
+        # Direct: ADC Error
         
         def cb(dch, n, rest):
             str = self.decodeString1(rest)
@@ -1512,7 +1534,8 @@ class PeerHandler(DatagramProtocol):
             dch.push_ADC_Error(n, str)
         
         self.handlePrivMsg(ad, data, cb)
-        
+
+
     def handlePacket_PM(self, ad, data):
         # Direct: Private Message
         
@@ -1526,8 +1549,6 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Extra data")
 
             notice = bool(flags & NOTICE_BIT)
-            
-            print "Handling PM from %s" % n.nick
 
             if notice: #No equivelent in ADC but kept for NMDC compatability
                 #TODO: make separate versions for ADC/NMDC
@@ -2148,7 +2169,6 @@ class Node(object):
         if adc_mode:
 
             if adc:
-                print "received ADC infostring from %s" % self.nick
                 self.info.update(adc_infodict(info))
                 try:
                     self.shared = int(self.info['SS'])
@@ -2158,9 +2178,6 @@ class Node(object):
                 if self.info.has_key('I4') and self.info['I4']:
                     self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                 # otherwise do nothing (no I4 == not changed, empty I4 == leave as is)
-
-                if self.info.has_key('U4'):
-                    print "U4 for %s is %s" % (self.nick, self.info['U4'])
 
             elif nmdc_back_compat: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
                 '''
@@ -4051,7 +4068,7 @@ class MessageRoutingManager(object):
         if data[10:16] == osm.me.ipp:
             CHECK(not self.main.hide_node)
 
-            if kind in ('NH','CH','SQ','TP'):
+            if kind in ('NH','CH','SQ','TP','AQ'):
                 # Save the current status_pktnum for this message, because
                 # it's useful if we receive a Reject message later.
                 m.status_pktnum = osm.me.status_pktnum

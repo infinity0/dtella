@@ -40,7 +40,7 @@ network_key = 'DC-Comics-Reloaded'
 # This is the name of the "hub" which is seen by the user's DC client.
 # "Dtella@____" is the de-facto standard, but nobody's stopping you
 # from picking something else.
-hub_name = "ADC-Dtella@Global"
+hub_name = "ADtella@Cambridge"
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.
 # It should be set to some sane value to prevent the person managing DNS from
@@ -65,7 +65,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "none.config.dtella.org"
+    hostname = "cambridge.config.dtella.org"
     )
 
 # -- Use Google Spreadsheet --

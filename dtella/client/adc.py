@@ -698,15 +698,30 @@ class ADCHandler(BaseADCProtocol):
         packet = osm.mrm.broadcastHeader('AQ', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
         
-        if con == 'B':  #Active mode search
-            flags = 0
-        else:           #Passive search
-            flags = 0x1
-        
+        if con == 'B':  # Active mode search
+            flags = 0x00
+        else:           # Passive search
+            flags = 0x01
+
         packet.append(struct.pack('!BH', flags, len(rest)))
         packet.append(rest)
-        print "sending AQ packet"
+        print "sending AQ packet %s" % ''.join(packet)
         osm.mrm.newMessage(''.join(packet), tries=4)
+
+        if core.nmdc_back_compat:
+            packet = osm.mrm.broadcastHeader('SQ', osm.me.ipp)
+            packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
+
+            string = "????????" + rest
+
+            if len(string) > 254:
+                self.pushStatus("Search query data is too long (%s > 254) to be broadcast in this hybrid network." % len(string))
+                return
+
+            packet.append(struct.pack('!BB', len(string)+1, flags))
+            packet.append(string)
+            print "sending SQ packet %s" % ''.join(packet)
+            osm.mrm.newMessage(''.join(packet), tries=4)
 
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
