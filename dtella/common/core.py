@@ -1060,7 +1060,6 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket('!IH4sIB+', rest)
 
             nick, rest = self.decodeString1(rest)
-            print "receive NS from %s" % nick
 
             if flags & PROTOCOL_MASK == PROTOCOL_ADC:
                 adc = True
@@ -2116,6 +2115,11 @@ class Node(object):
                 except KeyError:
                     self.shared = 0
 
+                if self.info.has_key('I4') and self.info['I4']:
+                    self.info['I4'], self.info['U4'] = Ad().setRawIPPort(self.ipp).getAddrTuple()
+                    self.info['U4'] = str(self.info['U4'])
+                # otherwise do nothing (no I4 == not changed, empty I4 == leave as is)
+
             elif nmdc_back_compat: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
                 '''
                 NMDC-BACK-COMPAT:
@@ -2173,6 +2177,13 @@ class Node(object):
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
 
+                    if tags.has_key('M'):
+                        if tags['M'] == 'A':
+                            self.info['I4'], self.info['U4'] = Ad().setRawIPPort(self.ipp).getAddrTuple()
+                            self.info['U4'] = str(self.info['U4'])
+                        else:
+                            self.info['I4'], self.info['U4'] = "", ""
+
                 except ValueError:
                     if not info: # bridge node
                         pass
@@ -2185,9 +2196,6 @@ class Node(object):
                 raise Reject
 
             self.location = ""
-            # set the IP field for a node.
-            # TODO: decide whether to keep this. apparently, sending this implies active mode
-            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
             self.dcinfo = adc_infostring(self.info)
 
         else:
@@ -3030,13 +3038,12 @@ class OnlineStateManager(object):
                 elif inf['DE'].find(" ") >= 0 and inf['DE'][0] == '[':
                     loc, inf['DE'] = inf['DE'].split(" ", 1)
                     loc = loc[1:-1]
-                
+
                 if inf.has_key('I4') and inf['I4']:
-                    print "I4 %s" % inf['I4']
                     mode = "A"
                 else:
                     mode = "P"
-                
+
                 info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
                     dc_escape(inf['DE']), dcstr, dcver, mode,
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt,
