@@ -4250,10 +4250,11 @@ class SyncRequestRoutingManager(object):
         uncont = uncont[:16]
 
         if isnew or timedout:
-            if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
-                self.sendSyncReply(src_ipp, cont, uncont, False)
             self.sendSyncReply(src_ipp, cont, uncont)
-            
+            if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
+                def cb():
+                    self.sendSyncReply(src_ipp, cont, uncont, False)
+                reactor.callLater(1, cb) # give ADC nodes a chance to receive the first sync
 
 
     def sendSyncReply(self, src_ipp, cont, uncont, adc=adc_mode):
