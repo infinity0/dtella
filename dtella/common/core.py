@@ -1489,10 +1489,10 @@ class PeerHandler(DatagramProtocol):
         
     def handlePacket_AR(self, ad, data):
         #Direct: ADC Search Result
-        
+        print "recieved AR"
         def cb(dch, n, rest):
-            str = self.decodeString2(rest)
-            
+            str, rest = self.decodeString2(rest)
+            print "str %s" % str
             if rest:
                 raise BadPacketError("Extra data")
             
