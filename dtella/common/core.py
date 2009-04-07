@@ -2173,10 +2173,13 @@ class Node(object):
                         k, v = i.split(':')
                         tags[k] = v
                     self.info['VE'] = self.info['VE'] + " " + tags['V'] + ";" + dc_unescape(self.dttag)
+
                     self.info['SL'] = tags['S']
                     self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
                     if tags.has_key('O'):
                         self.info['AS'] = tags['O']
+                    if tags.has_key('L'):
+                        self.info['US'] = str(int(tags['L']) * 1024)
 
                     if tags.has_key('M'):
                         if tags['M'] == 'A':
