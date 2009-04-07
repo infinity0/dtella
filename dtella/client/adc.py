@@ -684,7 +684,6 @@ class ADCHandler(BaseADCProtocol):
 
     def d_SCH(self, con, src_sid, rest):
         #Search request
-        print "got %sSCH" % con
 
         if not self.isOnline():
             self.pushStatus("Can't Search: Not online!")
