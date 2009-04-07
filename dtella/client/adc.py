@@ -345,9 +345,9 @@ class ADCHandler(BaseADCProtocol):
 
     def d_SUP(self, con, rest=None):
         features = rest.split(' ')
-        #if 'ADBASE' not in features or 'ADTIGR' not in features:
-        #    print "Client doesn't support ADC/1.0"
-        #    return
+        if 'ADBASE' not in features or 'ADTIGR' not in features:
+            print "Client doesn't support ADC/1.0"
+            return
         
         if con == 'C':  #Fake RCM reply
             ADC_AbortTransfer_In(ADCHandler.fake_cid, ADCHandler.fake_token, self, ADCHandler.fake_reason)
@@ -567,7 +567,6 @@ class ADCHandler(BaseADCProtocol):
                         break
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
-        print "recieved %sCTM: %s" % (con, rest)
         show_errors = True
         
         try:
@@ -625,17 +624,16 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
-        print "recieved %sRCM: %s" % (con, rest)
         
         show_errors = True
         cancel = True
         
-        #older clients dont send a token as part of RCM
-        #if this happens, fill in a default one
+        #Older clients dont send a token as part of RCM
+        #This is caused by a bug in the v0.698 DC core
         try:
             protocol_str, token = rest.split(' ')
         except Exception:
-            protocol_str, token = rest, "123456"
+            return
             
         def fail_cb(reason, bot = False):
             if show_errors:
@@ -936,24 +934,23 @@ class ADCHandler(BaseADCProtocol):
 
     
     def push_NMDC_ConnectToMe(self, ad, use_ssl):
-        #We are recieving an NMDC connect to me so create an NMDC AbortOut to deal with it
+        #We are recieving an NMDC $ConnectToMe so
+        #create an NMDC AbortOut to deal with it
         ip, port = ad.getAddrTuple()
         from dc import AbortTransfer_Factory
         reactor.connectTCP(ip, port, AbortTransfer_Factory(self.nick))
 
     def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
-        print "DCTM %s %s %s %s %s" % (node.sid, self.sid,
-                            protocol_str, port, token)
         self.sendLine("DCTM %s %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, port, token))
 
     def push_NMDC_RevConnectToMe(self, nick):
+        #We are recieving an NMDC $RevConnectToMe so
+        #send a $ConnectToMe back, which will be triggered 
         print "$RevCTM"
         #self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
-        print "DRCM %s %s %s %s" % (node.sid, self.sid,
-                                protocol_str, token)
         self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, token))
     

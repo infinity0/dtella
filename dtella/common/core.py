@@ -1442,7 +1442,7 @@ class PeerHandler(DatagramProtocol):
             
             if rest:
                 raise BadPacketError("Extra data")
-            print "handlePacket AC: protocol %s, port %s, token %s" % (protocol_str, port, token)
+            
             dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
             
         self.handlePrivMsg(ad, data, cb)
@@ -1469,7 +1469,7 @@ class PeerHandler(DatagramProtocol):
             
             if rest:
                 raise BadPacketError("Extra data")
-            print "handlePacket AP: protocol %s, token %s" % (protocol_str, token)
+            
             dch.push_ADC_RevConnectToMe(n, protocol_str, token)
             
         self.handlePrivMsg(ad, data, cb)
@@ -2349,7 +2349,7 @@ class Node(object):
         packet.append(struct.pack('!HB', port, len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        print "sending CTM"
+        
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
@@ -2385,7 +2385,7 @@ class Node(object):
         packet.append(struct.pack('!B', len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        print "sending RCM"
+        
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
         
 
@@ -3031,7 +3031,8 @@ class OnlineStateManager(object):
                     loc, inf['DE'] = inf['DE'].split(" ", 1)
                     loc = loc[1:-1]
                 
-                if inf.has_key('I4'):
+                if inf.has_key('I4') and inf['I4']:
+                    print "I4 %s" % inf['I4']
                     mode = "A"
                 else:
                     mode = "P"
@@ -3043,7 +3044,7 @@ class OnlineStateManager(object):
 
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
-            
+            print "MyInfo_out %s" % info_out
             if self.me.infohash is None:
             # We want to use this as our infohash; also, we must set it here,
             # as there is no other place to do this reliably.
