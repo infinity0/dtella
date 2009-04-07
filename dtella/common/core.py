@@ -1345,7 +1345,6 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket("!I+", rest)
 
             string, rest = self.decodeString1(rest)
-            print "got SQ %s" % string
             if rest:
                 raise BadPacketError("Extra data")
 

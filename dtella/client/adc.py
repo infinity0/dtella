@@ -705,7 +705,6 @@ class ADCHandler(BaseADCProtocol):
 
         packet.append(struct.pack('!BH', flags, len(rest)))
         packet.append(rest)
-        print "sending AQ packet %s" % ''.join(packet)
         osm.mrm.newMessage(''.join(packet), tries=4)
 
         if core.nmdc_back_compat:
@@ -720,7 +719,6 @@ class ADCHandler(BaseADCProtocol):
 
             packet.append(struct.pack('!B', len(string)))
             packet.append(string)
-            print "sending SQ packet %s" % ''.join(packet)
             osm.mrm.newMessage(''.join(packet), tries=4)
 
         # If local searching is enabled, send the search to myself
