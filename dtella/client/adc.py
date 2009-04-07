@@ -117,7 +117,7 @@ class BaseADCProtocol(LineOnlyReceiver):
             return
         
         try:
-            if args['con'] == 'B':
+            if args['con'] in ('B', 'F'):
                 args['src_sid'], args['rest'] = cmd[1].split(' ',1)
                 fn(**args)
             elif args['con'] in ('C', 'I', 'H'):
@@ -126,7 +126,8 @@ class BaseADCProtocol(LineOnlyReceiver):
             elif args['con'] in ('D', 'E'):
                 args['src_sid'], args['dst_sid'], args['rest'] = cmd[1].split(' ',2)
                 fn(**args)
-
+            else:
+                raise
         except:
             twisted.python.log.err()
         

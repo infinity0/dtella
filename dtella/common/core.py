@@ -1482,17 +1482,17 @@ class PeerHandler(DatagramProtocol):
             search_str, rest = self.decodeString2(rest)
             if rest:
                 raise BadPacketError("Extra data")
-                
+            print "AQ: str=%s" % search_str
             dch = self.main.getOnlineDCH().push_ADC_SearchRequest(n, search_str, flags)
         
         self.handleBroadcast(ad, data, cb)
         
     def handlePacket_AR(self, ad, data):
         #Direct: ADC Search Result
-        print "recieved AR"
+
         def cb(dch, n, rest):
             str, rest = self.decodeString2(rest)
-            print "str %s" % str
+            print "AR str=%s" % str
             if rest:
                 raise BadPacketError("Extra data")
             
