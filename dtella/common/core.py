@@ -1379,7 +1379,7 @@ class PeerHandler(DatagramProtocol):
         # Broadcast: ADC Search reQuest
         if not adc_mode: return
         
-        def cb(n, src_ipp, rest):
+        def cb(src_n, src_ipp, rest):
 
             pktnum, flags, rest = self.decodePacket('!IB+', rest)
 
@@ -1397,7 +1397,7 @@ class PeerHandler(DatagramProtocol):
             if src_n:
                 dch = self.main.getOnlineDCH()
                 if dch:
-                    dch.push_ADC_SearchRequest(n, search_str, flags)
+                    dch.push_ADC_SearchRequest(src_n, search_str, flags)
 
         self.handleBroadcast(ad, data, cb)
 
