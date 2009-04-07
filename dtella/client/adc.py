@@ -912,7 +912,7 @@ class ADCHandler(BaseADCProtocol):
         self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, token))
     
-    def push_NMDC_SearchRequest(self, n, ipp, search_string):
+    def push_NMDC_SearchRequest(self, ipp, search_string):
         pass    #ignore NMDC searches as we cant respond to them
 
 

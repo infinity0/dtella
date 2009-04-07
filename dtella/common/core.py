@@ -1359,7 +1359,7 @@ class PeerHandler(DatagramProtocol):
                 # Looks good
                 dch = self.main.getOnlineDCH()
                 if dch and (src_n.protocol == dch.protocol):
-                    dch.push_NMDC_SearchRequest(src_n,src_ipp, string)
+                    dch.push_NMDC_SearchRequest(src_ipp, string)
 
             else:
                 # From an invalid node
