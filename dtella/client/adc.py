@@ -712,13 +712,13 @@ class ADCHandler(BaseADCProtocol):
             packet = osm.mrm.broadcastHeader('SQ', osm.me.ipp)
             packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
 
-            string = "????????" + rest
+            string = "????????" + chr(flags) + rest
 
-            if len(string) > 254:
-                self.pushStatus("Search query data is too long (%s > 254) to be broadcast in this hybrid network." % len(string))
+            if len(string) > 255:
+                self.pushStatus("Search query data is too long (%s > 255) to be broadcast in this hybrid network." % len(string))
                 return
 
-            packet.append(struct.pack('!BB', len(string)+1, flags))
+            packet.append(struct.pack('!B', len(string)))
             packet.append(string)
             print "sending SQ packet %s" % ''.join(packet)
             osm.mrm.newMessage(''.join(packet), tries=4)

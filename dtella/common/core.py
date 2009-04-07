@@ -1378,7 +1378,9 @@ class PeerHandler(DatagramProtocol):
     def handlePacket_AQ(self, ad, data):
         # Broadcast: ADC Search reQuest
         if not adc_mode: return
-        
+
+        osm = self.main.osm
+
         def cb(src_n, src_ipp, rest):
 
             pktnum, flags, rest = self.decodePacket('!IB+', rest)
