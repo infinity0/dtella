@@ -683,6 +683,7 @@ class ADCHandler(BaseADCProtocol):
 
     def d_SCH(self, con, src_sid, rest):
         #Search request
+        print "got %sSCH" % con
 
         if not self.isOnline():
             self.pushStatus("Can't Search: Not online!")
@@ -704,7 +705,7 @@ class ADCHandler(BaseADCProtocol):
         
         packet.append(struct.pack('!BH', flags, len(rest)))
         packet.append(rest)
-        
+        print "sending AQ packet"
         osm.mrm.newMessage(''.join(packet), tries=4)
 
         # If local searching is enabled, send the search to myself

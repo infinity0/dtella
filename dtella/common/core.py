@@ -1476,14 +1476,14 @@ class PeerHandler(DatagramProtocol):
     def handlePacket_AQ(self, ad, data):
         #Broadcast: ADC Search reQuest
         
-        def cb(dch, n, rest):
+        def cb(n, src_ipp, rest):
+            pktnum, rest = self.decodePacket('!I+', rest)
             flags, rest = self.decodePacket('!B+', rest)
             search_str, rest = self.decodeString2(rest)
-            
             if rest:
                 raise BadPacketError("Extra data")
                 
-            dch.push_ADC_SearchRequest(n, search_str, flags)
+            dch = self.main.getOnlineDCH().push_ADC_SearchRequest(n, search_str, flags)
         
         self.handleBroadcast(ad, data, cb)
         
