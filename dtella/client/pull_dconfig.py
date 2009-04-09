@@ -157,7 +157,16 @@ class DynamicConfigPuller(object):
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
                 state.dns_pkhashes.add(h)
-            
+                # TODO remove
+                import dtella.common.core as core
+                core.nmdc_back_compat = True
+                self.main.showLoginStatus("-- The network is currently also accepting NMDC nodes.")
+                self.main.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+                t = 1241070000 # int(time.time()) + 20 # 
+                self.main.showLoginStatus("-- NMDC backwards compatibility will expire on %s" % time.ctime(t))
+                self.main.expireNMDCBC(t)
+
+
             elif name == 'ipcache':
                 try:
                     data = binascii.a2b_base64(value)
@@ -169,6 +178,30 @@ class DynamicConfigPuller(object):
                     continue
 
                 state.setDNSIPCache(data)
+
+            elif name == 'nmdc_back_compat':
+                if not local.adc_mode:
+                    continue
+
+                try:
+                    if int(value) > 0:
+                        import dtella.common.core as core
+                        core.nmdc_back_compat = True
+                        self.main.showLoginStatus("-- The network is currently also accepting NMDC nodes.")
+                        self.main.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+                except ValueError:
+                    pass
+
+            elif name == 'nmdc_bc_expire':
+                if not local.adc_mode:
+                    continue
+
+                try:
+                    t = int(value)
+                    self.main.expireNMDCBC(t)
+                    self.main.showLoginStatus("-- NMDC backwards compatibility will expire on %s" % time.ctime(t))
+                except ValueError:
+                    pass
 
 
     def doCallback(self):

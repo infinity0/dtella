@@ -90,7 +90,7 @@ def runDconfigPusher():
     reactor.run()
 
 
-def runClient(dc_port, adc):
+def runClient(dc_port):
     #Logging for Dtella Client
     setLogFile("dtella.log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
@@ -113,7 +113,7 @@ def runClient(dc_port, adc):
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
 
-    if adc:
+    if local.adc_mode:
         from dtella.client.adc import ADCFactory
         dfactory = ADCFactory(dtMain, dc_port)
     else:
@@ -180,9 +180,6 @@ def main():
     else:
         usage_str += " [--bridge] [--dconfigpusher] [--makeprivatekey]"
         allowed_opts.extend(['bridge', 'dconfigpusher', 'makeprivatekey'])
-        
-    usage_str += " [--nmdc|adc]"
-    allowed_opts.extend(['nmdc', 'adc'])
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', allowed_opts)
@@ -224,15 +221,8 @@ def main():
             time.sleep(2.0)
         print "Done."
         return
-    
 
-    if '--adc' in opts:
-        dtella.local_config.setADCMode(True)
-        runClient(dc_port, True)
-    else:
-        dtella.local_config.setADCMode(False)
-        runClient(dc_port, False)
-
+    runClient(dc_port)
 
 if __name__=='__main__':
     main()

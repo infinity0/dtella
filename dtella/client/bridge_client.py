@@ -48,11 +48,6 @@ from zope.interface.verify import verifyClass
 from dtella.common.interfaces import IDtellaNickNode
 
 
-global adc_mode, nmdc_back_compat; # TODO HACK, remove later
-adc_mode = local.getADCMode();
-nmdc_back_compat = True;
-
-
 class ChunkError(Exception):
     pass
 
@@ -429,11 +424,11 @@ class NickNode(object):
         self.mode = mode
 
 
-    def setInfo(self, info, adc=adc_mode):
+    def setInfo(self, info, adc=core.adc_mode):
         old_dcinfo = self.dcinfo
         self.dcinfo, self.location, self.shared = parse_incoming_info(info)
 
-        if adc_mode: # BACKWARDS COMPAT
+        if core.adc_mode: # BACKWARDS COMPAT
             self.protocol = core.PROTOCOL_ADC
             try:
                 infs = split_info(info)

@@ -119,11 +119,13 @@ that it receives.
 ''' TODO:
 - find a way for all nodes to switch nmdc_back_compat off at the same time
 - document everything
+- implement FORCE encryption
 '''
 
-global adc_mode, nmdc_back_compat; # TODO HACK, remove later
-adc_mode = local.getADCMode();
-nmdc_back_compat = True;
+adc_mode = local.adc_mode
+adc_fcrypto = local.adc_fcrypto
+nmdc_back_compat = False
+
 
 # Protocol Flags
 PROTOCOL_MASK = 0x80
@@ -779,7 +781,7 @@ class PeerHandler(DatagramProtocol):
                     required data of an NMDC-only node protocol packet.
         '''
         if rest:
-            flags, rest = self.decodePacket('!B', rest)
+            flags, rest = self.decodePacket('!B+', rest)
 
             proto = flags & PROTOCOL_MASK
             if proto == PROTOCOL_ADC and adc_mode:
@@ -4664,6 +4666,30 @@ class DtellaMain_Base(object):
 
         # Set to True to prevent this node from broadcasting.
         self.hide_node = False
+        
+        self.nmdc_bc_expire_dcall = None
+
+
+    def expireNMDCBC(self, t):
+        # sets a time to expire the NMDC backwards-compat
+        try:
+            t = int(t)
+            t2 = int(time.time())
+            if (t <= t2):
+                return
+        except ValueError:
+            return
+
+        def cb():
+            global nmdc_back_compat
+            nmdc_back_compat = False
+            self.showLoginStatus("-- NMDC backwards compatibility has EXPIRED.")
+            self.showLoginStatus("-- The network should have full ADC capabilities in a few minutes.")
+
+        if not self.nmdc_bc_expire_dcall:
+            self.nmdc_bc_expire_dcall = reactor.callLater(int(t) - int(time.time()), cb)
+        elif self.nmdc_bc_expire_dcall.active():
+            self.nmdc_bc_expire_dcall.reset(int(t) - int(time.time()), cb)
 
 
     def cleanupOnExit(self):

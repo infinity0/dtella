@@ -40,7 +40,16 @@ network_key = 'DC-Comics-Reloaded'
 # This is the name of the "hub" which is seen by the user's DC client.
 # "Dtella@____" is the de-facto standard, but nobody's stopping you
 # from picking something else.
-hub_name = "ADtella@Global"
+hub_name = "ADtella@Cambridge"
+
+# Nodes can either emulate an ADC or NMDC hub. ADC is recommended.
+# Clients will connect using adc:// or nmdc:// (default in most clients)
+adc_mode = True
+
+# Set this if you want Dtella to reject plaintext connection attempts.
+# This only works when adc_mode is True. Recommended for fascist networks.
+# TODO: not yet implemented
+adc_fcrypto = True
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.
 # It should be set to some sane value to prevent the person managing DNS from
@@ -51,8 +60,8 @@ minshare_cap = 1 * (1024**2)   # (=100MiB)
 # the network.  Make sure you get this right initially, because you can't
 # make changes once the program has been distributed.  In the unlikely event
 # that you don't want any filtering, use ['0.0.0.0/0']
-allowed_subnets = ['128.0.0.0/1', '64.0.0.0/2', '32.0.0.0/3', '16.0.0.0/4',
-'8.0.0.0/5', '4.0.0.0/6', '2.0.0.0/7', '1.0.0.0/8']
+allowed_subnets = ['128.232.0.0/16', '129.169.0.0/16', '131.111.0.0/16', '193.60.80.0/20',
+'172.16.0.0/13', '172.24.0.0/14', '172.28.0.0/15', '172.30.0.0/16']
 
 # Here we configure an object which pulls 'Dynamic Config' from some source
 # at a known fixed location on the Internet.  This config contains a small
@@ -65,7 +74,7 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
     # Some public DNS servers to query through. (GTE and OpenDNS)
     servers = ['4.2.2.1','4.2.2.2','208.67.220.220','208.67.222.222'],
     # Hostname where the DNS TXT record resides.
-    hostname = "notcambridge.config.dtella.org"
+    hostname = "cambridge.config.dtella.org"
     )
 
 # -- Use Google Spreadsheet --
@@ -137,14 +146,3 @@ def hostnameToLocation(hostname):
 #                pass
 
     return "Unknown Location"
-
-
-# TODO HACK, remove later
-def setADCMode(f):
-    global adc_mode
-    print "ADC set :", f
-    adc_mode = f
-def getADCMode():
-    global adc_mode
-    print "ADC get :", adc_mode
-    return adc_mode
