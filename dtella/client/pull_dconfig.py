@@ -175,8 +175,11 @@ class DynamicConfigPuller(object):
                     if int(value) > 0:
                         import dtella.common.core as core
                         core.nmdc_back_compat = True
-                        self.main.showLoginStatus("-- The network is currently also accepting NMDC nodes.")
-                        self.main.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+                        self.main.showLoginStatus("-- The network is currently also accepting old NMDC-only nodes.")
+
+                        if local.adc_mode:
+                            self.main.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+
                 except ValueError:
                     pass
 
@@ -184,7 +187,7 @@ class DynamicConfigPuller(object):
                 try:
                     t = int(value)
                     self.main.expireNMDCBC(t)
-                    self.main.showLoginStatus("-- NMDC backwards compatibility will expire on %s" % time.ctime(t))
+                    self.main.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will EXPIRE on %s" % time.ctime(t))
                 except ValueError:
                     pass
 

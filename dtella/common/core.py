@@ -4681,10 +4681,12 @@ class DtellaMain_Base(object):
             return
 
         def cb():
-            global nmdc_back_compat
+            global adc_mode, nmdc_back_compat
             nmdc_back_compat = False
-            self.showLoginStatus("-- NMDC backwards compatibility has EXPIRED.")
-            self.showLoginStatus("-- The network should have full ADC capabilities in a few minutes.")
+            self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes has EXPIRED.")
+
+            if adc_mode:
+                self.showLoginStatus("-- The network should have full ADC capabilities in a few minutes.")
 
         if not self.nmdc_bc_expire_dcall:
             self.nmdc_bc_expire_dcall = reactor.callLater(int(t) - int(time.time()), cb)
