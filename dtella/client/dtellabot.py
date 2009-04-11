@@ -683,9 +683,7 @@ class DtellaBot(object):
 
         import os, urllib, sys, subprocess
 
-        repo = "bin/" # TODO REMOVE
         new_p = local.build_prefix + new_v
-        url = "http://131.111.248.85/c/" # TODO REMOVE
         binurl = url + repo + new_p + "." + local.build_suffix
 
         out("Upgrading from %s to %s" % (local.version, new_v))
@@ -813,12 +811,12 @@ class DtellaBot(object):
             # opens child process with same args and env.
             # child keeps going even when this exits
             subprocess.Popen(sys.argv)
-            out("The new Dtella is running. This one will disconnect shortly. "
-                "Once it does, you will be able to connect to the upgraded "
-                "node. (Ctrl-R on most clients.)")
-        except:
-            out("Could not automatically start the new Dtella node. Try "
-                "doing this yourself.")
+            out("The new Dtella is running. This one will shortly disconnect "
+                "and exit. Once it does, you will be able to connect to the "
+                "upgraded node (reconnect is ctrl-R on most clients).")
+        except Exception, e:
+            out("Could not automatically start the new Dtella node: %s" % e)
+            out("Try doing this yourself.")
 
 
     def handleCmd_DEBUG(self, out, text, prefix):
