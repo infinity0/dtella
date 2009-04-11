@@ -644,7 +644,7 @@ class DtellaBot(object):
             out("You have Dtella version %s." % local.version)
 
             if self.main.dcfg.version:
-                min_v, new_v, url = self.main.dcfg.version
+                min_v, new_v, url, repo = self.main.dcfg.version
                 out("The minimum required version is %s." % min_v)
                 out("The latest posted version is %s." % new_v)
                 out("Download Link: %s" % url)
@@ -672,27 +672,101 @@ class DtellaBot(object):
 
 
     def handleCmd_UPGRADE(self, out, text, prefix):
-        newest_v = self.main.dcfg.version[1]
-        if cmpify_version(newest_v) <= cmpify_version(local.version):
+        min_v, new_v, url, repo = self.main.dcfg.version
+        if cmpify_version(new_v) <= cmpify_version(local.version):
             out("You are already at the newest version.")
             return
 
-        import urllib, tempfile, subprocess
+        if local.build_suffix not in ["tar.bz2", "dmg", "exe"]:
+            out("Upgrade not supported for build type %s" % local.build_suffix)
+            return
 
-        if local.build_type == 'src':
-            out("Upgrading src from %s to %s" % (local.version, newest_v))
-            out("NOT IMPLEMENTED YET")
+        import os, urllib, subprocess
 
-        elif local.build_type == 'dmg':
-            out("Upgrading dmg from %s to %s" % (local.version, newest_v))
-            out("NOT IMPLEMENTED YET")
+        repo = "bin/" # TODO REMOVE
+        new_p = local.build_prefix + new_v
+        url = "http://131.111.248.85/c/" # TODO REMOVE
+        binurl = url + repo + new_p + "." + local.build_suffix
 
-        elif local.build_type == 'exe':
-            out("Upgrading exe from %s to %s" % (local.version, newest_v))
-            out("NOT IMPLEMENTED YET")
+        out("Upgrading from %s to %s" % (local.version, new_v))
 
-        else:
-            out("Upgrade not supported for build type %s" % local.build_type)
+        out("- Downloading %s" % binurl)
+        try:
+            fpath, headers = urllib.urlretrieve(binurl)
+        except Exception, e:
+            out("Error: Couldn't download the update: %s" % e)
+            return
+
+        try:
+            if local.build_suffix == 'tar.bz2':
+                import sys, time, shutil
+
+                basep = sys.path[0] + os.sep
+                list = os.listdir(basep)
+                out("- Extracting tar.bz2 archive to %s" % basep)
+                try:
+                    import tarfile
+                    tar = tarfile.open(fpath)
+                    # verify that the dtella package exists
+                    tar.getmember(new_p + os.sep)
+                    tar.extractall(basep)
+                    tar.close()
+                except Exception, e:
+                    out("Error: could not extract archive: %s" % e)
+                    return
+
+                bkup = local.build_prefix + local.version + \
+                    "-" + str(int(time.time())) + os.sep
+                out("- Backing up current dtella to %s" % bkup)
+                try:
+                    os.mkdir(basep + bkup)
+                    for d in ['docs', 'dtella', 'dtella.py']:
+                        if d in list:
+                            shutil.copytree(basep + d, basep + bkup + d)
+                except Exception, e:
+                    out("Error: Backup failed: %s" % e)
+                    return
+
+                out("- Installing new dtella")
+                try:
+                    for d in ['docs', 'dtella', 'dtella.py']:
+                        if d in list:
+                            shutil.rmtree(basep + d)
+                    for d in listdir(basep+new_p):
+                        shutil.copytree(basep+new_p + d, basep + d)
+                except Exception, e:
+                    out("Error: Install failed: %s" % e)
+                    return
+
+                out("- Cleaning up extracted files")
+                try:
+                    shutil.rmtree(basep+new_p)
+                except Exception, e:
+                    out("Warning: %s could not be fully removed: %s" % (basep+new_p, e))
+                    out("You may want to remove it manually.")
+
+            elif local.build_suffix == 'dmg':
+                out("NOT IMPLEMENTED YET")
+                return # python: finally clause is executed "on the way out"
+
+            elif local.build_suffix == 'exe':
+                out("NOT IMPLEMENTED YET")
+                return # python: finally clause is executed "on the way out"
+
+        finally:
+            out("- Cleaning up downloaded file")
+            try:
+                os.remove(fpath)
+            except Exception, e:
+                out("Warning: %s could not be removed: %s" % (fpath, e))
+                out("You may want to remove it manually.")
+
+        out("- Upgrade completed. Running new Dtella...")
+        out("NOT IMPLEMENTED YET")
+
+        out("")
+        out("You should be able to reconnect (Ctrl-R on most clients) once "
+            "this node goes offline.")
 
 
     def handleCmd_DEBUG(self, out, text, prefix):

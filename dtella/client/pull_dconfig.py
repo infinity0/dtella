@@ -148,11 +148,15 @@ class DynamicConfigPuller(object):
 
             elif name == 'version':
                 try:
-                    min_v, new_v, url = value.split()
+                    min_v, new_v, url = value.split(' ', 2)
+                    if ' ' in url:
+                        repo, url = url.split(' ', 1)
+                    else:
+                        repo = ''
                 except ValueError:
                     pass
                 else:
-                    self.version = (min_v, new_v, url)
+                    self.version = (min_v, new_v, url, repo)
 
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
@@ -226,7 +230,7 @@ class DynamicConfigPuller(object):
         if not self.version:
             return False
 
-        min_v, new_v, url = self.version
+        min_v, new_v, url, repo = self.version
         min_vc = cmpify_version(min_v)
 
         if self.override_vc < min_vc:
@@ -265,7 +269,7 @@ class DynamicConfigPuller(object):
         if not self.version:
             return
 
-        min_v, new_v, url = self.version
+        min_v, new_v, url, repo = self.version
         new_vc = cmpify_version(new_v)
 
         if self.reported_vc < new_vc:
@@ -285,7 +289,7 @@ class DynamicConfigPuller(object):
         # User requested skipping of the minimum version control
 
         if self.version:
-            min_v, new_v, url = self.version
+            min_v, new_v, url, repo = self.version
             min_vc = cmpify_version(min_v)
 
             if not (self.override_vc < min_vc):
