@@ -83,7 +83,7 @@ class BaseADCProtocol(LineOnlyReceiver):
 
     def sendLine(self, line):
         #print "<:", line
-        print "> %s" % line
+        #print "> %s" % line
         LineOnlyReceiver.sendLine(self, line)
 
 
@@ -92,7 +92,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         if(len(line) == 0):
             self.sendLine('')#Keepalive
             return
-        print "< %s" % line
+        #print "< %s" % line
         cmd = line.split(' ', 1)        
         args = {}
         args['con'] = cmd[0][0]

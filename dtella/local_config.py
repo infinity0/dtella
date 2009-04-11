@@ -110,10 +110,6 @@ rdns_servers = ['131.111.8.42','131.111.12.20']
 # Customized data for our implementation of hostnameToLocation
 import re
 suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.societies|\.private)?\.cam\.ac\.uk")
-#prefix_re = re.compile(r"^([a-z]{1,6}).*\.cam\.ac\.uk")
-
-#pre_table = {
-#    }
 
 suf_table = {
     'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus Christi',
@@ -137,12 +133,5 @@ def hostnameToLocation(hostname):
                 return suf_table[suffix.group(1)]
             except KeyError:
                 pass
-
-#        prefix = prefix_re.match(hostname)
-#        if prefix:
-#            try:
-#                return pre_table[prefix.group(1)]
-#            except KeyError:
-#                pass
 
     return "Unknown Location"

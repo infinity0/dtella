@@ -175,21 +175,12 @@ class DynamicConfigPuller(object):
                     if int(value) > 0:
                         import dtella.common.core as core
                         core.nmdc_back_compat = True
-                        self.main.showLoginStatus("-- The network is currently also accepting old NMDC-only nodes.")
-
-                        if local.adc_mode:
-                            self.main.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
 
                 except ValueError:
                     pass
 
             elif name == 'nmdc_bc_expire':
-                try:
-                    t = int(value)
-                    self.main.expireNMDCBC(t)
-                    self.main.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will EXPIRE on %s" % time.ctime(t))
-                except ValueError:
-                    pass
+                self.main.expireNMDCBC(value)
 
 
     def doCallback(self):
@@ -250,15 +241,21 @@ class DynamicConfigPuller(object):
                 " ",
                 "[If unusual circumstances prevent you from upgrading, "
                 "type !VERSION_OVERRIDE to attempt to connect using this "
-                "unsupported client.]",
+                "unsupported client. Please note that you will be repeatedly "
+                "prompted to do this every few hours.]",
                 " ",
-                "Download link: %s" % url
+                "Download link: %s" % url,
+                " "
                 )
 
             for par in text:
                 for line in word_wrap(par):
                     self.main.showLoginStatus(line)
             return True
+
+        # can only override once; next time the client gets the DNS
+        # the user will have to override again
+        self.override_vc = self.reported_vc
 
         return False
 

@@ -189,6 +189,23 @@ class DtellaMain_Client(core.DtellaMain_Base):
                     ad = Ad().setRawIPPort(ipp)
                     self.state.refreshPeer(ad, age)
 
+            if core.nmdc_back_compat:
+                self.showLoginStatus("-- The network is currently also accepting old NMDC-only nodes.")
+
+                if local.adc_mode:
+                    self.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+
+            if self.nmdc_bc_expire_dcall and self.nmdc_bc_expire_dcall.active():
+                self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will expire ")
+                t = self.nmdc_bc_expire_dcall.getTime()
+                # WORKAROUND A TWISTED BUG
+                # getTime() sometimes returns the delay rather than the time
+                # The actual firing time seems to be unaffected
+                t2 = time.time()
+                if t < t2:
+                    t += t2
+                self.showLoginStatus("   on %s" % time.ctime(t))
+
             self.startInitialContact()
 
         self.dcfg.getDynamicConfig(dns_cb)
