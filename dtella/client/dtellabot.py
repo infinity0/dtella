@@ -681,7 +681,7 @@ class DtellaBot(object):
             out("Upgrade not supported for build type %s" % local.build_suffix)
             return
 
-        import os, urllib, subprocess
+        import os, urllib, sys, subprocess
 
         repo = "bin/" # TODO REMOVE
         new_p = local.build_prefix + new_v
@@ -701,8 +701,33 @@ class DtellaBot(object):
             if local.build_suffix == 'tar.bz2':
                 import sys, time, shutil
 
+                bk_sep = '-'
                 basep = sys.path[0] + os.sep
-                list = os.listdir(basep)
+                bkup = local.build_prefix + local.version + bk_sep + \
+                    str(int(time.time())) + os.sep
+                blist = os.listdir(basep)
+                out("- Backing up current dtella to %s" % bkup)
+                bkup = basep + bkup
+                try:
+                    # TODO: the following only works in python 2.6:
+                    # shutil.copytree(basep, basep + bkup, True,
+                    #    basep + local.build_prefix + local.version + "-*")
+                    os.mkdir(bkup)
+                    for d in blist:
+                        if local.build_prefix + local.version + bk_sep in d:
+                            continue
+                        src = basep + d
+                        dst = bkup + d
+                        if os.path.islink(src):
+                            os.symlink(os.readlink(src), dst)
+                        elif os.path.isdir(src):
+                            shutil.copytree(src, dst, True)
+                        else:
+                            shutil.copy2(src, dst)
+                except Exception, e:
+                    out("Error: Backup failed: %s" % e)
+                    return
+
                 out("- Extracting tar.bz2 archive to %s" % basep)
                 try:
                     import tarfile
@@ -715,43 +740,65 @@ class DtellaBot(object):
                     out("Error: could not extract archive: %s" % e)
                     return
 
-                bkup = local.build_prefix + local.version + \
-                    "-" + str(int(time.time())) + os.sep
-                out("- Backing up current dtella to %s" % bkup)
-                try:
-                    os.mkdir(basep + bkup)
-                    for d in ['docs', 'dtella', 'dtella.py']:
-                        if d in list:
-                            shutil.copytree(basep + d, basep + bkup + d)
-                except Exception, e:
-                    out("Error: Backup failed: %s" % e)
-                    return
-
                 out("- Installing new dtella")
                 try:
-                    for d in ['docs', 'dtella', 'dtella.py']:
-                        if d in list:
-                            shutil.rmtree(basep + d)
-                    for d in listdir(basep+new_p):
-                        shutil.copytree(basep+new_p + d, basep + d)
-                except Exception, e:
-                    out("Error: Install failed: %s" % e)
-                    return
+                    srcp = basep + new_p + os.sep
+                    try:
+                        for d in os.listdir(srcp):
+                            src = srcp + d
+                            dst = basep + d
+                            if d in blist:
+                                if os.path.isdir(dst):
+                                    shutil.rmtree(dst)
+                                else:
+                                    os.remove(dst)
+                            if os.path.isdir(src):
+                                shutil.copytree(src, dst)
+                            else:
+                                shutil.copy2(src, dst)
+                    except Exception, e:
+                        out("Error: Install failed: %s" % e)
+                        out("- Restoring backup")
+                        try:
+                            ilist = os.listdir(basep)
+                            for d in os.listdir(bkup):
+                                src = bkup + d
+                                dst = basep + d
+                                if d in ilist:
+                                    if os.path.isdir(dst):
+                                        shutil.rmtree(dst)
+                                    else:
+                                        os.remove(basep + d)
+                                if os.path.islink(src):
+                                    os.symlink(os.readlink(src), dst)
+                                elif os.path.isdir(src):
+                                    shutil.copytree(src, dst, True)
+                                else:
+                                    shutil.copy2(src, dst)
+                        except Exception, e:
+                            out("Error: Sorry! Restore failed: %s" % e)
+                        return
 
-                out("- Cleaning up extracted files")
-                try:
-                    shutil.rmtree(basep+new_p)
-                except Exception, e:
-                    out("Warning: %s could not be fully removed: %s" % (basep+new_p, e))
-                    out("You may want to remove it manually.")
+                finally:
+                    out("- Cleaning up extracted files")
+                    try:
+                        shutil.rmtree(srcp)
+                    except:
+                        out("Warning: %s could not be fully removed: %s" % (srcp, e))
+                        out("You may want to remove it manually.")
+
+                out("- Install complete. A backup of the old installation is at %s" % bkup)
+
 
             elif local.build_suffix == 'dmg':
                 out("NOT IMPLEMENTED YET")
                 return # python: finally clause is executed "on the way out"
 
+
             elif local.build_suffix == 'exe':
                 out("NOT IMPLEMENTED YET")
                 return # python: finally clause is executed "on the way out"
+
 
         finally:
             out("- Cleaning up downloaded file")
@@ -762,11 +809,16 @@ class DtellaBot(object):
                 out("You may want to remove it manually.")
 
         out("- Upgrade completed. Running new Dtella...")
-        out("NOT IMPLEMENTED YET")
-
-        out("")
-        out("You should be able to reconnect (Ctrl-R on most clients) once "
-            "this node goes offline.")
+        try:
+            # opens child process with same args and env.
+            # child keeps going even when this exits
+            subprocess.Popen(sys.argv)
+            out("The new Dtella is running. This one will disconnect shortly. "
+                "Once it does, you will be able to connect to the upgraded "
+                "node. (Ctrl-R on most clients.)")
+        except:
+            out("Could not automatically start the new Dtella node. Try "
+                "doing this yourself.")
 
 
     def handleCmd_DEBUG(self, out, text, prefix):
