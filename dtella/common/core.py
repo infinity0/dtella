@@ -2,6 +2,8 @@
 Dtella - Core P2P Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper, Ximin Luo
 
 $Id$
 
@@ -119,9 +121,10 @@ that it receives.
 ''' TODO:
 - document everything
 - implement FORCE encryption
-= combine PROTOCOL_FLAG with CODE_IP in handle_{IC,IR}
-= keeping leaving the network if current < "min required"
 - !upgrade command
+  - 11.6 tempfile
+  - 21.5 urllib
+  - 18.1 subprocess
 '''
 
 adc_mode = local.adc_mode
@@ -4287,7 +4290,6 @@ class SyncRequestRoutingManager(object):
                 # be ignored. The timeout gives ADC nodes a chance to receive
                 # the full ADC infostring *before* sync completes.
                 def cb():
-                    print "sent backcompat YR"
                     self.sendSyncReply(src_ipp, cont, uncont, False)
                 reactor.callLater(1, cb)
 

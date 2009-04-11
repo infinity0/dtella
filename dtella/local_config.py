@@ -29,6 +29,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 # It will be concatenated with the version number below.
 build_prefix = "dtella-cambridge-"
 
+# Set this type when building executables and installers. This allows
+# Dtelle to select an appropriate upgrade method.
+# Supported values: src, dmg, exe
+build_type = "src"
+
 # Dtella version number.
 version = "1.2.4.3"
 

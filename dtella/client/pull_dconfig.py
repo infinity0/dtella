@@ -244,7 +244,7 @@ class DynamicConfigPuller(object):
                 "unsupported client. Please note that you will be repeatedly "
                 "prompted to do this every few hours.]",
                 " ",
-                "Download link: %s" % url,
+                "Type !UPGRADE to upgrade, or download it at: %s" % url,
                 " "
                 )
 
@@ -255,7 +255,7 @@ class DynamicConfigPuller(object):
 
         # can only override once; next time the client gets the DNS
         # the user will have to override again
-        self.override_vc = self.reported_vc
+        self.override_vc = cmpify_version(local.version)
 
         return False
 
@@ -275,8 +275,9 @@ class DynamicConfigPuller(object):
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
                     % (local.version, new_v))
-                say("Download link: %s" % url)
+                say("Type !UPGRADE to upgrade, or download it at: %s" % url)
                 
+                # prevents update messages from re-appearing
                 self.reported_vc = new_vc
 
 

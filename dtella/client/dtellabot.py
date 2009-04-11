@@ -1,9 +1,33 @@
+"""
+Dtella - Dtella Bot Module
+Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
+Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper, Ximin Luo
+
+$Id$
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+
 from twisted.internet import reactor
 from twisted.python.runtime import seconds
 import twisted.python.log
 
 from dtella.common.util import (validateNick, word_wrap, split_info,
-                                split_tag, dcall_discard,
+                                split_tag, dcall_discard, cmpify_version,
                                 format_bytes, dcall_timeleft,
                                 get_version_string, lock2key, CHECK)
 from dtella.common.ipv4 import Ad
@@ -645,6 +669,30 @@ class DtellaBot(object):
             self.main.startConnecting()
         else:
             out("%sVERSION_OVERRIDE not needed." % prefix)
+
+
+    def handleCmd_UPGRADE(self, out, text, prefix):
+        newest_v = self.main.dcfg.version[1]
+        if cmpify_version(newest_v) <= cmpify_version(local.version):
+            out("You are already at the newest version.")
+            return
+
+        import urllib, tempfile, subprocess
+
+        if local.build_type == 'src':
+            out("Upgrading src from %s to %s" % (local.version, newest_v))
+            out("NOT IMPLEMENTED YET")
+
+        elif local.build_type == 'dmg':
+            out("Upgrading dmg from %s to %s" % (local.version, newest_v))
+            out("NOT IMPLEMENTED YET")
+
+        elif local.build_type == 'exe':
+            out("Upgrading exe from %s to %s" % (local.version, newest_v))
+            out("NOT IMPLEMENTED YET")
+
+        else:
+            out("Upgrade not supported for build type %s" % local.build_type)
 
 
     def handleCmd_DEBUG(self, out, text, prefix):

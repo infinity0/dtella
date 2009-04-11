@@ -1,7 +1,11 @@
 """
 Dtella - AdvancedDirectConnect Interface Module
-Copyright (C) 2009  Dtella Labs (http://www.dtella.org)
-Copyright (C) 2009  Andrew Cooper, on behalf of Dtella Labs
+Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
+Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper, Ximin Luo
+
+$Id$
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -506,11 +510,11 @@ class ADCHandler(BaseADCProtocol):
                     # If the bot produces output, inject our text input before
                     # the first line.
                     if flag[0]:
-                        self.pushStatus("You commanded: %s" % text)
+                        self.pushChatMessageBySID(self.bot.sid, "You commanded: %s" % text)
                         flag[0] = False
 
                     if out_text is not None:
-                        self.pushStatus(out_text)
+                        self.pushChatMessageBySID(self.bot.sid, out_text)
                 
                 if self.bot.commandInput(out, text[1:], '!'):
                     return
@@ -854,10 +858,10 @@ class ADCHandler(BaseADCProtocol):
             info = ''
         
         return info
-  
+
+
     def isLeech(self):
         # If I don't meet the minimum share, yell and return True
-
         osm = self.main.osm
         minshare = self.main.dcfg.minshare
 
@@ -869,16 +873,19 @@ class ADCHandler(BaseADCProtocol):
             return True
 
         return False
-    
+
 
     def pushChatMessage(self, nick, text, flags=0):
-        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
-                            #Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
+            self.pushChatMessageBySID(sid, text, flags)
         except KeyError: 
-            text = "On behalf of %s: %s" % (nick, text)
-        
+            # Pass non-DC users' messages through the hub
+            # ie. users such as *, *IRC, ~ChanServ etc
+            self.pushStatus("On behalf of %s: %s" % (nick, text))
+
+
+    def pushChatMessageBySID(self, sid, text, flags=0):
         if flags & core.SLASHME_BIT:
             self.sendLine("BMSG %s %s ME1" % (sid, adc_escape(text)))
         else:
@@ -958,7 +965,7 @@ class ADCHandler(BaseADCProtocol):
 
 
     def pushStatus(self, text):
-        self.sendLine("BMSG %s %s" % (self.bot.sid, adc_escape(text)))
+        self.sendLine("ISTA 000 %s" % (adc_escape(text)))
 
     
     def scheduleChatRateControl(self):
@@ -998,7 +1005,7 @@ class ADCHandler(BaseADCProtocol):
 
         osm.mrm.newMessage(''.join(packet), tries=4)
 
-        self.pushChatMessage(self.nick, text, flags)
+        self.pushChatMessageBySID(self.sid, text, flags)
 
     # Precompile a regex for pushSearchResult
     searchreply_re = re.compile(r"^\$SR ([^ |]+) ([^|]*) \([^ |]+\)\|?$")
