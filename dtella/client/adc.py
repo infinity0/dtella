@@ -58,24 +58,31 @@ from dtella.common.interfaces import IDtellaStateObserver
 # H>C ISID <client-sid>
 # H>C IINF HU1 HI1
 # H<C BINF <my-sid> ID... PD...
-#(H>C IGPA ...
-# H<C HPAS ...)
+#(
+# H>C IGPA ...
+# H<C HPAS ...
+#)
 # H>C BINF <all clients>
 # H>C BINF <Client-SID>
 # ...
 
 
-#Example login
-#Hub:	[Outgoing][91.120.21.169:2424]	 	HSUP ADBAS0 ADBASE ADTIGR ADUCM0 ADBLO0
-#Hub:	[Incoming][91.120.21.169:2424]	 	ISUP ADBASE ADTIGR ADPING
-#Hub:	[Incoming][91.120.21.169:2424]	 	ISID CGRU
-#Hub:	[Outgoing][91.120.21.169:2424]	 	BINF CGRU IDMSZVM3CFZPDYGCDWG5M3QWNWWXKP564IFPIBMHY PDHB24SHTHV76WHHI3BKHHHYNYZ7VNGVJFIMLSDKY NIandyhhp DE[~]\sowner SL15 SS838319620790 SF12869 EMandyhhp@hotmail.com HN3 HR0 HO0 VE++\s0.7091 US131072000 I4131.111.128.225 U416765 SUADC0,TCP4,UDP4
-#Hub:	[Incoming][91.120.21.169:2424]	 	IINF CT32 VEuHub/0.2.8 NIElite\sIstenhub DEDigital\sFreedom\s[since\s2006]
-#Hub:	[Incoming][91.120.21.169:2424]	 	ISTA 000 Powered\sby\suHub/0.2.8
-
 class BaseADCProtocol(LineOnlyReceiver):
 
     delimiter='\n'
+
+
+    def initDataReceived(self, data):
+        """Attempt to detect incoming clients not using ADC."""
+        print data
+        if data[0] == '$':
+            print "Protocol mismatch: Dc detected (ADC required)"
+            # TODO IMPLEMENT an ABORTHANDLER for this
+        else:
+            # Passed all tests, let it through
+            self.dataReceived = self._dataReceived
+            self.dataReceived(data)
+
 
     def connectionMade(self):
         try:
@@ -84,19 +91,28 @@ class BaseADCProtocol(LineOnlyReceiver):
             pass
         self.dispatch = {}
 
+        # Set up the protocol trap
+        self._dataReceived = self.dataReceived
+        self.dataReceived = self.initDataReceived
+
+        # DC is stupid and requires the hub to send data first.
+        # Luckily, ADC clients seem to gracefully ignore this.
+        self.transport.writeSequence(("$Lock FOO Pk=BAR", '|'))
+        self.transport.writeSequence(("$HubName %s" % local.hub_name, '|'))
+
 
     def sendLine(self, line):
         #print "<:", line
-        #print "> %s" % line
         LineOnlyReceiver.sendLine(self, line)
 
 
     def lineReceived(self, line):
-        
+
         if(len(line) == 0):
-            self.sendLine('')#Keepalive
+            self.sendLine('') #Keepalive
             return
-        #print "< %s" % line
+
+        #print ">:", line
         cmd = line.split(' ', 1)        
         args = {}
         args['con'] = cmd[0][0]

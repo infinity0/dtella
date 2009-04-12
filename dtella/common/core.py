@@ -1838,7 +1838,6 @@ class InitialContactManager(DatagramProtocol):
             packet.append(struct.pack('!H', self.main.state.udp_port))
             if not nmdc_back_compat:
                 packet.append(struct.pack('!B', self.main.ph.setProtocolFlag(0)))
-                print "send new IQ"
 
             self.main.logPacket("IQ -> %s:%d" % ad.getAddrTuple())
 

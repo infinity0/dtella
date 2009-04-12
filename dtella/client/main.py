@@ -196,7 +196,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
                     self.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
 
             if self.nmdc_bc_expire_dcall and self.nmdc_bc_expire_dcall.active():
-                self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will expire ")
+                self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will expire on ")
                 t = self.nmdc_bc_expire_dcall.getTime()
                 # WORKAROUND A TWISTED BUG
                 # getTime() sometimes returns the delay rather than the time
@@ -204,7 +204,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
                 t2 = time.time()
                 if t < t2:
                     t += t2
-                self.showLoginStatus("   on %s" % time.ctime(t))
+                self.showLoginStatus("   %s" % time.ctime(t))
 
             self.startInitialContact()
 

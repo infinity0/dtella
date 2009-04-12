@@ -59,12 +59,29 @@ class BaseDCProtocol(LineOnlyReceiver):
 
     delimiter='|'
 
+
+    def initDataReceived(self, data):
+        """Attempt to detect incoming clients not using ADC."""
+        print data
+        if data[0] == 'H':
+            print "Protocol mismatch: ADC detected (DC required)"
+            # TODO IMPLEMENT an ABORTHANDLER for this
+        else:
+            # Passed all tests, let it through
+            self.dataReceived = self._dataReceived
+            self.dataReceived(data)
+
+
     def connectionMade(self):
         try:
             self.transport.setTcpNoDelay(True)
         except socket.error:
             pass
         self.dispatch = {}
+
+        # Set up the protocol trap
+        self._dataReceived = self.dataReceived
+        self.dataReceived = self.initDataReceived
 
 
     def sendLine(self, line):
