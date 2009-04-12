@@ -76,7 +76,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         """Attempt to detect incoming clients not using ADC."""
         print data
         if data[0] == '$':
-            print "Protocol mismatch: Dc detected (ADC required)"
+            print "Protocol mismatch: DC detected (ADC required)"
             # TODO IMPLEMENT an ABORTHANDLER for this
         else:
             # Passed all tests, let it through
@@ -590,6 +590,7 @@ class ADCHandler(BaseADCProtocol):
                             "*** Chat throttled.  Stop typing so much!")
                         break
 
+
     def d_CTM(self, con, src_sid, dst_sid, rest):
         show_errors = True
         
@@ -620,6 +621,16 @@ class ADCHandler(BaseADCProtocol):
                     reactor.connectTCP('127.0.0.1', port,
                         ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
 
+        if not self.isOnline():
+            fail_cb("You are not online.")
+            return
+        elif not port:
+            fail_cb("Invalid port: <%s>" % port_str)
+            return
+        elif self.isLeech():
+            show_errors = False
+            fail_cb(None)
+            return
 
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
@@ -631,17 +642,7 @@ class ADCHandler(BaseADCProtocol):
                 fail_cb("User doesnt seem to exist")
             return
 
-        if not self.isOnline():
-            fail_cb("You are not online.")
-            return
-        elif not port:
-            fail_cb("Invalid port: <%s>" % port_str)
-            return
-        elif self.isLeech():
-            show_errors = False
-            fail_cb(None)
-            return
-        elif node.protocol != self.protocol:
+        if node.protocol != self.protocol:
             fail_cb("User is not using the ADC Protocol so you cant connect to them")
         else:
             node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
@@ -680,6 +681,14 @@ class ADCHandler(BaseADCProtocol):
                 self.sendLine("DCTM %s %s %s %s %s"% (dst_sid, src_sid, protocol_str, self.factory.listen_port, token))
                 self.sendLine("BINF %s I4%s" % (dst_sid, old_i4))
 
+        if not self.isOnline():
+            fail_cb("You are not online.")
+            return
+        elif self.isLeech():
+            show_errors = False
+            fail_cb(None)
+            return
+
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
@@ -690,17 +699,11 @@ class ADCHandler(BaseADCProtocol):
                 fail_cb("User doesnt seem to exist")
             return
 
-        if not self.isOnline():
-            fail_cb("You are not online.")
-            return
-        elif self.isLeech():
-            show_errors = False
-            fail_cb(None)
-            return
-        elif node.protocol != self.protocol:
+        if node.protocol != self.protocol:
             fail_cb("User is not using the ADC Protocol so you cant connect to them")
         else:
             node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
+
 
     def d_SCH(self, con, src_sid, rest):
         #Search request
@@ -744,7 +747,8 @@ class ADCHandler(BaseADCProtocol):
         # If local searching is enabled, send the search to myself
         if self.main.state.localsearch:
             self.push_ADC_SearchRequest(self.main.osm.me, rest, flags)
-        
+
+
     def d_RES(self, con, src_sid, dst_sid, rest):
     
         if not self.isOnline():
@@ -776,7 +780,8 @@ class ADCHandler(BaseADCProtocol):
         packet = ''.join(packet)
         
         node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
-        
+
+
     def d_STA(self, con, src_sid, dst_sid, rest):
     
         if not self.isOnline():
@@ -808,6 +813,7 @@ class ADCHandler(BaseADCProtocol):
         packet = ''.join(packet)
         
         node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
+
 
     def attachMeToDtella(self):
 
