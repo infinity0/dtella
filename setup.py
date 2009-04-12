@@ -54,6 +54,17 @@ def get_excludes():
     return ex
 
 
+def patch_build_type(type="tar.bz2"):
+    # Patch the local_config with the correct build_type
+    lines = []
+    for line in file("dtella/local_config.py").readlines():
+        if line.find('build_type = "') == 0:
+            line = 'build_type = "%s"\n' % type
+        lines.append(line)
+
+    file("dtella/local_config.py", "w").writelines(lines)
+
+
 def patch_nsi_template():
     # Generate NSI file from template, replacing name and version
     # with data from local_config.
@@ -79,12 +90,14 @@ def patch_nsi_template():
 
 
 if sys.platform == 'darwin':
+    patch_build_type('dmg')
     import py2app
 elif sys.platform == 'win32':
+    patch_build_type('exe')
     import py2exe
     patch_nsi_template()
 else:
-    print "Unknown platform: %s" % sys.platform
+    print "Unsupported build platform: %s" % sys.platform
     sys.exit(-1)
 
 excludes = get_excludes()
@@ -121,3 +134,5 @@ setup(
         "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
     }]
 )
+
+patch_build_type()

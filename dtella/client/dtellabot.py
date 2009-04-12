@@ -673,20 +673,22 @@ class DtellaBot(object):
 
     def handleCmd_UPGRADE(self, out, text, prefix):
         min_v, new_v, url, repo = self.main.dcfg.version
-        if cmpify_version(new_v) <= cmpify_version(local.version):
+        name, cur_v, type = local.build_prefix, local.version, local.build_type
+
+        if cmpify_version(new_v) <= cmpify_version(cur_v):
             out("You are already at the newest version.")
             return
 
-        if local.build_suffix not in ["tar.bz2", "dmg", "exe"]:
-            out("Upgrade not supported for build type %s" % local.build_suffix)
+        if type not in ["tar.bz2", "tar.gz", "dmg", "exe"]:
+            out("Upgrade not supported for build type %s" % type)
             return
 
         import os, urllib, sys, subprocess
 
-        new_p = local.build_prefix + new_v
-        binurl = url + repo + new_p + "." + local.build_suffix
+        new_p = name + new_v
+        binurl = url + repo + new_p + "." + type
 
-        out("Upgrading from %s to %s" % (local.version, new_v))
+        out("Upgrading from %s to %s" % (cur_v, new_v))
 
         out("- Downloading %s" % binurl)
         try:
@@ -696,12 +698,12 @@ class DtellaBot(object):
             return
 
         try:
-            if local.build_suffix == 'tar.bz2':
+            if type == 'tar.bz2' or type == 'tar.gz':
                 import sys, time, shutil
 
                 bk_sep = '-'
                 basep = sys.path[0] + os.sep
-                bkup = local.build_prefix + local.version + bk_sep + \
+                bkup = name + cur_v + bk_sep + \
                     str(int(time.time())) + os.sep
                 blist = os.listdir(basep)
                 out("- Backing up current dtella to %s" % bkup)
@@ -709,10 +711,10 @@ class DtellaBot(object):
                 try:
                     # TODO: the following only works in python 2.6:
                     # shutil.copytree(basep, basep + bkup, True,
-                    #    basep + local.build_prefix + local.version + "-*")
+                    #    basep + name + cur_v + "-*")
                     os.mkdir(bkup)
                     for d in blist:
-                        if local.build_prefix + local.version + bk_sep in d:
+                        if name + cur_v + bk_sep in d:
                             continue
                         src = basep + d
                         dst = bkup + d
@@ -726,7 +728,7 @@ class DtellaBot(object):
                     out("Error: Backup failed: %s" % e)
                     return
 
-                out("- Extracting tar.bz2 archive to %s" % basep)
+                out("- Extracting %s archive to %s" % (type, basep))
                 try:
                     import tarfile
                     tar = tarfile.open(fpath)
@@ -756,7 +758,7 @@ class DtellaBot(object):
                                 shutil.copy2(src, dst)
                     except Exception, e:
                         out("Error: Install failed: %s" % e)
-                        out("- Restoring backup")
+                        out("- Restoring backup from %s" % bkup)
                         try:
                             ilist = os.listdir(basep)
                             for d in os.listdir(bkup):
@@ -788,12 +790,12 @@ class DtellaBot(object):
                 out("- Install complete. A backup of the old installation is at %s" % bkup)
 
 
-            elif local.build_suffix == 'dmg':
+            elif type == 'dmg':
                 out("NOT IMPLEMENTED YET")
                 return # python: finally clause is executed "on the way out"
 
 
-            elif local.build_suffix == 'exe':
+            elif type == 'exe':
                 out("NOT IMPLEMENTED YET")
                 return # python: finally clause is executed "on the way out"
 

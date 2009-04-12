@@ -31,8 +31,8 @@ build_prefix = "dtella-cambridge-"
 
 # Set this type when building executables and installers. This allows
 # Dtelle to select an appropriate upgrade method.
-# Supported values: tar.bz2, dmg, exe
-build_suffix = "tar.bz2"
+# Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
+build_type = "tar.bz2"
 
 # Dtella version number.
 version = "1.2.4.3"
