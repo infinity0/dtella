@@ -29,7 +29,8 @@ import twisted.python.log
 from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, dc_unescape, dcall_discard,
                                 format_bytes, dcall_timeleft, stdlines,
-                                get_version_string, lock2key, CHECK)
+                                get_version_string, lock2key, CHECK,
+                                parse_incoming_info, SSLHACK_filter_flags)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
@@ -59,29 +60,12 @@ class BaseDCProtocol(LineOnlyReceiver):
 
     delimiter='|'
 
-
-    def initDataReceived(self, data):
-        """Attempt to detect incoming clients not using ADC."""
-        print data
-        if data[0] == 'H':
-            print "Protocol mismatch: ADC detected (DC required)"
-            # TODO IMPLEMENT an ABORTHANDLER for this
-        else:
-            # Passed all tests, let it through
-            self.dataReceived = self._dataReceived
-            self.dataReceived(data)
-
-
     def connectionMade(self):
         try:
             self.transport.setTcpNoDelay(True)
         except socket.error:
             pass
         self.dispatch = {}
-
-        # Set up the protocol trap
-        self._dataReceived = self.dataReceived
-        self.dataReceived = self.initDataReceived
 
 
     def sendLine(self, line):
@@ -249,6 +233,24 @@ class DCHandler(BaseDCProtocol):
     def __init__(self, main):
         self.main = main
 
+    def initDataReceived(self, data):
+        """Attempt to detect incoming clients not using DC."""
+        print data
+        dcall_discard(self, 'init_dcall')
+
+        if data[0] == 'H':
+            print "Protocol mismatch: ADC detected (DC required)"
+            # TODO IMPLEMENT an ABORTHANDLER for this
+            #self.delimiter = '\n'
+            #self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
+            #self.sendLine("ISID AAAA")
+            #self.sendLine("IINF CT32 NI%s" % local.hub_name)
+        else:
+            # Passed all tests, let it through
+            self.dataReceived = self._dataReceived
+            self.dataReceived(data)
+
+
     def connectionMade(self):
         BaseDCProtocol.connectionMade(self)
 
@@ -280,6 +282,10 @@ class DCHandler(BaseDCProtocol):
         self.autoRejoin_dcall = None
 
         self.scheduleChatRateControl()
+
+        # Set up the protocol trap
+        self._dataReceived = self.dataReceived
+        self.dataReceived = self.initDataReceived
 
         # If we're expecting a fake revconnect, delay the inital hub text.
         def cb():
@@ -319,8 +325,6 @@ class DCHandler(BaseDCProtocol):
     def d_MyNick(self, nick):
         # This is a fake RevConnect that we should terminate.
         
-        dcall_discard(self, 'init_dcall')
-        
         if self.state != 'login_1':
             self.fatalError("$MyNick not expected.")
             return
@@ -335,8 +339,6 @@ class DCHandler(BaseDCProtocol):
 
 
     def d_ValidateNick(self, nick):
-
-        dcall_discard(self, 'init_dcall')
 
         if self.state != 'login_1':
             self.fatalError("$ValidateNick not expected.")
@@ -411,6 +413,44 @@ class DCHandler(BaseDCProtocol):
         self.info = info.replace('\r','').replace('\n','')
 
         if self.state == 'login_2':
+
+            # detect passive
+            try:
+                chopstr = parse_incoming_info(SSLHACK_filter_flags(info))[0]
+                chopstr = dc_unescape(split_info(chopstr)[0])
+                chopstr = split_tag(chopstr)[1].split(' ')[1]
+
+                print chopstr
+                if "M:P" in chopstr.split(','):
+                    text = (
+                        "You are currently in passive mode. This is less helpful "
+                        "to the network, because passive mode users can't connect "
+                        "to other passive mode users.",
+                        "",
+                        "Since your router/firewall (if you have one) is allowing "
+                        "your connection to the Dtella network, it is likely that "
+                        "active mode DC will work fine too, so please try to use "
+                        "it. For most clients, this will involve something along "
+                        "the lines of:",
+                        "",
+                        "File: Settings/Preferences: Connection: Incoming: "
+                        "select \"Active mode\" or \"Direct connection\"",
+                        "",
+                        "To test whether active mode works, just try to get "
+                        "someone's file list. If it doesn't seem to work, please "
+                        "try to exhaust all possibilites (eg. check your firewall "
+                        "settings, etc) before resorting to passive mode. Feel "
+                        "free to ask for help in the main chat channel.",
+                        ""
+                        )
+
+                    for par in text:
+                        for line in word_wrap(par):
+                            self.pushBotMsg(line)
+
+            except ValueError:
+                pass
+
             self.removeLoginBlocker('MyINFO')
 
         elif self.isOnline():

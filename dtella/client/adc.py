@@ -71,34 +71,12 @@ class BaseADCProtocol(LineOnlyReceiver):
 
     delimiter='\n'
 
-
-    def initDataReceived(self, data):
-        """Attempt to detect incoming clients not using ADC."""
-        print data
-        if data[0] == '$':
-            print "Protocol mismatch: DC detected (ADC required)"
-            # TODO IMPLEMENT an ABORTHANDLER for this
-        else:
-            # Passed all tests, let it through
-            self.dataReceived = self._dataReceived
-            self.dataReceived(data)
-
-
     def connectionMade(self):
         try:
             self.transport.setTcpNoDelay(True)
         except socket.error:
             pass
         self.dispatch = {}
-
-        # Set up the protocol trap
-        self._dataReceived = self.dataReceived
-        self.dataReceived = self.initDataReceived
-
-        # DC is stupid and requires the hub to send data first.
-        # Luckily, ADC clients seem to gracefully ignore this.
-        self.transport.writeSequence(("$Lock FOO Pk=BAR", '|'))
-        self.transport.writeSequence(("$HubName %s" % local.hub_name, '|'))
 
 
     def sendLine(self, line):
@@ -303,6 +281,21 @@ class ADCHandler(BaseADCProtocol):
         self.locstr = ''
         self.sid = core.NickManager.baseSID
 
+    def initDataReceived(self, data):
+        """Attempt to detect incoming clients not using ADC."""
+        print data
+        dcall_discard(self, 'init_dcall')
+
+        if data[0] == '$':
+            print "Protocol mismatch: DC detected (ADC required)"
+            # TODO IMPLEMENT an ABORTHANDLER for this
+            #self.delimiter = '|'
+        else:
+            # Passed all tests, let it through
+            self.dataReceived = self._dataReceived
+            self.dataReceived(data)
+
+
     def connectionMade(self):
         BaseADCProtocol.connectionMade(self)
 
@@ -333,20 +326,26 @@ class ADCHandler(BaseADCProtocol):
 
         self.scheduleChatRateControl()
 
-        # If we're expecting a fake revconnect, delay the inital hub text.
+        # Set up the protocol trap
+        self._dataReceived = self.dataReceived
+        self.dataReceived = self.initDataReceived
+
+        # If we receive no data for 1 second, send a DC hubstring in case
+        # it's a DC client, so we can gracefully abort the connection attempt.
+        # (ADC clients seem to ignore this even if they receive it.)
         def cb():
             self.init_dcall = None
-            #self.sendLine("$Lock FOO Pk=BAR")#TODO investiage
-            #self.pushTopic()
+            if self.state == 'PROTOCOL':
+                self.transport.writeSequence(("$Lock FOO Pk=BAR", '|'))
+                self.transport.writeSequence(("$HubName %s" % local.hub_name, '|'))
 
-        if self.main.abort_nick:
-            self.init_dcall = reactor.callLater(1.0, cb)
-        else:
-            cb()
+        self.init_dcall = reactor.callLater(1.0, cb)
+
 
     def isOnline(self):
         osm = self.main.osm
         return (self.state == 'ready' and osm and osm.syncd)
+
 
     def connectionLost(self, reason):
 
@@ -356,9 +355,11 @@ class ADCHandler(BaseADCProtocol):
         dcall_discard(self, 'chatRate_dcall')
         dcall_discard(self, 'autoRejoin_dcall')
 
+
     def fatalError(self, text):
         self.pushStatus("ERROR: %s" % text)
         self.transport.loseConnection()
+
 
     def d_KillDtella(self):
         reactor.stop()
@@ -403,8 +404,6 @@ class ADCHandler(BaseADCProtocol):
             
             #Let Dtella logon so we can send messages to the user
             self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.dcinfo))
-            
-            dcall_discard(self, 'init_dcall')
 
             #From ValidateNick
             reason = validateNick(inf['NI'])
@@ -426,7 +425,35 @@ class ADCHandler(BaseADCProtocol):
                 self.main.osm.me.dcinfo = self.infstr
             self.sendLine("BINF %s %s" % (src_sid, self.infstr))
 
-            #login procedue - replaced from removeLoginBlockers
+            # detect passive
+            if not inf.has_key('I4'):
+                text = (
+                    "You are currently in passive mode. This is less helpful "
+                    "to the network, because passive mode users can't connect "
+                    "to other passive mode users.",
+                    "",
+                    "Since your router/firewall (if you have one) is allowing "
+                    "your connection to the Dtella network, it is likely that "
+                    "active mode DC will work fine too, so please try to use "
+                    "it. For most clients, this will involve something along "
+                    "the lines of:",
+                    "",
+                    "File: Settings/Preferences: Connection: Incoming: "
+                    "select \"Active mode\" or \"Direct connection\"",
+                    "",
+                    "To test whether active mode works, just try to get "
+                    "someone's file list. If it doesn't seem to work, please "
+                    "try to exhaust all possibilites (eg. check your firewall "
+                    "settings, etc) before resorting to passive mode. Feel "
+                    "free to ask for help in the main chat channel.",
+                    ""
+                    )
+
+                for par in text:
+                    for line in word_wrap(par):
+                        self.pushBotMsg(line)
+
+            # login procedue - replaced from removeLoginBlockers
             if self.main.dch is None:
                 self.attachMeToDtella()
 
@@ -964,12 +991,15 @@ class ADCHandler(BaseADCProtocol):
         else:           #B context
             self.sendLine("BSCH %s %s" % (n.sid, search_str))
 
+
     def push_ADC_SearchResponce(self, n, str):
         self.sendLine("DRES %s %s %s" %(n.sid, self.sid, str))
 
+
     def push_ADC_Error(self, n, str):
         self.sendLine("DSTA %s %s %s" %(n.sid, self.sid, str))
-    
+
+
     def pushBotMsg(self, text):
         self.sendLine("EMSG %s %s %s PM%s" % (self.bot.sid, self.sid, adc_escape(text), self.bot.sid))
 
@@ -989,7 +1019,7 @@ class ADCHandler(BaseADCProtocol):
     def pushStatus(self, text):
         self.sendLine("ISTA 000 %s" % (adc_escape(text)))
 
-    
+
     def scheduleChatRateControl(self):
         if self.chatRate_dcall:
             return
@@ -1004,7 +1034,7 @@ class ADCHandler(BaseADCProtocol):
                 self.chat_counter = min(5, self.chat_counter + 1)
 
         cb()
-    
+
 
     def broadcastChatMessage(self, flags, text):
 

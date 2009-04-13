@@ -31,8 +31,8 @@ from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
                                 Reject, NickError)
 
 from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
-                                split_info, b32pad, adc_infostring,
-                                get_version_string, CHECK)
+                                split_info, b32pad, adc_infostring, CHECK,
+                                get_version_string, SSLHACK_filter_flags)
 
 import dtella.common.ipv4 as ipv4
 from dtella.common.ipv4 import Ad
@@ -426,7 +426,8 @@ class NickNode(object):
 
     def setInfo(self, info, adc=core.adc_mode):
         old_dcinfo = self.dcinfo
-        self.dcinfo, self.location, self.shared = parse_incoming_info(info)
+        self.dcinfo, self.location, self.shared = (
+            parse_incoming_info(SSLHACK_filter_flags(info)))
 
         if core.adc_mode: # BACKWARDS COMPAT
             self.protocol = core.PROTOCOL_ADC

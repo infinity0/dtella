@@ -121,10 +121,10 @@ that it receives.
 ''' TODO:
 - document everything
 - implement FORCE encryption
+- abort handlers for diff protocols
 - !upgrade command
-  - 11.6 tempfile
-  - 21.5 urllib
-  - 18.1 subprocess
+  - dmg, exe
+- make $KillDtella check a password in from dtella.state
 '''
 
 adc_mode = local.adc_mode
@@ -4697,6 +4697,7 @@ class DtellaMain_Base(object):
             return
 
         def cb():
+            self.nmdc_bc_expire_dcall = None
             global adc_mode, nmdc_back_compat
             nmdc_back_compat = False
             self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes has EXPIRED.")
