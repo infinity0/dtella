@@ -138,6 +138,14 @@ def runClient(dc_port):
                 LOG.error("Bind failed again.  Giving up.")
                 reactor.stop()
         else:
+            # set a lock
+            import hashlib, random
+            dtMain.state.killdtellakey = hashlib.sha256(str(random.random())[2:] + \
+                str(random.random())[2:] + str(random.random())[2:] + \
+                str(random.random())[2:] + str(random.random())[2:] + \
+                str(random.random())[2:]).digest()
+            dtMain.state.saveState()
+
             LOG.info("Listening on 127.0.0.1:%d" % dc_port)
             dtMain.startConnecting()
 
@@ -147,12 +155,20 @@ def runClient(dc_port):
 
 def terminate(dc_port):
     # Terminate another Dtella process on the local machine
-    
+    import dtella.common.state as state
+    from dtella.client.main import STATE_FILE
+    sm = state.StateManager(None, STATE_FILE, [state.KillDtellaKey()])
+    sm.initLoad()
+
     try:
         print "Sending Packet of Death on port %d..." % dc_port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(('127.0.0.1', dc_port))
-        sock.sendall("$KillDtella|")
+        import dtella.local_config as local
+        if local.adc_mode:
+            sock.sendall("HKILLDTELLA %s\n" % sm.killdtellakey)
+        else:
+            sock.sendall("$KillDtella %s|" % sm.killdtellakey)
         sock.close()
     except socket.error:
         return False

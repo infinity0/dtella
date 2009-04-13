@@ -91,7 +91,7 @@ class BaseADCProtocol(LineOnlyReceiver):
             return
 
         #print ">:", line
-        cmd = line.split(' ', 1)        
+        cmd = line.split(' ', 1)
         args = {}
         args['con'] = cmd[0][0]
         msg = cmd[0][1:]
@@ -283,7 +283,7 @@ class ADCHandler(BaseADCProtocol):
 
     def initDataReceived(self, data):
         """Attempt to detect incoming clients not using ADC."""
-        print data
+        #print ">>:", data
         dcall_discard(self, 'init_dcall')
 
         if data[0] == '$':
@@ -307,7 +307,7 @@ class ADCHandler(BaseADCProtocol):
                         "Local\\sDtella\\sBot")
 
         # Handlers which can be used before attaching to Dtella
-        self.addDispatch('$KillDtella',     None, self.d_KillDtella)
+        self.addDispatch('KILLDTELLA',     ('H'), self.d_KillDtella)
         self.addDispatch('SUP',             ('H','C'),self.d_SUP)
         self.addDispatch('INF',             ('B'),self.d_INF)
         
@@ -361,8 +361,12 @@ class ADCHandler(BaseADCProtocol):
         self.transport.loseConnection()
 
 
-    def d_KillDtella(self):
-        reactor.stop()
+    def d_KillDtella(self, con, rest):
+        k = self.main.state.killdtellakey
+        if k == rest:
+            reactor.stop()
+        else:
+            self.sendLine("KILLDTELLA BADKEY")
 
 
     def d_SUP(self, con, rest=None):

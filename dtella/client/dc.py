@@ -235,7 +235,7 @@ class DCHandler(BaseDCProtocol):
 
     def initDataReceived(self, data):
         """Attempt to detect incoming clients not using DC."""
-        print data
+        #print ">>:", data
         dcall_discard(self, 'init_dcall')
 
         if data[0] == 'H':
@@ -264,7 +264,7 @@ class DCHandler(BaseDCProtocol):
         self.addDispatch('$MyINFO',        -3, self.d_MyInfo)
         self.addDispatch('$GetINFO',        2, self.d_GetInfo)
         self.addDispatch('',                0, self.d_KeepAlive)
-        self.addDispatch('$KillDtella',     0, self.d_KillDtella)
+        self.addDispatch('$KillDtella',     1, self.d_KillDtella)
 
         self.addDispatch('$MyNick',         1, self.d_MyNick)
         
@@ -318,8 +318,12 @@ class DCHandler(BaseDCProtocol):
         self.transport.loseConnection()
 
 
-    def d_KillDtella(self):
-        reactor.stop()
+    def d_KillDtella(self, key):
+        k = self.main.state.killdtellakey
+        if k == key:
+            reactor.stop()
+        else:
+            self.sendLine("KILLDTELLA BADKEY")
 
 
     def d_MyNick(self, nick):
