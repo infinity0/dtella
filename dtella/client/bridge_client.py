@@ -31,7 +31,7 @@ from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
                                 Reject, NickError)
 
 from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
-                                split_info, b32pad, adc_infostring, CHECK,
+                                split_info, adc_infostring, CHECK,
                                 get_version_string, SSLHACK_filter_flags)
 
 import dtella.common.ipv4 as ipv4
@@ -435,7 +435,7 @@ class NickNode(object):
                 infs = split_info(info)
                 self.info['NI'] = self.nick
                 self.info['DE'] = "[%s] %s" % (self.location, infs[0])
-                self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
+                self.info['ID'] = base64.b32encode(treehash(self.nick))
                 #self.info['SS'], self.info['SL'], self.info['US'] = '0', '0', '0'
                 self.info['I4'] = '0.0.0.0'
                 self.info['VE'] = get_version_string()

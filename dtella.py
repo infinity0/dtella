@@ -165,10 +165,11 @@ def terminate(dc_port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(('127.0.0.1', dc_port))
         import dtella.local_config as local
+        from base64 import b32encode
         if local.adc_mode:
-            sock.sendall("HKILLDTELLA %s\n" % sm.killdtellakey)
+            sock.sendall("HKILLDTELLA %s\n" % b32encode(sm.killdtellakey))
         else:
-            sock.sendall("$KillDtella %s|" % sm.killdtellakey)
+            sock.sendall("$KillDtella %s|" % b32encode(sm.killdtellakey))
         sock.close()
     except socket.error:
         return False

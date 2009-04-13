@@ -45,7 +45,7 @@ from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 parse_incoming_info, get_version_string,
                                 parse_dtella_tag, CHECK, SSLHACK_filter_flags,
                                 adc_infodict, adc_infostring, split_info,
-                                split_tag, b32pad, dc_escape, dc_unescape)
+                                split_tag, dc_escape, dc_unescape)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -124,7 +124,6 @@ that it receives.
 - abort handlers for diff protocols
 - !upgrade command
   - dmg, exe
-- make $KillDtella check a password in from dtella.state
 '''
 
 adc_mode = local.adc_mode
@@ -2237,7 +2236,7 @@ class Node(object):
                                 raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
-                            self.info['ID'] = b32pad(base64.b32encode(treehash(self.nick)))
+                            self.info['ID'] = base64.b32encode(treehash(self.nick))
                         self.info['DE'] = "[%s] %s" % (dc_unescape(location), self.info['DE'])
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients

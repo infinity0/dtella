@@ -362,8 +362,9 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_KillDtella(self, con, rest):
+        from base64 import b32encode
         k = self.main.state.killdtellakey
-        if k == rest:
+        if b32encode(k) == rest:
             reactor.stop()
         else:
             self.sendLine("KILLDTELLA BADKEY")

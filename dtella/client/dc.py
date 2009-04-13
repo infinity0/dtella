@@ -319,11 +319,12 @@ class DCHandler(BaseDCProtocol):
 
 
     def d_KillDtella(self, key):
+        from base64 import b32encode
         k = self.main.state.killdtellakey
-        if k == key:
+        if b32encode(k) == key:
             reactor.stop()
         else:
-            self.sendLine("KILLDTELLA BADKEY")
+            self.sendLine("$KillDtella BadKey")
 
 
     def d_MyNick(self, nick):
