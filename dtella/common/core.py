@@ -28,10 +28,10 @@ import time
 import random
 import bisect
 import socket
-import base64
 from binascii import hexlify
 from hashlib import md5
 from tiger import treehash
+from base64 import b32encode, b32decode
 
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet import reactor, defer
@@ -120,10 +120,12 @@ that it receives.
 
 ''' TODO:
 - document everything
+- get rid of print statements
 - implement FORCE encryption
 - abort handlers for diff protocols
 - !upgrade command
   - dmg, exe
++ make --terminate return exit failure code, and do it on the right port
 '''
 
 adc_mode = local.adc_mode
@@ -245,13 +247,13 @@ class NickManager(object):
 
 
     sid_counter = 2
-    baseSID = base64.b32encode(treehash("\0"))[:4] # semi-reserved SID for the conecting client
+    baseSID = b32encode(treehash("\0"))[:4] # semi-reserved SID for the conecting client
     def generateNewSID(self):
         '''
         Generates a new session ID
         This does NOT keep track of collisions; it is done in addNode.
         '''
-        sid = base64.b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
+        sid = b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
         NickManager.sid_counter += 1
         return sid
 
@@ -2227,7 +2229,7 @@ class Node(object):
                         if len(cid) == 44 and cid[:2] == '__' and cid[-2:] == '__':
                             # extract the CID from the location
                             try:
-                                cidraw = base64.b32decode(cid[2:-2])
+                                cidraw = b32decode(cid[2:-2])
                                 self.info['ID'] = cid[2:-2]
                                 location = location[:-44]
                                 self.protocol = PROTOCOL_ADC # ADC-mode nodes send this
@@ -2236,7 +2238,7 @@ class Node(object):
                                 raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
-                            self.info['ID'] = base64.b32encode(treehash(self.nick))
+                            self.info['ID'] = b32encode(treehash(self.nick))
                         self.info['DE'] = "[%s] %s" % (dc_unescape(location), self.info['DE'])
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients

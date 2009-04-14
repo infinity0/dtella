@@ -43,8 +43,8 @@ import random
 import re
 import binascii
 import socket
-import tiger
-import base64
+from tiger import hash, treehash
+from base64 import b32encode, b32decode
 
 from zope.interface import implements
 from zope.interface.verify import verifyClass
@@ -300,8 +300,8 @@ class ADCHandler(BaseADCProtocol):
         BaseADCProtocol.connectionMade(self)
 
         self.bot = DtellaBot(self, '*Dtella')
-        self.bot.sid = base64.b32encode(tiger.treehash(chr(1)))[:4]
-        self.bot.cid = base64.b32encode(tiger.treehash(self.bot.nick))
+        self.bot.sid = b32encode(treehash(chr(1)))[:4]
+        self.bot.cid = b32encode(treehash(self.bot.nick))
         self.bot.dcinfo = "ID%s I4127.0.0.1 SS0 SF0 VE%s US0 DS0 SL0 AS0 AM0 NI%s DE%s HN1 HR1 HO1 CT31" % \
                         (self.bot.cid,get_version_string(), self.bot.nick,
                         "Local\\sDtella\\sBot")
@@ -362,12 +362,14 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_KillDtella(self, con, rest):
-        from base64 import b32encode
-        k = self.main.state.killdtellakey
+        k = self.main.state.killkey
         if b32encode(k) == rest:
-            reactor.stop()
+            self.sendLine("IKILLDTELLA 0 OK")
+            def cb():
+                reactor.stop()
+            reactor.callLater(0, cb)
         else:
-            self.sendLine("KILLDTELLA BADKEY")
+            self.sendLine("IKILLDTELLA 1 BADKEY")
 
 
     def d_SUP(self, con, rest=None):
@@ -401,7 +403,7 @@ class ADCHandler(BaseADCProtocol):
             inf['PD'] = b32pad(inf['PD'])
             inf['ID'] = b32pad(inf['ID'])
 
-            if base64.b32encode( tiger.hash( base64.b32decode(inf['PD']))) != inf['ID']:
+            if b32encode(hash(b32decode(inf['PD']))) != inf['ID']:
                 self.sendLine("ISTA 227 Invalid\\sPID");
                 self.transport.loseConnection()
                 return

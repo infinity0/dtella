@@ -320,11 +320,14 @@ class DCHandler(BaseDCProtocol):
 
     def d_KillDtella(self, key):
         from base64 import b32encode
-        k = self.main.state.killdtellakey
+        k = self.main.state.killkey
         if b32encode(k) == key:
-            reactor.stop()
+            self.sendLine("$KillDtella 0 OK")
+            def cb():
+                reactor.stop()
+            reactor.callLater(0, cb)
         else:
-            self.sendLine("$KillDtella BadKey")
+            self.sendLine("$KillDtella 1 BadKey")
 
 
     def d_MyNick(self, nick):
@@ -425,7 +428,6 @@ class DCHandler(BaseDCProtocol):
                 chopstr = dc_unescape(split_info(chopstr)[0])
                 chopstr = split_tag(chopstr)[1].split(' ')[1]
 
-                print chopstr
                 if "M:P" in chopstr.split(','):
                     text = (
                         "You are currently in passive mode. This is less helpful "

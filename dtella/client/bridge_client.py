@@ -20,7 +20,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import base64
+from base64 import b32encode
 from tiger import treehash
 
 from twisted.internet import reactor
@@ -435,7 +435,7 @@ class NickNode(object):
                 infs = split_info(info)
                 self.info['NI'] = self.nick
                 self.info['DE'] = "[%s] %s" % (self.location, infs[0])
-                self.info['ID'] = base64.b32encode(treehash(self.nick))
+                self.info['ID'] = b32encode(treehash(self.nick))
                 #self.info['SS'], self.info['SL'], self.info['US'] = '0', '0', '0'
                 self.info['I4'] = '0.0.0.0'
                 self.info['VE'] = get_version_string()

@@ -122,28 +122,39 @@ def runClient(dc_port):
 
     LOG.info("%s %s" % (local.hub_name, local.version))
 
+    global exit_code
+    exit_code = 0
+
     def cb(first):
+        global exit_code
         try:
             reactor.listenTCP(dc_port, dfactory, interface='127.0.0.1')
         except twisted.internet.error.CannotListenError:
             if first:
                 LOG.warning("TCP bind failed.  Killing old process...")
-                if terminate(dc_port):
+                if terminate(dc_port, dtMain.state.killkey):
                     LOG.info("Ok.  Sleeping...")
                     reactor.callLater(2.0, cb, False)
                 else:
                     LOG.error("Kill failed.  Giving up.")
                     reactor.stop()
+                    exit_code = 1
             else:
                 LOG.error("Bind failed again.  Giving up.")
                 reactor.stop()
+                exit_code = 1
         else:
+            # Kill any old Dtella processes that may be running on a different port
+            if dc_port != dtMain.state.clientport:
+                terminate(dtMain.state.clientport, dtMain.state.killkey)
+
             # set a lock
             import hashlib, random
-            dtMain.state.killdtellakey = hashlib.sha256(str(random.random())[2:] + \
+            dtMain.state.killkey = hashlib.sha256(str(random.random())[2:] + \
                 str(random.random())[2:] + str(random.random())[2:] + \
                 str(random.random())[2:] + str(random.random())[2:] + \
                 str(random.random())[2:]).digest()
+            dtMain.state.clientport = dc_port
             dtMain.state.saveState()
 
             LOG.info("Listening on 127.0.0.1:%d" % dc_port)
@@ -151,25 +162,22 @@ def runClient(dc_port):
 
     reactor.callWhenRunning(cb, True)
     reactor.run()
+    return exit_code
 
 
-def terminate(dc_port):
+def terminate(dc_port, killkey):
     # Terminate another Dtella process on the local machine
-    import dtella.common.state as state
-    from dtella.client.main import STATE_FILE
-    sm = state.StateManager(None, STATE_FILE, [state.KillDtellaKey()])
-    sm.initLoad()
-
     try:
-        print "Sending Packet of Death on port %d..." % dc_port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(('127.0.0.1', dc_port))
         import dtella.local_config as local
         from base64 import b32encode
         if local.adc_mode:
-            sock.sendall("HKILLDTELLA %s\n" % b32encode(sm.killdtellakey))
+            sock.sendall("HKILLDTELLA %s\n" % b32encode(killkey))
         else:
-            sock.sendall("$KillDtella %s|" % b32encode(sm.killdtellakey))
+            sock.sendall("$KillDtella %s|" % b32encode(killkey))
+        print "Sent Packet of Death on port %d..." % dc_port
+        sock.shutdown(socket.SHUT_RDWR)
         sock.close()
     except socket.error:
         return False
@@ -202,25 +210,22 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', allowed_opts)
     except getopt.GetoptError:
         print usage_str
-        return
+        return 2
 
     opts = dict(opts)
 
     if '--bridge' in opts:
-        runBridge()
-        return
+        return runBridge()
 
     if '--dconfigpusher' in opts:
-        runDconfigPusher()
-        return
+        return runDconfigPusher()
 
     if '--makeprivatekey' in opts:
         from dtella.bridge.private_key import makePrivateKey
-        makePrivateKey()
-        return
+        return makePrivateKey()
 
     # User-specified TCP port
-    dc_port = 7314
+    dc_port = None
     if '--port' in opts:
         try:
             dc_port = int(opts['--port'])
@@ -228,19 +233,38 @@ def main():
                 raise ValueError
         except ValueError:
             print "Port must be between 1-65535"
-            return
+            return 2
+
+    import dtella.common.state as state
+    from dtella.client.main import STATE_FILE
+    sm = state.StateManager(None, STATE_FILE, [state.ClientPort(), state.KillKey()])
+    sm.initLoad()
+
+    if not dc_port:
+        dc_port = sm.clientport
 
     # Try to terminate an existing process
     if '--terminate' in opts:
-        if terminate(dc_port):
+        if terminate(dc_port, sm.killkey):
             # Give the other process time to exit first
             print "Sleeping..."
             time.sleep(2.0)
-        print "Done."
-        return
+        else:
+            print "Nothing to do."
 
-    runClient(dc_port)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(('127.0.0.1', dc_port))
+            print "TCP port %s is free." % dc_port
+            sock.close()
+            return 0
+        except:
+            print "TCP port %s is still in use." % dc_port
+            return 1
+
+    return runClient(dc_port)
+
 
 if __name__=='__main__':
-    main()
+    sys.exit(main())
 

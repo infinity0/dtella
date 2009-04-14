@@ -265,19 +265,35 @@ class LoadSaver(object):
 
 
 
-class KillDtellaKey(LoadSaver):
+class ClientPort(LoadSaver):
 
-    key = 'killdtellakey'
+    key = 'clientport'
 
     def load(self, state, d):
         try:
-            state.killdtellakey = self.unpackValue(d, '32s')
+            state.clientport = self.unpackValue(d, 'H')
         except StateError:
-            state.killdtellakey = ''
+            state.clientport = 7314
 
 
     def save(self, state, d):
-        self.packValue(d, '32s', state.killdtellakey)
+        self.packValue(d, 'H', state.clientport)
+
+
+
+class KillKey(LoadSaver):
+
+    key = 'killkey'
+
+    def load(self, state, d):
+        try:
+            state.killkey = self.unpackValue(d, '32s')
+        except StateError:
+            state.killkey = ''
+
+
+    def save(self, state, d):
+        self.packValue(d, '32s', state.killkey)
 
 
 
@@ -426,7 +442,8 @@ class DNSPkHashes(LoadSaver):
         self.packStrs(d, state.dns_pkhashes)
 
 
-client_loadsavers = [KillDtellaKey(),
+client_loadsavers = [ClientPort(),
+                     KillKey(),
                      Persistent(),
                      LocalSearch(),
                      UDPPort(),
