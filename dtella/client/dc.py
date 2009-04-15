@@ -239,12 +239,10 @@ class DCHandler(BaseDCProtocol):
         dcall_discard(self, 'init_dcall')
 
         if data[0] == 'H':
-            print "Protocol mismatch: ADC detected (DC required)"
-            # TODO IMPLEMENT an ABORTHANDLER for this
-            #self.delimiter = '\n'
-            #self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
-            #self.sendLine("ISID AAAA")
-            #self.sendLine("IINF CT32 NI%s" % local.hub_name)
+            from dtella.client.adc import ADC_AbortConnection
+            ADC_AbortConnection(self, data, "NMDC", "nmdc://localhost:%s or "
+                "localhost:%s" % (self.main.state.clientport,
+                self.main.state.clientport))
         else:
             # Passed all tests, let it through
             self.dataReceived = self._dataReceived
@@ -1057,6 +1055,56 @@ class DCHandler(BaseDCProtocol):
             self.pushChatMessage(nick, text)
 
 verifyClass(IDtellaStateObserver, DCHandler)
+
+
+# This class immediately sends the user a redirection sends disconnects them.
+# Intended not for this module, but for other protocol modules that may want
+# to redirect users to the correct connection address.
+
+class AbortConnection(DCHandler):
+
+    def __init__(self, dch, data, cprtl, caddr):
+        DCHandler.__init__(self, dch.main)
+        self.cprtl = cprtl
+        self.caddr = caddr
+
+        # Steal connection from the DCHandler
+        self.factory = dch.factory
+        self.makeConnection(dch.transport)
+        self.transport.protocol = self
+
+        # Steal the rest of the data
+        self._buffer = dch._buffer
+
+        # If we're not done in 5 seconds, something's fishy.
+        def cb():
+            self.timeout_dcall = None
+            self.transport.loseConnection()
+
+        self.timeout_dcall = reactor.callLater(5.0, cb)
+        self.dataReceived(data)
+
+
+    def attachMeToDtella(self):
+
+        CHECK(self.main.dch is None)
+
+        if self.state == 'queued':
+            self.queued_dcall.cancel()
+            self.queued_dcall = None
+            self.pushStatus(
+                "The other client left.  Resuming normal connection.")
+
+        dcall_discard(self, 'queued_dcall')
+
+        self.pushStatus("This node uses %s, not NMDC. Please connect to %s "
+            "instead." % (self.cprtl, self.caddr))
+        
+        self.timeout_dcall.reset(0)
+
+
+    def connectionLost(self, reason):
+        dcall_discard(self, 'timeout_dcall')
 
 
 ##############################################################################

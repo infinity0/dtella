@@ -122,10 +122,9 @@ that it receives.
 - document everything
 - get rid of print statements
 - implement FORCE encryption
-- abort handlers for diff protocols
+= abort handlers for diff protocols
 - !upgrade command
   - dmg, exe
-+ make --terminate return exit failure code, and do it on the right port
 '''
 
 adc_mode = local.adc_mode
