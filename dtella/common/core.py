@@ -4365,6 +4365,21 @@ class ItemsManager(object):
         packet = ['JR']
         packet.append(self.main.osm.me.ipp)
 
+        stream = bz2.compress(self.packItems())
+        if len(stream) > 65535:
+            items = sorted(self.items.items(), lambda a, b: b[1][1] - a[1][1])
+            while len(stream) > 65536:
+                del self.items[items.pop()[0]]
+                stream = bz2.compress(self.packItems())
+            # this could be more efficient i guess, but it should *almost 
+            # never* occur. bite my amortised-cost ass ;)
+
+        packet.append(struct.pack('!H', len(stream)))
+        packet.append(stream)
+        self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
+
+
+    def packItems(self):
         stream = [struct.pack('!I', int(time.time()))]
         for (k, v) in self.getItems().items():
             (cat, item) = k
@@ -4378,12 +4393,7 @@ class ItemsManager(object):
             stream.append(item)
             stream.append(struct.pack('!B', len(src)))
             stream.append(src)
-        stream = bz2.compress(''.join(stream))
-        ## TODO: code length-check on this
-
-        packet.append(struct.pack('!H', len(stream)))
-        packet.append(stream)
-        self.main.ph.sendPacket(''.join(packet), ad.getAddrTuple())
+        return ''.join(stream)
 
 
     def updateItem(self, cat, item, src, tdiff):
