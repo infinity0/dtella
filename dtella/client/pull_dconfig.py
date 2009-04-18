@@ -2,6 +2,8 @@
 Dtella - Dynamic Config Puller Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
 
 $Id$
 
@@ -149,8 +151,8 @@ class DynamicConfigPuller(object):
             elif name == 'version':
                 try:
                     min_v, new_v, url = value.split(' ', 2)
-                    if ' ' in url:
-                        repo, url = url.split(' ', 1)
+                    if '#' in url:
+                        repo, url = url.split('#', 1)
                     else:
                         repo = ''
                 except ValueError:

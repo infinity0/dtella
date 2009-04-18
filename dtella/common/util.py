@@ -2,6 +2,8 @@
 Dtella - Utility Functions
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 

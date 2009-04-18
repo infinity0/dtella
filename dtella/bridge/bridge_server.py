@@ -3,6 +3,8 @@ Dtella - Bridge Server Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2008  Jacob Feisley  (http://www.feisley.com/)
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96@cam.ac.uk>
 
 $Id$
 
