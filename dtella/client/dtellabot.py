@@ -686,7 +686,7 @@ class DtellaBot(object):
         import os, urllib, sys, subprocess
 
         new_p = name + new_v
-        binurl = url + repo + new_p + "." + type
+        binurl = url + '/' + repo + '/' + new_p + "." + type
 
         out("Upgrading from %s to %s" % (cur_v, new_v))
 

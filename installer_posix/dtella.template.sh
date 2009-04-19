@@ -24,16 +24,15 @@
 
 WGET=""                                     # custom URL retrieval program
 
-REPO="http://camdc.pcriot.com/bin"          # repository URL
-PROD="dtella-cambridge-1.2.4.2"             # product name (no .ext)
-DEPS="dtella_deps.tar.bz2"                  # dependency archive (w/ .ext)
+REPO=""                                     # repository URL
+PROD=""                                     # product name (no .ext)
+DEPS=""                                     # dependency archive (w/ .ext)
 
-EXT="tar.bz2"                               # archive extension
-EXT_CMD="tar xjf"                           # archive extract command
-EXT_VRB="tar xvjf"                          # archive extract command (verbose)
+EXT=""                                      # archive extension
+EXT_CMD=""                                  # archive extract command
+EXT_VRB=""                                  # archive extract command (verbose)
 
-SVNR="http://dtella-cambridge.googlecode.com/svn/branches/adc"
-                                            # svn repository address
+SVNR=""                                     # svn repository address
 
 
 ###########################################################################
@@ -59,6 +58,7 @@ EOF
 		exit 0
 		;;
 	-s | --svn )
+		if [ -z "$SVNR" ]; then echo "SVN install is not supported on this build."; exit 1; fi
 		INSTALL=install_svn
 		PROD="$PROD+SVN"
 		;;

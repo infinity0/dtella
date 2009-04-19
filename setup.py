@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Dtella - py2exe setup script
 Copyright (C) 2007-2008  Dtella Labs (http://dtella.org/)
@@ -24,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
 from distutils.core import setup
-import sys
+import sys, os
 import dtella.local_config as local
 
 class Error(Exception):
@@ -91,6 +92,68 @@ def patch_nsi_template():
     wfile.close()
 
 
+def build_posix_installer():
+    # Patch the dtella_install with the correct variables
+    vars = { }
+    
+    try:
+        import dtella.bridge.bridge_config as bcfg
+        vars['REPO'] = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
+        i = vars['REPO'].find('#')
+        if i >= 0:
+            vars['REPO'] = vars['REPO'][:i] + vars['REPO'][i+1:]
+    except ImportError:
+        sys.stderr.write("Could not find bridge config; abort.\n")
+        return 1
+    except ValueError:
+        sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
+        return 1
+
+    import dtella.local_config as local
+    try:
+        vars['PROD'] = local.build_prefix + local.version
+    except AttributeError:
+        sys.stderr.write("Could not extract product name from local config; abort.\n")
+        return 1
+
+    argv = sys.argv[1:]
+    for i in argv:
+        try:
+            k, v = i.split('=', 1)
+            vars[k] = v
+        except ValueError:
+            sys.stderr.write("Ignoring malformed k=v pair: %s\n" % i)
+            pass
+
+    lines = file("installer_posix/dtella.template.sh").readlines()
+    for k, v in vars.iteritems():
+        for i, line in enumerate(lines):
+
+            if line[:len(k)+3] != k + '=""':
+                continue
+
+            kl, vl = len(k), len(v)
+            e = line.find('#')
+            
+            if e < 0:
+                lines[i] = '%s="%s"' % (k, v)
+            elif kl+3+vl < e:
+                lines[i] = '%s="%s"' % (k, v) + line[kl+3+vl:]
+            else:
+                lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
+
+    outdir = "dist"
+    if os.environ.has_key("OUTDIR"):
+        outdir = os.environ["OUTDIR"]
+
+    f = "%s/%s.sh" % (outdir, vars['PROD'])
+    wfile = file(f, "w")
+    for line in lines:
+        wfile.write(line)
+    wfile.close()
+    print "installer wrote to %s" %f
+
+
 if sys.platform == 'darwin':
     patch_build_type('dmg')
     import py2app
@@ -98,8 +161,10 @@ elif sys.platform == 'win32':
     patch_build_type('exe')
     import py2exe
     patch_nsi_template()
+elif os.name == 'posix':
+    sys.exit(build_posix_installer())
 else:
-    print "Unsupported build platform: %s" % sys.platform
+    sys.stderr.write("Unsupported build platform: %s\n" % sys.platform)
     sys.exit(-1)
 
 excludes = get_excludes()
