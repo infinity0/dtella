@@ -170,7 +170,7 @@ else
 	echo "pytiger missing"
 	echo "pytiger is a custom package; downloading and extracting...";
 	if ! install_dep pytiger; then echo "could not extract pytiger"; exit 3; fi
-	pushd pytiger > /dev/null
+	cd pytiger
 	while [ true ]; do
 		echo -n "install pytiger [S]ystem-wide (requires root), or for this [U]ser only? [S|U]: "
 		read REPLY
@@ -190,7 +190,7 @@ else
 			break
 		fi
 	done
-	popd > /dev/null
+	cd ..
 fi
 
 echo
