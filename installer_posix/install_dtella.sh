@@ -176,7 +176,7 @@ else
 		read REPLY
 		if [ "$REPLY" = "S" ]; then
 			pytiger_compile_warn
-			if su -c "python setup.py --verbose install --prefix=/usr/local";
+			if su root -c "python setup.py --verbose install --prefix=/usr/local";
 			then echo "pytiger installed";
 			else echo "pytiger could not be installed; abort."; exit 4;
 			fi
