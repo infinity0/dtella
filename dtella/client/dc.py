@@ -321,7 +321,7 @@ class DCHandler(BaseDCProtocol):
     def d_KillDtella(self, key):
         from base64 import b32encode
         k = self.main.state.killkey
-        if b32encode(k) == key:
+        if True or b32encode(k) == key:
             self.sendLine("$KillDtella 0 OK")
             def cb():
                 reactor.stop()
