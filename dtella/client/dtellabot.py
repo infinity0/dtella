@@ -791,9 +791,25 @@ class DtellaBot(object):
 
 
             elif type == 'dmg':
-                out("NOT IMPLEMENTED YET")
-                return # python: finally clause is executed "on the way out"
-
+                vpath = "/Volumes/dtella-cambridge-%s" % new_v
+                if sys.path[0].find('.app') != -1:
+                    ipath = os.path.split(sys.path[0][:sys.path[0].find('.app')+4])[0]
+                else:
+                    out("Error: not running as appbundle, will not auto update")
+                    return
+                
+                out("- Attaching disk image")
+                if os.system(r'hdiutil attach "%s"' % fpath):
+                    out("Error: Could not attach disk image")
+                    return
+                
+                out("- Installing new Dtella.app to /Applications")
+                if os.system(r'osascript -e "do shell script \"rm -Rf %sDtella.app && cp -R %s/Dtella.app %s\" with administrator privileges"' % (ipath, vpath, ipath)):
+                    out("Error: Could not copy files")
+                
+                out("- Detaching disk image")
+                if os.system(r'hdiutil detach %s' % vpath):
+                    out("Warning: Could not detach disk image")
 
             elif type == 'exe':
                 out("NOT IMPLEMENTED YET")
