@@ -1507,7 +1507,7 @@ class PeerHandler(DatagramProtocol):
                 packet.append(ack_key)
                 packet.append(dch.main.osm.me.nickHash())
                 packet.append(n.nickHash())
-                rest = "141 %s %s %s" % (dch.main.osm.me.sid, n.sid, "Disalowd\\sProtocol")
+                rest = "141 %s" % "Disalowd\\sProtocol"
                 packet.append(struct.pack('!H', len(rest)))
                 packet.append(rest)
                 packet = ''.join(packet)
