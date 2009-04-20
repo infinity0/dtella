@@ -122,7 +122,6 @@ that it receives.
 - document everything
 - get rid of print statements
 - implement FORCE encryption
-= abort handlers for diff protocols
 - !upgrade command
   - dmg, exe
 '''
@@ -2122,7 +2121,7 @@ class Node(object):
         running what protocol, and take action accordingly. This is only needed
         in the case of backwards-compat mode. Nodes are assumed to be ADC until
         an ADC-node specific packet is seen: either one that contains an ADC
-        infostring, or an NMDC infostring with an ADC CID encoded into it.
+        infostring, or an NMDC infostring with an ADC CID & SU encoded into it.
         '''
         if not adc_mode or nmdc_back_compat:
             self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
@@ -2216,7 +2215,7 @@ class Node(object):
                 NMDC-BACK-COMPAT:
                 We need to parse the NMDC-formatted infostring into a form
                 required by the ADC protocol. Luckily, everything is in there
-                already, with the exception of the Client ID.
+                already, with the exception of the Client ID, and SU string.
                 
                 For ADC-Dtella nodes, this has been (somewhat arbitrarily)
                 encoded into the Location/Connection field of the back-compat
@@ -2242,17 +2241,20 @@ class Node(object):
 
                     location = infs[2][:-1]
                     if location:
-                        cid = location[-44:]
-                        if len(cid) == 44 and cid[:2] == '__' and cid[-2:] == '__':
-                            # extract the CID from the location
+                        if location[-2:] == '__':
                             try:
-                                cidraw = b32decode(cid[2:-2])
-                                self.info['ID'] = cid[2:-2]
-                                location = location[:-44]
-                                self.protocol = PROTOCOL_ADC # ADC-mode nodes send this
-                                # this is required due to reconnecting clients not triggering a YR
-                            except:
-                                raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
+                                location, cid, su, none = location.split('__')
+                                try:
+                                    # decode to check validity
+                                    cidraw = b32decode(cid)
+                                    self.info['ID'] = cid
+                                    self.info['SU'] = su
+                                    # this is required due to reconnecting clients not triggering a YR
+                                    self.protocol = PROTOCOL_ADC
+                                except TypeError:
+                                    raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
+                            except ValueError:
+                                self.info['ID'] = b32encode(treehash(self.nick))
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
                             self.info['ID'] = b32encode(treehash(self.nick))
@@ -3108,8 +3110,8 @@ class OnlineStateManager(object):
             '''
             NMDC-BACK-COMPAT:
             This is straightforward; we just put as much information as is
-            relevant into the NMDC infostring. We encode the CID of our ADC
-            client, which it gave to this node on login, into the location
+            relevant into the NMDC infostring. We encode the CID and SU of our
+            ADC client, which it gave to this node on login, into the location
             part of the infostring.
             '''
             inf = adc_infodict(self.me.info_out)
@@ -3141,10 +3143,10 @@ class OnlineStateManager(object):
                 else:
                     mode = "P"
 
-                info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s$%s$%s$" % (
+                info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s__%s$%s$%s$" % (
                     dc_escape(inf['DE']), dcstr, dcver, mode,
                     inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt, dc_escape(loctag[1:-1]),
-                    inf['ID'], chr(1), dc_escape(inf['EM']), self.me.shared)
+                    inf['ID'], inf['SU'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
             status.append(struct.pack('!B', len(info_out)))
             status.append(info_out)
