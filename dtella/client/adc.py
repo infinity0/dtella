@@ -432,6 +432,11 @@ class ADCHandler(BaseADCProtocol):
                 return
 
             self.nick = inf['NI']
+            
+            if local.adc_fcrypto and 'ADC0' not in inf['SU']:
+                self.pushStatus("**Your client doesnt support encrypted transmissions.**")
+                self.pushStatus("You will be unable to connect to anyone")
+                self.pushStatus("Please enable TLS support in Settings or ask for help in main chat")
 
             # update MeNode
             self.infdict.update(inf)
@@ -747,6 +752,8 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("User is not using the ADC Protocol so you cant connect to them")
+        elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
+            fail_cb("You must use encrypted connections.  Please enable TLS support in Settings or ask in main chat for more help")
         else:
             node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
