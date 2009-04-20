@@ -99,7 +99,7 @@ popd
 
 pause
 
-echo on
+
 
 REM -----CLEAN UP OUTPUT------
 
@@ -114,4 +114,4 @@ del %BLDIR%\msvcr71.dll
 del %BLDIR%\readme.txt
 del %BLDIR%\changelog.txt
 del %BLDIR%\dtella.exe
-del %BLDIR%\common.nsi
+del %BLDIR%\common.nsh
