@@ -799,7 +799,7 @@ class DtellaBot(object):
                 else:
                     out("Error: not running as appbundle, will not auto update")
                     return
-				
+
                 tpath = os.path.join(
                             os.path.split(ipath)[0],
                             ('.%s.' % cur_v).join(os.path.split(ipath)[1].split('.'))

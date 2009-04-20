@@ -438,14 +438,13 @@ class NickNode(object):
                 self.info['NI'] = self.nick
                 self.info['DE'] = "[%s] %s" % (self.location, infs[0])
                 self.info['ID'] = b32encode(treehash(self.nick))
-                #self.info['SS'], self.info['SL'], self.info['US'] = '0', '0', '0'
                 self.info['I4'] = '0.0.0.0'
                 self.info['VE'] = get_version_string()
                 self.info['HN'] = '1'
                 
                 optype = infs[0][1]
                 
-                if optype in ('~','&','@'): #user is an op
+                if optype in ('~','&','@'): # user is an op
                     self.info['HR'], self.info['HO'] = '1','1'
                 else:
                     self.info['HR'], self.info['HO'] = '0','0'
@@ -461,9 +460,8 @@ class NickNode(object):
                     
                 self.dcinfo = adc_infostring(self.info)
             except ValueError:
-                raise
-                #raise BadPacketError("Could not parse NMDC infostring into ADC infodict: " + info)
-        
+                raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
+
         else:
             self.protocol = core.PROTOCOL_NMDC
 

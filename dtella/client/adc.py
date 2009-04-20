@@ -86,13 +86,14 @@ class BaseADCProtocol(LineOnlyReceiver):
 
 
     def sendLine(self, line):
+        #print "<:", line
         LineOnlyReceiver.sendLine(self, line)
 
 
     def lineReceived(self, line):
 
         if(len(line) == 0):
-            self.sendLine('') #Keepalive
+            self.sendLine('') # Keepalive
             return
 
         #print ">:", line
@@ -101,7 +102,7 @@ class BaseADCProtocol(LineOnlyReceiver):
         args['con'] = cmd[0][0]
         msg = cmd[0][1:]
         
-        if args['con'] == 'E': #If its an echo context, echo it back
+        if args['con'] == 'E': # If its an echo context, echo it back
             self.sendLine(line)
         
         #print "Context: %s Message: %s" % (args['con'],msg)
@@ -190,7 +191,7 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
 
     
     def d_SUP(self, con, rest=None):
-        pass #We will recieve one but ignore it
+        pass # We will recieve one but ignore it
         
     def d_INF(self, con, rest=None):
 
@@ -319,8 +320,6 @@ class ADCHandler(BaseADCProtocol):
         self.addDispatch('SUP',             ('H','C'),self.d_SUP)
         self.addDispatch('INF',             ('B'),self.d_INF)
         
-        #self.addDispatch('$MyNick',         1, self.d_MyNick)
-        
         # Chat messages waiting to be sent
         self.chatq = []
         self.chat_counter = 99999
@@ -388,20 +387,17 @@ class ADCHandler(BaseADCProtocol):
             self.transport.loseConnection()
             return
         
-        if con == 'C':  #Fake RCM reply
+        if con == 'C':  # Fake RCM reply
             ADC_AbortTransfer_In(ADCHandler.fake_cid, ADCHandler.fake_token, self, ADCHandler.fake_reason)
+
+        elif self.state == 'PROTOCOL':
+            self.sendLine("ISUP ADBASE ADTIGR")
+            self.sendLine("ISID %s" % self.sid)
+            self.sendLine("IINF CT32 NI%s" % adc_escape(local.hub_name))
+            self.state = 'IDENTIFY'
+
         else:
-            
-            if self.state == 'PROTOCOL':
-            
-                self.sendLine("ISUP ADBASE ADTIGR")#TODO fix
-                self.sendLine("ISID %s" % self.sid)
-                self.sendLine("IINF CT32 NI%s" % adc_escape(local.hub_name))
-                
-                
-                self.state = 'IDENTIFY'
-            else:
-                print "Error in %sSUP - rest: %s" % (con, rest)
+            print "Error in %sSUP - rest: %s" % (con, rest)
 
 
     def d_INF(self, con, src_sid=None, rest=None):
@@ -418,10 +414,10 @@ class ADCHandler(BaseADCProtocol):
                 return
             del inf['PD']
             
-            #Let Dtella logon so we can send messages to the user
+            # Let Dtella logon so we can send messages to the user
             self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.dcinfo))
 
-            #From ValidateNick
+            # From ValidateNick
             reason = validateNick(inf['NI'])
 
             if reason:
@@ -432,11 +428,6 @@ class ADCHandler(BaseADCProtocol):
                 return
 
             self.nick = inf['NI']
-            
-            if local.adc_fcrypto and 'ADC0' not in inf['SU']:
-                self.pushStatus("**Your client doesnt support encrypted transmissions.**")
-                self.pushStatus("You will be unable to connect to anyone")
-                self.pushStatus("Please enable TLS support in Settings or ask for help in main chat")
 
             # update MeNode
             self.infdict.update(inf)
@@ -446,9 +437,53 @@ class ADCHandler(BaseADCProtocol):
                 self.main.osm.me.dcinfo = self.infstr
             self.sendLine("BINF %s %s" % (src_sid, self.infstr))
 
+            # detect non-encryption
+            if local.adc_mode and local.adc_fcrypto and \
+            (not inf.has_key('SU') or 'ADC0' not in inf['SU'] and 'ADCS' not in inf['SU']):
+                text = (
+                    "="*80,
+                    "This network requires all client-client connections to "
+                    "be encrypted. You will be unable to connect to other "
+                    "people until you reconnect with TLS support. For most "
+                    "clients, you will have to do two things: ",
+                    "",
+                    "(1) Set a TLS port:",
+                    "    - Set a port between 10000 and 65336, or blank/0 for "
+                    "random.",
+                    "    - If you have a firewall/router, you may need to "
+                    "allow incoming connections to your DC client, or the "
+                    "specified ports. (TLS uses a TCP port.)",
+                    "(2) TLS settings:",
+                    "    - Enable \"Use TLS connections to clients without "
+                    "trusted certificates\"",
+                    "    - Enable \"Use TLS connections to hubs without "
+                    "trusted certificates\"",
+                    "    - Enable \"Use TLS when remote client supports it\"",
+                    "",
+                    "The settings can be found:",
+                    "",
+                    " - StrongDC++/DC++:",
+                    "    (1) Set a TLS port: File / Settings / Connection "
+                    "Settings",
+                    "    (2) TLS settings: File / Settings / Security",
+                    " - linuxdcpp:",
+                    "    (1) Set a TLS port: File / Preferences / Connection",
+                    "    (2) TLS settings: File / Preferences / Advanced / "
+                    "Security Certificates",
+                    "",
+                    "As of 2009-04-20, most other clients do NOT support "
+                    "encryption; these will be unable to connect.",
+                    "="*80,
+                    )
+
+                for par in text:
+                    for line in word_wrap(par):
+                        self.pushBotMsg(line)
+
             # detect passive
             if not inf.has_key('I4'):
                 text = (
+                    "="*80,
                     "You are currently in passive mode. This is less helpful "
                     "to the network, because passive mode users can't connect "
                     "to other passive mode users.",
@@ -467,7 +502,7 @@ class ADCHandler(BaseADCProtocol):
                     "try to exhaust all possibilites (eg. check your firewall "
                     "settings, etc) before resorting to passive mode. Feel "
                     "free to ask for help in the main chat channel.",
-                    ""
+                    "="*80,
                     )
 
                 for par in text:
@@ -526,7 +561,7 @@ class ADCHandler(BaseADCProtocol):
             for i in params[1:]:
                 inf[i[:2]] = i[2:]
 
-        if con == 'E':  #Private Message
+        if con == 'E':  # Private Message
         
             if dst_sid == self.bot.sid:
 
@@ -564,7 +599,7 @@ class ADCHandler(BaseADCProtocol):
 
             n.event_PrivateMessage(self.main, text, fail_cb )
             
-        else:           #Public message
+        else:           # Public message
 
             # Route commands to the bot
             if text[:1] == '!':
@@ -613,7 +648,7 @@ class ADCHandler(BaseADCProtocol):
                 except KeyError:
                     pass
                 
-                #Check for /me incase the client misses it
+                # Check for /me incase the client misses it
                 if len(line) > 4 and line[:4].lower() in ('/me ','+me ','!me '):
                     line = line[4:]
                     flags |= core.SLASHME_BIT
@@ -692,9 +727,9 @@ class ADCHandler(BaseADCProtocol):
             return
 
         if node.protocol != self.protocol:
-            fail_cb("User is not using the ADC Protocol so you cant connect to them")
+            fail_cb("User is not using the ADC Protocol")
         elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
-            fail_cb("You must use encrypted connections.  Please enable TLS support in Settings or ask in main chat for more help")
+            fail_cb("You must use encrypted connections")
         else:
             node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
 
@@ -704,8 +739,8 @@ class ADCHandler(BaseADCProtocol):
         show_errors = True
         cancel = True
         
-        #Older clients dont send a token as part of RCM
-        #This is caused by a bug in the v0.698 DC core
+        # Older clients dont send a token as part of RCM
+        # This is caused by a bug in the v0.698 DC core
         try:
             protocol_str, token = rest.split(' ')
         except Exception:
@@ -751,15 +786,15 @@ class ADCHandler(BaseADCProtocol):
             return
 
         if node.protocol != self.protocol:
-            fail_cb("User is not using the ADC Protocol so you cant connect to them")
+            fail_cb("User is not using the ADC Protocol")
         elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
-            fail_cb("You must use encrypted connections.  Please enable TLS support in Settings or ask in main chat for more help")
+            fail_cb("You must use encrypted connections.")
         else:
             node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
 
     def d_SCH(self, con, src_sid, rest):
-        #Search request
+        # Search request
 
         if not self.isOnline():
             self.pushStatus("Can't Search: Not online!")
@@ -989,32 +1024,40 @@ class ADCHandler(BaseADCProtocol):
 
     
     def push_NMDC_ConnectToMe(self, ad, use_ssl):
-        #We are recieving an NMDC $ConnectToMe so
-        #create an NMDC AbortOut to deal with it
+        # We are recieving an NMDC $ConnectToMe so
+        # create an NMDC AbortOut to deal with it
         ip, port = ad.getAddrTuple()
         from dc import AbortTransfer_Factory
         reactor.connectTCP(ip, port, AbortTransfer_Factory(self.nick))
 
+
     def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
+        # Reject non-crypto requests for a force-crypto network
+        if adc_mode and adc_fcrypto and \
+        'ADC0' not in protocol_str and 'ADCS' not in protocol_str:
+            raise Reject("141 Disallowed\\sProtocol")
+
         self.sendLine("DCTM %s %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, port, token))
 
+
     def push_NMDC_RevConnectToMe(self, nick):
         print "$RevCTM"
-      
+
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
         self.sendLine("DRCM %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, token))
-    
+
+
     def push_NMDC_SearchRequest(self, ipp, search_string):
-        pass    #ignore NMDC searches as we cant respond to them
+        pass    # ignore NMDC searches as we cant respond to them
 
 
     def push_ADC_SearchRequest(self, n, search_str, flags):
-        if flags & 0x1: #F context
+        if flags & 0x1: # F context
             self.sendLine("FSCH %s %s" % (n.sid, search_str))
-        else:           #B context
+        else:           # B context
             self.sendLine("BSCH %s %s" % (n.sid, search_str))
 
 
@@ -1032,8 +1075,8 @@ class ADCHandler(BaseADCProtocol):
 
     def pushPrivMsg(self, nick, text):
     
-        sid = self.bot.sid  #Default anything that is not a user to be from Dtella
-                            #Users such as *, *IRC, ~ChanServ etc
+        sid = self.bot.sid  # Default anything that is not a user to be from Dtella
+                            # Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
         except KeyError: 
@@ -1144,7 +1187,7 @@ class ADCHandler(BaseADCProtocol):
         me = self.main.osm.me
         me.info = self.infdict
         me.dcinfo = adc_infostring(self.infdict)
-        #self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
+        # self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
 
         for node in self.main.osm.nkm.nickmap.itervalues():
             if node.nick != self.nick and node.nick != self.bot.nick and node.dcinfo is not None:
@@ -1201,8 +1244,8 @@ class ADCHandler(BaseADCProtocol):
 
 
     def event_AddNick(self, n):
-        pass #nothing to do - no $Hello for ADC
-             #This is all done with a BINF (equv of $MyINFO $ALL)
+        pass # nothing to do - no $Hello for ADC
+             # This is all done with a BINF (equv of $MyINFO $ALL)
     
 
     def event_RemoveNick(self, n, reason):

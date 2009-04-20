@@ -89,15 +89,6 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
 ##    sheet_key = "..."
 ##    )
 
-#''' BEGIN NEWITEMS MOD #
-# Limits for !newitems storage. Individual users can override the limits for
-# display by using the commands !newitems daylim [days] | numlim [count]
-# but data for items will always be stored up to the smallest of these limits.
-newitems_daylim = 14
-newitems_numlim = 64
-# newitems_numlim should be <= 32, since UDP packets have a limited size
-# END NEWITEMS MOD '''#
-
 # Enable this if you can devise a meaningful mapping from a user's hostname
 # to their location.  Locations are displayed in the "Connection / Speed"
 # column of the DC client.

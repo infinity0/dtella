@@ -1486,39 +1486,40 @@ class PeerHandler(DatagramProtocol):
 
         self.handlePrivMsg(ad, data, cb)
 
+
     def handlePacket_AC(self, ad, data):
         # Direct: ADC CTM
+
         def cb(dch, n, rest):
-        
             flags, rest = self.decodePacket('!B+', rest)
             protocol_str, rest = self.decodeString1(rest)
             port , rest = self.decodePacket('!H+', rest)
             token , rest = self.decodeString1(rest)
-            
+
             if rest:
                 raise BadPacketError("Extra data")
-                
-            if ('ADCS' not in protocol_str) and local.adc_fcrypto:
-                
+
+            try:
+                dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
+
+            except Reject, r:
                 ack_key = n.getPMAckKey()
                 packet = ['AE']
                 packet.append(dch.main.osm.me.ipp)
                 packet.append(ack_key)
                 packet.append(dch.main.osm.me.nickHash())
                 packet.append(n.nickHash())
-                rest = "141 %s" % "Disalowd\\sProtocol"
-                packet.append(struct.pack('!H', len(rest)))
-                packet.append(rest)
+                packet.append(struct.pack('!H', len(r.message)))
+                packet.append(r.message)
                 packet = ''.join(packet)
-                
+
                 def fail_cb(reason = None):
-                    pass#not much we can do
-                
+                    pass # not much we can do
+
                 n.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
-                
-            dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
-            
+
         self.handlePrivMsg(ad, data, cb)
+
 
     def handlePacket_CP(self, ad, data):
         # Direct: RevConnectToMe
@@ -1532,17 +1533,18 @@ class PeerHandler(DatagramProtocol):
 
         self.handlePrivMsg(ad, data, cb)
 
+
     def handlePacket_AP(self, ad, data):
         # Direct: ADC Reverse Connect To Me
+
         def cb(dch, n, rest):
-        
             flags, rest = self.decodePacket('!B+', rest)
             protocol_str, rest = self.decodeString1(rest)
             token, rest = self.decodeString1(rest)
-            
+
             if rest:
                 raise BadPacketError("Extra data")
-            
+
             dch.push_ADC_RevConnectToMe(n, protocol_str, token)
             
         self.handlePrivMsg(ad, data, cb)
@@ -1576,9 +1578,9 @@ class PeerHandler(DatagramProtocol):
 
             notice = bool(flags & NOTICE_BIT)
 
-            if notice: #No equivelent in ADC but kept for NMDC compatability
-                #TODO: make separate versions for ADC/NMDC
-                #nick = "*N %s" % n.nick
+            if notice: # No equivelent in ADC but kept for NMDC compatability
+                # TODO: make separate versions for ADC/NMDC
+                # nick = "*N %s" % n.nick
                 dch.pushChatMessage(n.nick, text)
             else:
                 dch.pushPrivMsg(n.nick, text)
@@ -2442,7 +2444,7 @@ class Node(object):
         ack_key = self.getPMAckKey()
         flags = 0 # for forward compatability
 
-        packet = ['AC']#ADC CTM
+        packet = ['AC'] # ADC CTM
         packet.append(osm.me.ipp)
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
@@ -2478,7 +2480,7 @@ class Node(object):
         ack_key = self.getPMAckKey()
         flags = 0 # for forward compatability
 
-        packet = ['AP']#ADC RCM
+        packet = ['AP'] # ADC RCM
         packet.append(osm.me.ipp)
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
@@ -3128,8 +3130,8 @@ class OnlineStateManager(object):
                 if len(dc) > 1: dcver = dc[1]
                 
                 if not inf.has_key('EM'): inf['EM'] = ""
-                if not inf.has_key('DE'):
-                    inf['DE'] = ""
+                if not inf.has_key('DE'): inf['DE'] = ""
+                if not inf.has_key('SU'): inf['SU'] = ""
                 
                 loctag = "[%s]" % self.main.getOnlineDCH().locstr
                 
@@ -3184,7 +3186,7 @@ class OnlineStateManager(object):
         me.persist = self.main.state.persistent
         me.dttag = get_version_string()
 
-        if dch:#TTTTT
+        if dch: # TODO: andy, wtf is this: "TTTTT"
             me.info_out = dch.formatMyInfo()
             nick = dch.nick
         else:

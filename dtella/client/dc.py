@@ -866,7 +866,7 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
 
 
-    def push_NMDC_SearchRequest(self, ipp, search_string):#Altered by andyhhp for better compatability with ADC
+    def push_NMDC_SearchRequest(self, ipp, search_string):
         ad = Ad().setRawIPPort(ipp)
         self.sendLine("$Search %s %s" % (ad.getTextIPPort(), search_string))
 
@@ -875,7 +875,7 @@ class DCHandler(BaseDCProtocol):
         self.sendLine("$To: %s From: %s $<%s> %s"
                       % (self.nick, nick, nick, text))
 
-    def pushBotMsg(self, text):#Added by andyhhp for a slight recode of dtellabot for easier ADC use
+    def pushBotMsg(self, text):
         self.sendLine("$To: %s From: %s $<%s> %s"
                       % (self.nick, self.bot.nick, self.bot.nick, text))
 
