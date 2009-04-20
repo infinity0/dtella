@@ -68,6 +68,12 @@ from dtella.common.interfaces import IDtellaStateObserver
 
 
 class BaseADCProtocol(LineOnlyReceiver):
+    '''
+    BaseADCProtocol is a subclass of LineOnlyReciever
+    
+    It is the class responsible for communicating with the DC client
+    and implements the basic decoding logic for incoming lines
+    '''
 
     delimiter='\n'
 
@@ -80,7 +86,6 @@ class BaseADCProtocol(LineOnlyReceiver):
 
 
     def sendLine(self, line):
-        #print "<:", line
         LineOnlyReceiver.sendLine(self, line)
 
 
@@ -328,7 +333,7 @@ class ADCHandler(BaseADCProtocol):
         self.autoRejoin_dcall = None
 
         self.scheduleChatRateControl()
-
+        
         # Set up the protocol trap
         self._dataReceived = self.dataReceived
         self.dataReceived = self.initDataReceived
@@ -343,6 +348,7 @@ class ADCHandler(BaseADCProtocol):
                 self.transport.writeSequence(("$HubName %s" % local.hub_name, '|'))
 
         self.init_dcall = reactor.callLater(1.0, cb)
+        
 
 
     def isOnline(self):
@@ -637,6 +643,7 @@ class ADCHandler(BaseADCProtocol):
             print "CTM Error: rest=%s" % rest
             return
             
+            
         try:
             port = int(port_str)
             if not (1 <= port <= 65535):
@@ -681,6 +688,8 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("User is not using the ADC Protocol so you cant connect to them")
+        elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
+            fail_cb("You must use encrypted connections.  Please enable TLS support in Settings or ask in main chat for more help")
         else:
             node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
 

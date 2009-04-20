@@ -1498,7 +1498,21 @@ class PeerHandler(DatagramProtocol):
             
             if rest:
                 raise BadPacketError("Extra data")
-            
+                
+            if ('ADCS' not in protocol_str) and local.adc_fcrypto:
+                
+                packet = ['AE']
+                packet.append(dch.main.osm.me.ipp)
+                packet.append(ack_key)
+                packet.append(dch.main.osm.me.nickHash())
+                packet.append(n.nickHash())
+                rest = "141 %s %s %s" % (dch.main.osm.me.sid, n.sid, "Disalowd\\sProtocol")
+                packet.append(struct.pack('!H', len(rest)))
+                packet.append(rest)
+                packet = ''.join(packet)
+                
+                n.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
+                
             dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
             
         self.handlePrivMsg(ad, data, cb)
