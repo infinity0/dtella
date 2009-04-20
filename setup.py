@@ -125,6 +125,10 @@ def build_posix_installer():
             sys.stderr.write("Ignoring malformed k=v pair: %s\n" % i)
             pass
 
+    if not vars.has_key('DEPS'):
+        sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
+        return 1
+
     lines = file("installer_posix/dtella.template.sh").readlines()
     for k, v in vars.iteritems():
         for i, line in enumerate(lines):
@@ -151,6 +155,7 @@ def build_posix_installer():
     for line in lines:
         wfile.write(line)
     wfile.close()
+    os.chmod(f, 0755)
     print "installer wrote to %s" %f
 
 

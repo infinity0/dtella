@@ -115,11 +115,11 @@ install_svn() {
 }
 
 if [ -n "$WGET" ]; then
-	get_latest() { if ! $WGET "$@"; then echo "could not download $REPO/$DEPS; abort"; exit 2; fi }
+	get_latest() { if ! $WGET "$@"; then echo "could not download $@; abort"; exit 2; fi }
 elif which wget > /dev/null; then
-	get_latest() { if ! wget -N "$@"; then echo "could not download $REPO/$DEPS; abort"; exit 2; fi }
+	get_latest() { if ! wget -N "$@"; then echo "could not download $@; abort"; exit 2; fi }
 elif which curl > /dev/null; then
-	get_latest() { if ! curl -O "$@"; then echo "could not download $REPO/$DEPS; abort"; exit 2; fi }
+	get_latest() { if ! curl -O "$@"; then echo "could not download $@; abort"; exit 2; fi }
 else
 	echo "could not find a suitable URL-retrieval program. try setting the WGET variable "
 	echo "near the top of this file."
@@ -136,7 +136,7 @@ else
 	echo "Twisted missing. Please install the python-twisted module. ONLY IF you are "
 	echo "UNABLE to do this (eg. if you do not have root access), you may install it for "
 	echo "this user only, by typing \"$LONGMSG\". Otherwise, "
-	echo -n "hit ENTER to exit: "
+	echo -n "hit ENTER to exit and install it normally: "
 	read REPLY
 	if [ "$REPLY" = "$LONGMSG" ]; then
 		if ! install_dep zope; then echo "could not extract zope; abort"; exit 3; fi
@@ -152,7 +152,7 @@ else
 	echo "pyCrypto missing. Please install the python-crypto module. ONLY IF you are"
 	echo "UNABLE to do this (eg. if you do not have root access), you may install it for "
 	echo "this user only, by typing \"$LONGMSG\". Otherwise, "
-	echo -n "hit ENTER to exit: "
+	echo -n "hit ENTER to exit and install it normally: "
 	read REPLY
 	if [ "$REPLY" = "$LONGMSG" ]; then
 		if ! install_dep Crypto; then echo "could not extract pyCrypto; abort"; exit 3; fi
