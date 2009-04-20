@@ -369,6 +369,11 @@ class ADCHandler(BaseADCProtocol):
         self.transport.loseConnection()
 
 
+    def checkForceCrypto(self, protocol):
+        return local.adc_mode and local.adc_fcrypto and \
+            'ADC0' not in protocol and 'ADCS' not in protocol
+
+
     def d_KillDtella(self, con, rest):
         k = self.main.state.killkey
         if b32encode(k) == rest:
@@ -437,9 +442,13 @@ class ADCHandler(BaseADCProtocol):
                 self.main.osm.me.dcinfo = self.infstr
             self.sendLine("BINF %s %s" % (src_sid, self.infstr))
 
+            if inf.has_key('SU') and ('ADC0' in inf['SU'] or 'ADCS' in inf['SU']):
+                self.crypto = True
+            else:
+                self.crypto = False
+
             # detect non-encryption
-            if local.adc_mode and local.adc_fcrypto and \
-            (not inf.has_key('SU') or 'ADC0' not in inf['SU'] and 'ADCS' not in inf['SU']):
+            if local.adc_mode and local.adc_fcrypto and not self.crypto:
                 text = (
                     "="*80,
                     "This network requires all client-client connections to "
@@ -471,6 +480,9 @@ class ADCHandler(BaseADCProtocol):
                     "    (2) TLS settings: File / Preferences / Advanced / "
                     "Security Certificates",
                     "",
+                    "You have to restart your client for any security setting "
+                    "changes to take effect.",
+                    "",
                     "As of 2009-04-20, most other clients do NOT support "
                     "encryption; these will be unable to connect.",
                     "="*80,
@@ -496,6 +508,9 @@ class ADCHandler(BaseADCProtocol):
                     "",
                     "File: Settings/Preferences: Connection: Incoming: "
                     "select \"Active mode\" or \"Direct connection\"",
+                    "",
+                    "You have to reconnect to Dtella for any connection mode "
+                    "setting changes to take effect.",
                     "",
                     "To test whether active mode works, just try to get "
                     "someone's file list. If it doesn't seem to work, please "
@@ -727,9 +742,12 @@ class ADCHandler(BaseADCProtocol):
             return
 
         if node.protocol != self.protocol:
-            fail_cb("User is not using the ADC Protocol")
-        elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
-            fail_cb("You must use encrypted connections")
+            fail_cb("Remote user is not using the ADC Protocol")
+        elif self.checkForceCrypto(protocol_str):
+            if self.crypto:
+                fail_cb("Remote user is not using encrypted connections")
+            else:
+                fail_cb("You are not using encrypted connections")
         else:
             node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
 
@@ -786,9 +804,12 @@ class ADCHandler(BaseADCProtocol):
             return
 
         if node.protocol != self.protocol:
-            fail_cb("User is not using the ADC Protocol")
-        elif ('ADCS' not in protocol_str) and local.adc_fcrypto:
-            fail_cb("You must use encrypted connections.")
+            fail_cb("Remote user is not using the ADC Protocol")
+        elif self.checkForceCrypto(protocol_str):
+            if self.crypto:
+                fail_cb("Remote user is not using encrypted connections")
+            else:
+                fail_cb("You are not using encrypted connections")
         else:
             node.event_ADC_RevConnectToMe(self.main, protocol_str, token, fail_cb)
 
@@ -1033,10 +1054,9 @@ class ADCHandler(BaseADCProtocol):
 
     def push_ADC_ConnectToMe(self, node, protocol_str, port, token):
         # Reject non-crypto requests for a force-crypto network
-        if adc_mode and adc_fcrypto and \
-        'ADC0' not in protocol_str and 'ADCS' not in protocol_str:
-            raise Reject("141 Disallowed\\sProtocol")
-
+        if self.checkForceCrypto(protocol_str):
+            raise core.Reject("141 %s" % adc_escape(
+                "Disallowed Protocol: Unencrypted connection"))
         self.sendLine("DCTM %s %s %s %s %s" % (node.sid, self.sid,
                             protocol_str, port, token))
 
@@ -1062,11 +1082,12 @@ class ADCHandler(BaseADCProtocol):
 
 
     def push_ADC_SearchResponce(self, n, str):
-        self.sendLine("DRES %s %s %s" %(n.sid, self.sid, str))
+        self.sendLine("DRES %s %s %s" % (n.sid, self.sid, str))
 
 
     def push_ADC_Error(self, n, str):
-        self.sendLine("DSTA %s %s %s" %(n.sid, self.sid, str))
+        print "recv ADC error"
+        self.sendLine("DSTA %s %s %s" % (n.sid, self.sid, str))
 
 
     def pushBotMsg(self, text):

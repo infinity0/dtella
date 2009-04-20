@@ -1509,7 +1509,7 @@ class PeerHandler(DatagramProtocol):
                 packet.append(ack_key)
                 packet.append(dch.main.osm.me.nickHash())
                 packet.append(n.nickHash())
-                packet.append(struct.pack('!H', len(r.message)))
+                packet.append(struct.pack('!B', len(r.message)))
                 packet.append(r.message)
                 packet = ''.join(packet)
 
@@ -1552,15 +1552,15 @@ class PeerHandler(DatagramProtocol):
 
     def handlePacket_AE(self, ad, data):
         # Direct: ADC Error
-        
+
         def cb(dch, n, rest):
-            str = self.decodeString1(rest)
-            
+            str, rest = self.decodeString1(rest)
+
             if rest:
                 raise BadPacketError("Extra data")
-            
+
             dch.push_ADC_Error(n, str)
-        
+
         self.handlePrivMsg(ad, data, cb)
 
 
