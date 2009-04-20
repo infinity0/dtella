@@ -1512,6 +1512,9 @@ class PeerHandler(DatagramProtocol):
                 packet.append(rest)
                 packet = ''.join(packet)
                 
+                def fail_cb():
+                    pass#not much we can do
+                
                 n.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
                 
             dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
