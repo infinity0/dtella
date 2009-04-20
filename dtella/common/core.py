@@ -1501,6 +1501,7 @@ class PeerHandler(DatagramProtocol):
                 
             if ('ADCS' not in protocol_str) and local.adc_fcrypto:
                 
+                ack_key = n.getPMAckKey()
                 packet = ['AE']
                 packet.append(dch.main.osm.me.ipp)
                 packet.append(ack_key)
