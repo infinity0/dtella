@@ -78,7 +78,7 @@ popd
 REM ------- EXE -------------
 echo Building Windows binary files...
 
-call build_py2exe
+call build_py2exe_combined
 copy dist\dtella.exe %BLDIR%
 copy dist\msvcr71.dll %BLDIR%
 
@@ -92,20 +92,21 @@ REM ------- INSTALLER -------
 echo Building the installer...
 pushd %BLDIR%
 
-IF EXIST %NSIS% (%NSIS% dtella.nsi) ELSE (%NSIS64% dtella.nsi)
+IF EXIST %NSIS% (%NSIS% dtella_combined.nsi) ELSE (%NSIS64% dtella_combined.nsi)
 
 echo The build process is now complete!
 popd
 
 pause
 
-
+echo on
 
 REM -----CLEAN UP OUTPUT------
 
 mkdir %OUTDIR%
 
 move %BLDIR%\%FILEBASE%.exe %OUTDIR%
+move %BLDIR%\CamDC*.exe %OUTDIR%
 move %BLDIR%\%FILEBASE%.tar.* %OUTDIR%
 
 
@@ -113,4 +114,4 @@ del %BLDIR%\msvcr71.dll
 del %BLDIR%\readme.txt
 del %BLDIR%\changelog.txt
 del %BLDIR%\dtella.exe
-del %BLDIR%\dtella.nsi
+del %BLDIR%\common.nsi
