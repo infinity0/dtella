@@ -1512,7 +1512,7 @@ class PeerHandler(DatagramProtocol):
                 packet.append(rest)
                 packet = ''.join(packet)
                 
-                def fail_cb():
+                def fail_cb(reason = None):
                     pass#not much we can do
                 
                 n.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
