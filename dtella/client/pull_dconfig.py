@@ -240,18 +240,18 @@ class DynamicConfigPuller(object):
             self.main.shutdown(reconnect='no')
             
             text = (
-                "",
+                " ",
                 "Your version of Dtella (%s) is too old to be used on this "
                 "network.  Please upgrade to the latest version (%s)."
                 % (local.version, new_v),
-                "",
+                " ",
                 "[If unusual circumstances prevent you from upgrading, "
                 "type !VERSION_OVERRIDE to attempt to connect using this "
                 "unsupported client. Please note that you will be repeatedly "
                 "prompted to do this every few hours.]",
-                "",
+                " ",
                 "Type !UPGRADE to upgrade, or download it at: %s" % url,
-                ""
+                " "
                 )
 
             for par in text:

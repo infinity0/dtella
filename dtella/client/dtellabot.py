@@ -127,6 +127,7 @@ class DtellaBot(object):
         ("INVITE",     "Show your current IP and port to give to a friend"),
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
+        ("RESTART",    "Spawn a new Dtella process, also killing this one"),
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
@@ -178,6 +179,14 @@ class DtellaBot(object):
             "This will completely kill your current Dtella node.  If you "
             "want to rejoin the network afterward, you'll have to go "
             "start up the Dtella program again."
+            ),
+
+        "RESTART":(
+            "",
+            "This will spawn a new Dtella process, which will automatically "
+            "kill this one. In effect, a restart. You may have to reconnect "
+            "to Dtella (Ctrl-R on most clients) if your client doesn't do "
+            "this automatically."
             ),
 
         "VERSION":(
@@ -662,7 +671,22 @@ class DtellaBot(object):
         self.syntaxHelp(out, 'TERMINATE', prefix)
 
 
-    def handleCmd_VERSION_OVERRIDE(self, out, text, prefix):
+    def handleCmd_RESTART(self, out, args, prefix):
+        if len(args) == 0:
+            import sys, subprocess
+            try:
+                subprocess.Popen(sys.argv)
+                out("The new Dtella is running. This one will shortly "
+                    "disconnect and exit. Once it does, you will be able to "
+                    "reconnect (ctrl-R on most clients) to Dtella.")
+            except Exception, e:
+                out("Failed to start a Dtella process: %s" % e)
+            return
+
+        self.syntaxHelp(out, 'RESTART', prefix)
+
+
+    def handleCmd_VERSION_OVERRIDE(self, out, args, prefix):
         if self.main.dcfg.overrideVersion():
             out("Overriding minimum version!  Don't be surprised "
                 "if something breaks.")
@@ -671,11 +695,12 @@ class DtellaBot(object):
             out("%sVERSION_OVERRIDE not needed." % prefix)
 
 
-    def handleCmd_UPGRADE(self, out, text, prefix):
+    def handleCmd_UPGRADE(self, out, args, prefix):
         min_v, new_v, url, repo = self.main.dcfg.version
         name, cur_v, type = local.build_prefix, local.version, local.build_type
 
-        if cmpify_version(new_v) <= cmpify_version(cur_v):
+        if cmpify_version(new_v) <= cmpify_version(cur_v) and \
+        (not args or args[0] != "FORCE"):
             out("You are already at the newest version.")
             return
 
