@@ -2208,7 +2208,7 @@ class Node(object):
                 except KeyError:
                     self.shared = 0
 
-                if self.info.has_key('I4') and self.info['I4']:
+                if 'I4' in self.info and self.info['I4']:
                     self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                 # otherwise do nothing (no I4 == not changed, empty I4 == leave as is)
 
@@ -2271,12 +2271,12 @@ class Node(object):
 
                     self.info['SL'] = tags['S']
                     self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
-                    if tags.has_key('O'):
+                    if 'O' in tags:
                         self.info['AS'] = tags['O']
-                    if tags.has_key('L'):
+                    if 'L' in tags:
                         self.info['US'] = str(int(tags['L']) * 1024)
 
-                    if tags.has_key('M'):
+                    if 'M' in tags:
                         if tags['M'] == 'A':
                             self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
                         else:
@@ -3119,7 +3119,7 @@ class OnlineStateManager(object):
             inf = adc_infodict(self.me.info_out)
             # everything in inf{} is plaintext, so escape everything that comes out
             
-            if len(inf) == 1 and inf.has_key('VE'): # offline nodes have this info
+            if len(inf) == 1 and 'VE' in inf: # offline nodes have this info
                 info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
 
             else:
@@ -3129,9 +3129,9 @@ class OnlineStateManager(object):
                 dcstr, dcver = dc[0], ""
                 if len(dc) > 1: dcver = dc[1]
                 
-                if not inf.has_key('EM'): inf['EM'] = ""
-                if not inf.has_key('DE'): inf['DE'] = ""
-                if not inf.has_key('SU'): inf['SU'] = ""
+                if 'EM' not in inf: inf['EM'] = ""
+                if 'DE' not in inf: inf['DE'] = ""
+                if 'SU' not in inf: inf['SU'] = ""
                 
                 loctag = "[%s]" % self.main.getOnlineDCH().locstr
                 
@@ -3140,7 +3140,7 @@ class OnlineStateManager(object):
                     if inf['DE']:
                         inf['DE'] = inf['DE'][1:]
 
-                if inf.has_key('I4') and inf['I4']:
+                if 'I4' in inf and inf['I4']:
                     mode = "A"
                 else:
                     mode = "P"

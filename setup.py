@@ -125,7 +125,7 @@ def build_posix_installer():
             sys.stderr.write("Ignoring malformed k=v pair: %s\n" % i)
             pass
 
-    if not vars.has_key('DEPS'):
+    if 'DEPS' not in vars:
         sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
         return 1
 
@@ -147,7 +147,7 @@ def build_posix_installer():
                 lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
 
     outdir = "dist"
-    if os.environ.has_key("OUTDIR"):
+    if 'OUTDIR' in os.environ:
         outdir = os.environ["OUTDIR"]
 
     f = "%s/%s.sh" % (outdir, vars['PROD'])

@@ -442,7 +442,7 @@ class ADCHandler(BaseADCProtocol):
                 self.main.osm.me.dcinfo = self.infstr
             self.sendLine("BINF %s %s" % (src_sid, self.infstr))
 
-            if inf.has_key('SU') and ('ADC0' in inf['SU'] or 'ADCS' in inf['SU']):
+            if 'SU' in inf and ('ADC0' in inf['SU'] or 'ADCS' in inf['SU']):
                 self.crypto = True
             else:
                 self.crypto = False
@@ -493,7 +493,7 @@ class ADCHandler(BaseADCProtocol):
                         self.pushBotMsg(line)
 
             # detect passive
-            if not inf.has_key('I4'):
+            if 'I4' not in inf:
                 text = (
                     "="*80,
                     "You are currently in passive mode. This is less helpful "
@@ -953,7 +953,7 @@ class ADCHandler(BaseADCProtocol):
 
         self.infdict['CT'] = '0'
 
-        if self.infdict.has_key('VE') and len(self.infdict['VE']) > 0:
+        if 'VE' in self.infdict and len(self.infdict['VE']) > 0:
             verstr = get_version_string()
             if verstr not in self.infdict['VE']:
                 self.infdict['VE'] = "%s;%s" % (self.infdict['VE'], verstr)
@@ -973,7 +973,7 @@ class ADCHandler(BaseADCProtocol):
                 loc = None
 
             if loc:
-                if not self.infdict.has_key('DE'):
+                if 'DE' not in self.infdict:
                     self.infdict['DE'] = "[%s]" % loc
                     self.locstr = loc
                 elif not self.locstr:

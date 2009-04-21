@@ -46,15 +46,15 @@ INSTALL=install_prod
 for i in "$@"; do
 	case "$i" in
 	-h | --help )
-cat <<EOF
-Usage: $0 <option>
-Install $REPO
+		cat <<-EOF
+		Usage: $0 <option>
+		Install $REPO
 
-Options:
-  -v, --verbose             Show files as they are being extracted.
-  -s, --svn                 Install the latest develpment version from SVN.
+		Options:
+		  -v, --verbose             Show files as they are being extracted.
+		  -s, --svn                 Install the latest develpment version from SVN.
 
-EOF
+		EOF
 		exit 0
 		;;
 	-s | --svn )
@@ -204,16 +204,16 @@ echo "$PROD installed successfully into ~/.dtella/"
 
 cd
 if [ "$REPLY" = "U" ]; then
-cat > dtella << 'EOF'
-#!/bin/sh
-export PYTHONPATH="$(echo ~/.dtella/pytiger)" # posix does not expand ~ on export
-python -O ~/.dtella/dtella.py "$@" &
-EOF
+	cat > dtella <<- 'EOF'
+	#!/bin/sh
+	export PYTHONPATH="$(echo ~/.dtella/pytiger)" # posix does not expand ~ on export
+	python -O ~/.dtella/dtella.py "$@" &
+	EOF
 else
-cat > dtella << 'EOF'
-#!/bin/sh
-python -O ~/.dtella/dtella.py "$@" &
-EOF
+	cat > dtella <<- 'EOF'
+	#!/bin/sh
+	python -O ~/.dtella/dtella.py "$@" &
+	EOF
 fi
 
 if [ $? -gt 0 ]; then
