@@ -674,11 +674,23 @@ class DtellaBot(object):
     def handleCmd_RESTART(self, out, args, prefix):
         if len(args) == 0:
             import sys, subprocess
+
             try:
-                subprocess.Popen(sys.argv)
+                try:
+                    subprocess.Popen(sys.argv)
+                except OSError, e:
+                    # if Dtella was started as "python dtella.py", then
+                    # sys.argv[0] will be "dtella.py" which will interpreted
+                    # as a system command
+                    if e.errno == 2:
+                        import os, os.path
+                        sys.argv[0] = os.path.join(os.getcwd(), sys.argv[0])
+                        subprocess.Popen(sys.argv)
+
                 out("The new Dtella is running. This one will shortly "
                     "disconnect and exit. Once it does, you will be able to "
                     "reconnect (ctrl-R on most clients) to Dtella.")
+
             except Exception, e:
                 out("Failed to start a Dtella process: %s" % e)
             return

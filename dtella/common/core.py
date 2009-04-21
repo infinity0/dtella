@@ -3135,7 +3135,7 @@ class OnlineStateManager(object):
                 
                 loctag = "[%s]" % self.main.getOnlineDCH().locstr
                 
-                if inf['DE'][:len(loctag)] == loctag:
+                if inf['DE'].startswith(loctag):
                     inf['DE'] = inf['DE'][len(loctag):]
                     if inf['DE']:
                         inf['DE'] = inf['DE'][1:]
