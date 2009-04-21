@@ -686,13 +686,16 @@ class DtellaBot(object):
                         import os, os.path
                         sys.argv[0] = os.path.join(os.getcwd(), sys.argv[0])
                         subprocess.Popen(sys.argv)
+                    else:
+                        raise
 
-                out("The new Dtella is running. This one will shortly "
-                    "disconnect and exit. Once it does, you will be able to "
-                    "reconnect (ctrl-R on most clients) to Dtella.")
+                out("The new Dtella is up and running. This one will shortly "
+                    "disconnect and exit. You may have to reconnect to Dtella "
+                    "(ctrl-R on most clients) if your client doesn't do this "
+                    "automatically.")
 
             except Exception, e:
-                out("Failed to start a Dtella process: %s" % e)
+                out("Failed to start a new Dtella process: %s" % e)
             return
 
         self.syntaxHelp(out, 'RESTART', prefix)
@@ -875,16 +878,7 @@ class DtellaBot(object):
                 out("You may want to remove it manually.")
 
         out("- Upgrade completed. Running new Dtella...")
-        try:
-            # opens child process with same args and env.
-            # child keeps going even when this exits
-            subprocess.Popen(sys.argv)
-            out("The new Dtella is running. This one will shortly disconnect "
-                "and exit. Once it does, you will be able to connect to the "
-                "upgraded node (reconnect is ctrl-R on most clients).")
-        except Exception, e:
-            out("Could not automatically start the new Dtella node: %s" % e)
-            out("Try doing this yourself.")
+        self.handleCmd_RESTART(self, out, "", prefix)
 
 
     def handleCmd_DEBUG(self, out, text, prefix):
