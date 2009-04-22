@@ -292,7 +292,7 @@ class Newitems_Notify(LoadSaver):
         try:
             state.newitems_notify = bool(self.unpackValue(d, 'B'))
         except StateError:
-            state.newitems_notify = False
+            state.newitems_notify = True
 
 
     def save(self, state, d):

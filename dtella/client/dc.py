@@ -1141,18 +1141,21 @@ class DtellaBot(object):
 
 #''' BEGIN NEWITEMS MOD #
         "I":(
-            "<WANT|WANTNOT|HAVE|HAVENOT> [@<category>] <description>",
-            "Announce to the network an item that you have or want, with an "
-            "optional category to place that item into. eg. I HAVE @FILM V "
-            "for Vendetta. You can also use the NOT word to cancel a previous "
-            "submission. eg. I HAVENOT @FILM V for Vendetta."
+            "<WANT|WANTNOT|HAVE|HAVENOT> ([@<cat>] <desc>|0x<hash>)",
+            "Announce to the network a <description> of an item that you have "
+            "or want, with an optional <category> to place that item into. "
+            "eg. I HAVE @FILM V for Vendetta. You can also use the NOT word "
+            "to cancel a previous submission. eg. I HAVENOT @FILM V for "
+            "Vendetta. You may also specify an already-existing item by its "
+            "<hash>, which you can find out with STUFF +HASH"
             ),
 
         "STUFF":(
-            "[filters]",
-            "Displays the list of stuff based on some filters. If no "
+            "[<filter>*] +<option>*",
+            "Displays the list of stuff based on some <filter>s. If no "
             "filters are provided, displays new items from the last week. To "
-            "the syntax for these filters, see STUFF FILTERS."
+            "view the syntax for these filters, see STUFF FILTERS. Possible "
+            "<options> are: +HASH (display the hash of each item)."
             ),
 
         "NOTIFY":(
@@ -1621,34 +1624,54 @@ class DtellaBot(object):
         type = type.upper()
         src = []
 
-        # retrieve category
-        if desc[0] == '@':
+        # check if this is a hash entry
+        if desc[:2] == '0x':
+            cat = None
             try:
-                cat, desc = desc.split(' ',1)
-            except ValueError:
-                self.syntaxHelp(out, 'I', prefix)
-                return
+                import sys
+                test = int(desc, 16)
+                longmask = sys.maxint << 1 | 1
+                for i in itm.items:
+                    if (hash(i) & longmask) == test:
+                        cat, desc = i
+            except:
+                pass
 
-            cat = cat[1:].upper()
-            if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
-
-            try:
-                cat = itm.categories.index(cat)
-            except ValueError:
-                out("Invalid category: " + cat + ". Available categories are " + itm.catlist + ".")
+            if cat is None:
+                out("Item with hash %s not found." % desc)
+                out("(If you need to refer to an item whose description "
+                    "starts '0x', use *its* hash.)")
                 return
 
         else:
-            cat = 0
+            # retrieve category
+            if desc[0] == '@':
+                try:
+                    cat, desc = desc.split(' ',1)
+                except ValueError:
+                    self.syntaxHelp(out, 'I', prefix)
+                    return
 
-        # retrieve magnet links
-        if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
-            desc = desc.split(' ')
-            for (i, word) in enumerate(desc):
-                if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
-                    src.append(word)
-                    del desc[i]
-            desc = ' '.join(desc)
+                cat = cat[1:].upper()
+                if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
+
+                try:
+                    cat = itm.categories.index(cat)
+                except ValueError:
+                    out("Invalid category: " + cat + ". Available categories are " + itm.catlist + ".")
+                    return
+
+            else:
+                cat = 0
+
+            # retrieve magnet links
+            if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
+                desc = desc.split(' ')
+                for (i, word) in enumerate(desc):
+                    if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
+                        src.append(word)
+                        del desc[i]
+                desc = ' '.join(desc)
 
         remove = False
 
@@ -1670,11 +1693,12 @@ class DtellaBot(object):
         elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
             remove = True
             # force a remove, remove all sources
-            src = []
+            src = itm.items[(cat, desc[:255])][0]
         else:
             self.syntaxHelp(out, 'I', prefix)
             return
 
+        out("") # force "you commanded" to be said
         itm.broadcastSrcForItem(remove, cat, desc, src)
 
 
@@ -1710,11 +1734,16 @@ class DtellaBot(object):
 
         if text is None: userargs = []
         else: userargs = text.split(' ')
-        args = [None, None, [], []]
+
+        filters = [None, None, [], []]
+        options = {}
+
         badfilters = []
+        validoptions = ['HASH']
 
         if len(userargs) == 0:
-            args = [(0,16), (0,7), [],[]]
+            # default is set later on
+            pass
 
         elif userargs[0].upper() == 'FILTERS':
 
@@ -1756,26 +1785,47 @@ class DtellaBot(object):
             for argv in userargs:
                 arg = argv.upper()
 
-                if arg[0] == 'N':
+                if not arg:
+                    continue
+
+                elif arg[0] == 'N':
                     i = 0
                 elif arg[0] == 'D':
                     i = 1
+
                 elif arg[0] == '@':
                     # category filters
                     try:
-                        args[2].append(self.main.osm.itm.categories.index(arg[1:]))
+                        filters[2].append(self.main.osm.itm.categories.index(arg[1:]))
                     except ValueError:
                         badfilters.append((arg, 'Category not available'))
                     continue
-                elif arg[0] == '~' and args[3] is not None:
+
+                elif arg[0] == '~' and filters[3] is not None:
                     # source filters
-                    args[3].append(argv[1:])
+                    filters[3].append(argv[1:])
                     continue
+
+                elif arg[0] == '+':
+                    # options
+                    arg = arg[1:]
+                    if '=' in arg:
+                        k, v = arg.split('=', 1)
+                    else:
+                        k, v = arg, True
+
+                    if k in validoptions:
+                        options[k] = v
+                    else:
+                        badfilters.append((k, 'Unrecognised option; see HELP STUFF for help.'))
+                    continue
+
                 elif arg == 'WANTED':
-                    args[3] = None
+                    filters[3] = None
                     continue
+
                 else:
-                    badfilters.append((arg, 'Unrecognised filter - see STUFF FILTERS for help.'))
+                    badfilters.append((arg, 'Unrecognised filter; see STUFF FILTERS for help.'))
                     continue
 
                 try:
@@ -1783,13 +1833,16 @@ class DtellaBot(object):
                     t = map(lambda x: int(x), arg[1:].split(':'))
                     t.sort()
                     if len(t) == 1 or len(t) == 2:
-                        args[i] = tuple(t)
+                        filters[i] = tuple(t)
                     else:
                         badfilters.append((arg, 'Need to specify one or two numbers'))
                 except ValueError:
                     badfilters.append((arg, 'Badly formatted number'))
 
-        lines = self.main.osm.itm.getFormattedItems(*args)
+        if filters == [None, None, [], []]:
+            filters = [(0,16), (0,7), [],[]]
+
+        lines = self.main.osm.itm.getFormattedItems(options, *filters)
         for line in lines:
             out(line)
         if badfilters:

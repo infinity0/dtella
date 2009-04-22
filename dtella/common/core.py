@@ -4398,7 +4398,7 @@ class ItemsManager(object):
 
     def updateItem(self, cat, item, src, tdiff):
 
-        if self.items.has_key((cat, item)):
+        if (cat, item) in self.items:
 
             newsrc = self.items[(cat, item)][0].union(src)
             changed = (newsrc != self.items[(cat, item)][0])
@@ -4416,7 +4416,10 @@ class ItemsManager(object):
 
     def insertSrcForItem(self, cat, item, src):
 
-        if self.items.has_key((cat, item)):
+        catstr = self.getCategory(cat, 'stuff')
+        override = self.main.osm.me.nick in src
+
+        if (cat, item) in self.items:
             if not self.items[(cat, item)][0]: new = True
             else: new = False
 
@@ -4429,7 +4432,7 @@ class ItemsManager(object):
             self.items[(cat, item)][0].update(src)
 
             if new and newsrc:
-                self.notifyDC("New %s: %s -- %s" % (self.getCategory(cat, 'stuff'), item, srcstr), self.main.osm.me.nick in src)
+                self.notifyDC("New %s: %s -- %s" % (catstr, item, srcstr), override)
 
         else:
             src = set(src)
@@ -4442,24 +4445,35 @@ class ItemsManager(object):
             # new item
             self.items[(cat, item)] = (src, int(time.time()))
 
-            if src: self.notifyDC("New %s: %s -- %s" % (self.getCategory(cat, 'stuff'), item, srcstr), self.main.osm.me.nick in src)
-            else: self.notifyDC("Wanted %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+            if src: self.notifyDC("New %s: %s -- %s" % (catstr, item, srcstr), override)
+            else: self.notifyDC("Wanted %s: %s" % (catstr, item), override)
 
 
     def removeSrcForItem(self, cat, item, src):
 
-        if self.items.has_key((cat, item)):
+        if (cat, item) not in self.items:
+            return
+
+        catstr = self.getCategory(cat, 'stuff')
+        override = self.main.osm.me.nick in src
+
+        # wanted item
+        if not self.items[(cat, item)][0]:
+            # only IWANTNOT can cancel IWANT
+            if not src:
+                self.items.pop((cat, item))
+                self.notifyDC("No longer wanted %s: %s" % (catstr, item), override)
+
+        else:
             # remove src from the set
             self.items[(cat, item)][0].difference_update(src)
 
-            # if src was empty, contine
-            # or if the new entry is empty, continue
-            if src and self.items[(cat, item)][0]: return
+            # if entry not empty, return
+            if self.items[(cat, item)][0]: return
 
             # remove the whole entry
             self.items.pop((cat, item))
-
-            self.notifyDC("No more %s: %s" % (self.getCategory(cat, 'stuff'), item), self.main.osm.me.nick in src)
+            self.notifyDC("No more %s: %s" % (catstr, item), override)
 
 
     def notifyDC(self, message, override=False):
@@ -4510,7 +4524,7 @@ class ItemsManager(object):
         osm.mrm.newMessage(''.join(packet), tries=4)
 
 
-    def getFormattedItems(self, num, days, cats, srcs):
+    def getFormattedItems(self, opts, num, days, cats, srcs):
         # returns all the items as a human-readable string
         # this data is used for display with the !newstuff command
         self.removeOldItems()
@@ -4559,21 +4573,35 @@ class ItemsManager(object):
 
         items = []
 
+        def itemstr(ts, cat, item):
+            # extra spaces so magnet links are parsed properly by whatever client
+            return time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " + \
+                    self.getCategory(cat) + ": " + item + " -- "
+
+        if 'HASH' in opts and opts['HASH']:
+            origitemstr = itemstr
+            import sys
+            from string import zfill
+            longmask = sys.maxint << 1 | 1
+            longlen = len(hex(longmask)[2:-1])
+            def itemstr(ts, cat, item):
+                return '[0x' + zfill(hex(hash((cat, item)) & longmask)[2:-1],
+                    longlen) + '] ' + origitemstr(ts, cat, item)
+
         i = 0
         for (k, v) in sorted(self.items.items(), lambda a, b: b[1][1] - a[1][1]):
             (cat, item) = k
             (src, ts) = v
-            if (not num) or (b <= i < e):
-                if (not days) or (tb > ts >= te):
-                    if (not cats) or (cat in cats):
-                        if srcs is None:
-                            if not src:
-                                items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
-                                  self.getCategory(cat) + ": " + item + " -- WANTED: please bring to the network!")
-                        elif (not srcs) or src.intersection(srcs):
-                            items.append(time.strftime("[%b %d %H:%M]", time.gmtime(ts)) + " " +
-                              self.getCategory(cat) + ": " + item + " -- " + self.formatSources(src))
-                            # extra spaces so magnet links are parsed properly by whatever client
+            if (not num or b <= i < e) and \
+               (not days or tb > ts >= te) and \
+               (not cats or cat in cats):
+                if srcs is None:
+                    # wanted
+                    if not src:
+                        items.append(itemstr(ts, cat, item) + "WANTED: please bring to the network!")
+                elif not srcs or src.intersection(srcs):
+                    # matching sources; empty list means everything
+                    items.append(itemstr(ts, cat, item) + self.formatSources(src))
             i += 1
         items.reverse()
 
