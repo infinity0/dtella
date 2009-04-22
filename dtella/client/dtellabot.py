@@ -140,7 +140,9 @@ class DtellaBot(object):
         ("UDP",        "Change Dtella's peer communication port"),
         ("LOCALSEARCH","View or toggle local search results."),
         ("PERSISTENT", "View or toggle persistent mode"),
+#''' BEGIN NEWITEMS MOD #
         ("NOTIFY",     "View or toggle notifications of new items"),
+# END NEWITEMS MOD '''#
         ("--",         "INFORMATION"),
         ("VERSION",    "View information about your Dtella version."),
         ("USERS",      "Show how many users exist at each location"),
