@@ -30,6 +30,8 @@ SilentInstall silent
 Icon "${NSISDIR}\Contrib\Graphics\Icons\modern-install-colorful.ico"    
 
 Section
+    # Give dtella enough time to warn the user to reconnect
+    Sleep "200"
     ClearErrors
     
     ;Check the registry
@@ -50,11 +52,16 @@ Section
 
     ;See if the user has the previous source.  If so, give the new source as well
     IfFileExists "$0\${PRODUCT_NAME}*.tar.bz2" 0 No_Source
-         File "${PRODUCT_SIMPLENAME}.tar.bz2"
+        File "${PRODUCT_SIMPLENAME}.tar.bz2"
     No_Source:
     
     ;Restart the dtella process
     Exec '"$0\dtella.exe"'
+    
+    ;Delete this file on next reboot
+    Call GetExeName
+    Pop $1
+    Delete /rebootok "$1"
 
     Return
     
@@ -63,3 +70,16 @@ Section
     MessageBox MB_OK "Cant read installation regkey.  Please ensure you have installed CamDC.  If all else fails, ask for help in main chat"
     Return
 SectionEnd
+
+Function GetExeName
+	Push $0
+	Push $1
+	Push $2
+	System::Call /NOUNLOAD 'kernel32::GetModuleFileNameA(i 0, t .r0, i 1024)'
+	System::Call 'kernel32::GetLongPathNameA(t r0, t .r1, i 1024)i .r2'
+	StrCmp $2 error +2
+	StrCpy $0 $1
+	Pop $2
+	Pop $1
+	Exch $0
+FunctionEnd
