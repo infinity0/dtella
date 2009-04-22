@@ -923,39 +923,39 @@ exit 0
                                     out("  - " + line)
                     else:
                         import time
-                    pidfile = basep + new_p + ".pid"
-                    cmpfile = basep + new_p + ".complete"
+                        pidfile = basep + new_p + ".pid"
+                        cmpfile = basep + new_p + ".complete"
 
-                    while not os.path.exists(pidfile) or \:
-                    os.path.getsize(pidfile) == 0
-                        time.sleep(0.25)
-                    for line in file(pidfile):
-                        pid = int(line)
-                        break
+                        while not os.path.exists(pidfile) or \:
+                        os.path.getsize(pidfile) == 0
+                            time.sleep(0.25)
+                        for line in file(pidfile):
+                            pid = int(line)
+                            break
 
-                    while not os.path.exists(cmpfile) or \
-                    os.path.getsize(cmpfile) == 0:
-                        time.sleep(0.25)
-                        try:
-                            os.getpgid(pid)
-                        except OSError, e:
-                            if e.errno == 3: # No such process
-                                break
-                            else:
-                                raise
+                        while not os.path.exists(cmpfile) or \
+                        os.path.getsize(cmpfile) == 0:
+                            time.sleep(0.25)
+                            try:
+                                os.getpgid(pid)
+                            except OSError, e:
+                                if e.errno == 3: # No such process
+                                    break
+                                else:
+                                    raise
 
-                    if os.path.exists(cmpfile):
-                        try:
-                            file(pidfile, 'w').close()
-                            file(cmpfile, 'w').close()
-                            os.remove(pidfile)
-                            os.remove(cmpfile)
-                        except:
-                            pass
-                        out("- Upgrade complete")
-                    else:
-                        out("Error: Upgrade failed")
-                        return
+                        if os.path.exists(cmpfile):
+                            try:
+                                file(pidfile, 'w').close()
+                                file(cmpfile, 'w').close()
+                                os.remove(pidfile)
+                                os.remove(cmpfile)
+                            except:
+                                pass
+                            out("- Upgrade complete")
+                        else:
+                            out("Error: Upgrade failed")
+                            return
                     '''
 
                     #'''
