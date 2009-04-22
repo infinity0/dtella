@@ -118,7 +118,7 @@ class DtellaBot(object):
 #''' BEGIN NEWITEMS MOD #
     freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
 
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF','IHAVE','NEWSTUFF'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF'])
 
 
     minihelp = [
@@ -1511,3 +1511,4 @@ exit 0
 
         for line in lines:
             out(' '.join(line))
+
