@@ -1,0 +1,176 @@
+= Contents =
+
+ADC-capable Dtella (plus some extra bits)
+implemented on top of Dtella 1.2.4+svn598
+
+(C) 2009 Dtella Cambridge, licensed under GPLv2 or later
+
+1. ADC Protocol
+	1.1 ADC protocol
+	1.2 Backwards compatibility
+	1.3 Force encryption
+	1.4 pytiger
+2. Upgrade and installing
+	2.1 Seed config format change
+	2.2 !UPGRADE command
+	2.3 !RESTART command
+	2.4 POSIX installer
+3. Miscellaneous
+	3.1 $KillDtella protocol change
+	3.2 Non-persistent VERSION_OVERRIDE
+4. Contributors
+
+
+= ADC Protocol =
+
+== ADC Protocol ==
+
+ADC Project: http://adc.sourceforge.net/wiki/index.php/Main_Page
+Protocol Specification: http://adc.sourceforge.net/ADC.html
+
+Most of the ADC protocol has been implemented, including all everyday normal
+functionality:
+
+* Public and private chat
+* Search querying
+* Active and passive file transfers
+
+Encrypted file transfers have also been implemented.
+
+In summary, the code allows Dtella to do everything it could previously, but
+in the ADC protocol rather than the DC protocol, plus support for client-to-
+client encryption.
+
+A Dtella network may run in either ADC or NMDC mode; this is specified in the
+local_config. If a client attempts to connect to a Dtella node of the opposite
+protocol, the node will detect this, and tell the client (in its protocol) that
+it cannot connect.
+
+== Backwards compatibility ==
+
+Various sections of code are marked with NMDC-BACK-COMPAT. These sections are
+to provide backwards-compatibility with NMDC-only Dtella nodes.
+
+Any new network should comprise entirely of ADC-mode or NMDC-mode nodes, but
+compatibility between these is supported through the nmdc_back_compat flag in
+the seed config for your local network. The intended use is to help facilitate
+a smoother transition from a network of the old NMDC-only nodes, to one of the
+new ADC-capable nodes - NOT to sustain a hybrid network, which is impossible.
+
+During the transition, nmdc_back_compat (in your seed config) must be set to
+True. New nodes will continue to use the old handshake packet, and accept old
+nodes as part of the network.
+
+When the transition is over, it is recommended to switch the nmdc_back_compat
+flag to False. At this point, the new nodes will prevent old nodes from joining
+the network by using a different (incompatible) handshake packet.
+
+If upgrading from a DC-based network of the old nodes, to an ADC-based network
+of the new nodes, there are some additional effects to be considered:
+
+All Dtella nodes will be able to connect to the network, and NMDC clients will
+be able to fully interact with other NMDC clients. However, interaction between
+NMDC and ADC clients will be limited to [priv]chat, and interaction between ADC
+clients will be limited depending on the proportion of the ADC-mode nodes in
+the network, since NMDC-mode nodes will Reject the ADC-specific Dtella packets
+that it receives.
+
+== Force encryption ==
+
+An ADC network may choose to force encrypted transfers between its clients.
+This is specified in the local_config. This setting is ignored for NMDC
+networks, since they do not support encryption.
+
+When an unencrypted transfer is attempted, the Dtella node will abort this.
+If the code has been modified to bypass the abortion, the remote node still
+abort it, assuming it is hasn't been modified.
+
+== pytiger ==
+
+ADC uses TTH in many of its internal workings; pytiger is a C-linked python
+implementation of this algorithm. It is not an official python module nor
+affiliated python; we build it ourselves from some already existing code. The
+branch of pytiger that we use is here:
+
+http://code.launchpad.net/~xl269/pytiger/main/
+
+Unfortunately, Dtella will attempt to import this module even when running in
+NMDC mode. We forgot about this, sorry; but it should be an easy fix if you
+want (for some reason) to run ADC-capabla Dtella in NMDC mode, and don't want
+to install pytiger.
+
+
+= Upgrading and installing =
+
+== Seed config format change ==
+
+A minor backwards-compatible change has been added to the "version" key. It is
+now as follows: "min_v new_v website#repo". The repo will be seen by older
+versions of Dtella, but this will not affect links to the website.
+
+The purpose of the repo string is to provide the correct path in the website
+for UPGRADE command to download the relevant binaries.
+
+== UPGRADE command ==
+
+This command will do an automatic upgrade of Dtella. Currently it supports 3
+types of upgrade - [tar.bz2/gz, dmg, exe]. The upgrade type is determined by
+the build_type setting in local_config, which is automatically set by the new
+build scripts.
+
+The command downloads the relevant file from the website specified in the seed
+config, and proceeds according to the build type. When the upgrade is complete,
+Dtella will restart automatically.
+
+Currently the tar.bz2 upgrade type is unable to complete if it does not have
+write permissions to the install folder. There is some commented-out code in
+that attempts to elevate privileges; it has been tested to work, but has been
+disabled since it is rather ugly. Anyone who requires this functionality may
+restore it by un-commenting and commenting the relevant parts in
+dtella/client/dtellabot.py.
+
+== RESTART command ==
+
+The RESTART command allows for a full restart of the Dtella process. It is
+used by some types of the UPGRADE command; other types restart Dtella by other
+means.
+
+== POSIX installer ==
+
+A POSIX installer has been written that checks that Dtella's dependencies are
+satified (twisted, pyCrypto, pytiger), and offers to install them if not, and
+then downloads and installs Dtella from a repository on the www. Additionally,
+if an SVN repo has been specified, the installer will install Dtella from it
+when given the --svn flag.
+
+The installer can be customised for your local distribution of Dtella by
+editing the variables in build_posix.sh appropriately, then running it.
+
+
+= Miscellaneous ==
+
+== $KillDtella protocol change ==
+
+The $KillDtella protocol has been modified to require a 256b key for the
+command to succeed. This is useful on multiuser environments. The key can be
+read from the state file, so that a Dtella process can terminate another one
+that is running as the same user.
+
+In order to make termination easier (eg. for upgraders and installers), the
+local TCP port that Dtella listens on is now also stored in the state file.
+When no port is given, Dtella will use this port instead of 7314, so that
+'dtella --terminate' will be able to terminate Dtella no matter what port it is
+listening on.
+
+== Non-persistent VERSION_OVERRIDE ==
+
+VERSION_OVERRIDE is no longer persistent; each time Dtella reloads the seed 
+config, the user will have to re-specify VERSION_OVERRIDE if they want to
+remain connected to the network. They are also given the choice of using the
+UPGRADE command. This should hopefully make upgrades smoother.
+
+
+= Contributors = 
+
+Ximin Luo, Andrew Cooper (main contributors)
+James Crosby (dmg upgrade code, plus a separate dmg package of linuxdcpp)

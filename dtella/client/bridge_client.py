@@ -2,6 +2,8 @@
 Dtella - Bridge Client Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 
@@ -20,13 +22,19 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
+from base64 import b32encode
+from tiger import treehash
+
 from twisted.internet import reactor
 
+import dtella.local_config as local
 import dtella.common.core as core
 from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
                                 Reject, NickError)
 
-from dtella.common.util import RandSet, dcall_discard, parse_incoming_info
+from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
+                                split_info, adc_infostring, CHECK,
+                                get_version_string, SSLHACK_filter_flags)
 
 import dtella.common.ipv4 as ipv4
 from dtella.common.ipv4 import Ad
@@ -40,6 +48,7 @@ import random
 from zope.interface import implements
 from zope.interface.verify import verifyClass
 from dtella.common.interfaces import IDtellaNickNode
+
 
 class ChunkError(Exception):
     pass
@@ -100,7 +109,7 @@ class BridgeClientProtocol(core.PeerHandler):
              ) = self.decodePacket('!QH4sIB+', rest)
 
             persist = bool(flags & core.PERSIST_BIT)
-
+            
             (hashes, rest
              ) = self.decodeString1(rest, 16)
             
@@ -165,7 +174,7 @@ class BridgeClientProtocol(core.PeerHandler):
         self.checkSource(src_ipp, ad, exempt_ip=True)
 
         persist = bool(flags & core.PERSIST_BIT)
-
+        
         (hashes, rest
          ) = self.decodeString1(rest, 16)
         
@@ -408,6 +417,7 @@ class NickNode(object):
         self.nick = nick
         
         self.dcinfo = ""
+        self.info = {}
         self.location = ""
         self.shared = 0
         self.setInfo(info)
@@ -416,9 +426,45 @@ class NickNode(object):
         self.mode = mode
 
 
-    def setInfo(self, info):
+    def setInfo(self, info, adc=core.adc_mode):
         old_dcinfo = self.dcinfo
-        self.dcinfo, self.location, self.shared = parse_incoming_info(info)
+        self.dcinfo, self.location, self.shared = (
+            parse_incoming_info(SSLHACK_filter_flags(info)))
+
+        if core.adc_mode: # BACKWARDS COMPAT
+            self.protocol = core.PROTOCOL_ADC
+            try:
+                infs = split_info(info)
+                self.info['NI'] = self.nick
+                self.info['DE'] = "[%s] %s" % (self.location, infs[0])
+                self.info['ID'] = b32encode(treehash(self.nick))
+                self.info['I4'] = '0.0.0.0'
+                self.info['VE'] = get_version_string()
+                self.info['HN'] = '1'
+                
+                optype = infs[0][1]
+                
+                if optype in ('~','&','@'): # user is an op
+                    self.info['HR'], self.info['HO'] = '1','1'
+                else:
+                    self.info['HR'], self.info['HO'] = '0','0'
+                    
+                if optype == '~':
+                    self.info['CT'] = '30'
+                elif optype == '&':
+                    self.info['CT'] = '14'
+                elif optype == '@':
+                    self.info['CT'] = '6'
+                else:
+                    self.info['CT'] = '2'
+                    
+                self.dcinfo = adc_infostring(self.info)
+            except ValueError:
+                raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
+
+        else:
+            self.protocol = core.PROTOCOL_NMDC
+
         return (self.dcinfo != old_dcinfo)
 
 
@@ -449,13 +495,21 @@ class NickNode(object):
         self.parent_n.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
+        CHECK(main.dch.protocol == core.PROTOCOL_NMDC)
         fail_cb("IRC users don't have any files.")
 
-
-    def event_RevConnectToMe(self, main, fail_cb):
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        CHECK(main.dch.protocol == core.PROTOCOL_ADC)
         fail_cb("IRC users don't have any files.")
 
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        CHECK(main.dch.protocol == core.PROTOCOL_NMDC)
+        fail_cb("IRC users don't have any files.")
+
+    def event_ADC_RevConnectToMe(self, main, protocol, token, fail_cb):
+        CHECK(main.dch.protocol == core.PROTOCOL_ADC)
+        fail_cb("IRC users don't have any files.")
 
     def checkRevConnectWindow(self):
         return False

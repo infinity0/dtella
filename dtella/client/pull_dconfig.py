@@ -2,6 +2,8 @@
 Dtella - Dynamic Config Puller Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
 
 $Id$
 
@@ -148,16 +150,21 @@ class DynamicConfigPuller(object):
 
             elif name == 'version':
                 try:
-                    min_v, new_v, url = value.split()
+                    min_v, new_v, url = value.split(' ', 2)
+                    if '#' in url:
+                        ri = url.rindex('#')
+                        url, repo = url[:ri], url[ri+1:]
+                    else:
+                        repo = ''
                 except ValueError:
                     pass
                 else:
-                    self.version = (min_v, new_v, url)
+                    self.version = (min_v, new_v, url, repo)
 
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
                 state.dns_pkhashes.add(h)
-            
+
             elif name == 'ipcache':
                 try:
                     data = binascii.a2b_base64(value)
@@ -169,6 +176,18 @@ class DynamicConfigPuller(object):
                     continue
 
                 state.setDNSIPCache(data)
+
+            elif name == 'nmdc_back_compat':
+                try:
+                    if int(value) > 0:
+                        import dtella.common.core as core
+                        core.nmdc_back_compat = True
+
+                except ValueError:
+                    pass
+
+            elif name == 'nmdc_bc_expire':
+                self.main.expireNMDCBC(value)
 
 
     def doCallback(self):
@@ -214,7 +233,7 @@ class DynamicConfigPuller(object):
         if not self.version:
             return False
 
-        min_v, new_v, url = self.version
+        min_v, new_v, url, repo = self.version
         min_vc = cmpify_version(min_v)
 
         if self.override_vc < min_vc:
@@ -229,15 +248,21 @@ class DynamicConfigPuller(object):
                 " ",
                 "[If unusual circumstances prevent you from upgrading, "
                 "type !VERSION_OVERRIDE to attempt to connect using this "
-                "unsupported client.]",
+                "unsupported client. Please note that you will be repeatedly "
+                "prompted to do this every few hours.]",
                 " ",
-                "Download link: %s" % url
+                "Type !UPGRADE to upgrade, or download it at: %s" % url,
+                " "
                 )
 
             for par in text:
                 for line in word_wrap(par):
                     self.main.showLoginStatus(line)
             return True
+
+        # can only override once; next time the client gets the DNS
+        # the user will have to override again
+        self.override_vc = cmpify_version(local.version)
 
         return False
 
@@ -247,7 +272,7 @@ class DynamicConfigPuller(object):
         if not self.version:
             return
 
-        min_v, new_v, url = self.version
+        min_v, new_v, url, repo = self.version
         new_vc = cmpify_version(new_v)
 
         if self.reported_vc < new_vc:
@@ -257,8 +282,9 @@ class DynamicConfigPuller(object):
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
                     % (local.version, new_v))
-                say("Download link: %s" % url)
+                say("Type !UPGRADE to upgrade, or download it at: %s" % url)
                 
+                # prevents update messages from re-appearing
                 self.reported_vc = new_vc
 
 
@@ -266,7 +292,7 @@ class DynamicConfigPuller(object):
         # User requested skipping of the minimum version control
 
         if self.version:
-            min_v, new_v, url = self.version
+            min_v, new_v, url, repo = self.version
             min_vc = cmpify_version(min_v)
 
             if not (self.override_vc < min_vc):

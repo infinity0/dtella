@@ -2,7 +2,8 @@
 Dtella - State File Management Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
-Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com)
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
 
 $Id$
 
@@ -266,6 +267,38 @@ class LoadSaver(object):
 
 
 
+class ClientPort(LoadSaver):
+
+    key = 'clientport'
+
+    def load(self, state, d):
+        try:
+            state.clientport = self.unpackValue(d, 'H')
+        except StateError:
+            state.clientport = 7314
+
+
+    def save(self, state, d):
+        self.packValue(d, 'H', state.clientport)
+
+
+
+class KillKey(LoadSaver):
+
+    key = 'killkey'
+
+    def load(self, state, d):
+        try:
+            state.killkey = self.unpackValue(d, '32s')
+        except StateError:
+            state.killkey = ''
+
+
+    def save(self, state, d):
+        self.packValue(d, '32s', state.killkey)
+
+
+
 class Persistent(LoadSaver):
 
     key = 'persistent'
@@ -430,7 +463,9 @@ class DNSPkHashes(LoadSaver):
         self.packStrs(d, state.dns_pkhashes)
 
 
-client_loadsavers = [Persistent(),
+client_loadsavers = [ClientPort(),
+                     KillKey(),
+                     Persistent(),
 #''' BEGIN NEWITEMS MOD #
                      Newitems_Notify(),
 # END NEWITEMS MOD '''#

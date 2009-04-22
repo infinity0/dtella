@@ -1,0 +1,1513 @@
+"""
+Dtella - Dtella Bot Module
+Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
+Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
+
+$Id$
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+
+from twisted.internet import reactor
+from twisted.python.runtime import seconds
+import twisted.python.log
+
+from dtella.common.util import (validateNick, word_wrap, split_info,
+                                split_tag, dcall_discard, cmpify_version,
+                                format_bytes, dcall_timeleft,
+                                get_version_string, lock2key, CHECK)
+from dtella.common.ipv4 import Ad
+import dtella.common.core as core
+import dtella.local_config as local
+import struct
+import random
+import re
+import binascii
+import socket
+
+from zope.interface import implements
+from zope.interface.verify import verifyClass
+from dtella.common.interfaces import IDtellaStateObserver
+
+class DtellaBot(object):
+    # This holds the logic behind the "*Dtella" user
+
+    def __init__(self, dch, nick):
+        self.dch = dch
+        self.main = dch.main
+        self.nick = nick
+
+        self.dbg_show_packets = False
+
+
+    def say(self, txt):
+        self.dch.pushBotMsg(txt)
+
+
+    def commandInput(self, out, line, prefix=''):
+
+        # Sanitize
+        line = line.replace('\r', ' ').replace('\n', ' ')
+
+        cmd = line.upper().split()
+
+        if not cmd:
+            return False
+
+        try:
+            f = getattr(self, 'handleCmd_' + cmd[0])
+        except AttributeError:
+            if prefix:
+                return False
+            else:
+                out("Unknown command '%s'.  Type %sHELP for help." %
+                    (cmd[0], prefix))
+                return True
+
+        # Filter out location-specific commands
+        if not local.use_locations:
+            if cmd[0] in self.location_cmds:
+                return False
+            
+        if cmd[0] in self.freeform_cmds:
+            try:
+                text = line.split(' ', 1)[1]
+            except IndexError:
+                text = None
+
+            f(out, text, prefix)
+            
+        else:
+            def wrapped_out(line):
+                for l in word_wrap(line):
+                    if l:
+                        out(l)
+                    else:
+                        out(" ")
+           
+            f(wrapped_out, cmd[1:], prefix)
+
+        return True
+
+
+    def syntaxHelp(self, out, key, prefix):
+
+        try:
+            head = self.bighelp[key][0]
+        except KeyError:
+            return
+
+        out("Syntax: %s%s %s" % (prefix, key, head))
+        out("Type '%sHELP %s' for more information." % (prefix, key))
+
+
+#''' BEGIN NEWITEMS MOD #
+    freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
+
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF','IHAVE','NEWSTUFF'])
+
+
+    minihelp = [
+        ("--",         "ACTIONS"),
+        ("REJOIN",     "Hop back online after a kick or collision"),
+        ("ADDPEER",    "Add the address of another node to your cache"),
+        ("INVITE",     "Show your current IP and port to give to a friend"),
+        ("REBOOT",     "Exit from the network and immediately reconnect"),
+        ("TERMINATE",  "Completely kill your current Dtella process."),
+        ("I",          "Add/remove stuff to the global items list."),
+        ("STUFF",      "View the global items list."),
+        ("--",         "SETTINGS"),
+        ("TOPIC",      "View or change the global topic"),
+        ("SUFFIX",     "View or change your location suffix"),
+        ("UDP",        "Change Dtella's peer communication port"),
+        ("LOCALSEARCH","View or toggle local search results."),
+        ("PERSISTENT", "View or toggle persistent mode"),
+        ("NOTIFY",     "View or toggle notifications of new items"),
+        ("--",         "INFORMATION"),
+        ("VERSION",    "View information about your Dtella version."),
+        ("USERS",      "Show how many users exist at each location"),
+        ("SHARED",     "Show how many bytes are shared at each location"),
+        ("DENSE",      "Show the bytes/user density for each location"),
+        ("RANK",       "Compare your share size with everyone else"),
+        ]
+# END NEWITEMS MOD '''#
+
+
+    bighelp = {
+        "REJOIN":(
+            "",
+            "If you are kicked from the chat system, or if you attempt to use "
+            "a nick which is already occupied by someone else, your node "
+            "will remain connected to the peer network in an invisible state. "
+            "If this happens, you can use the REJOIN command to hop back "
+            "online.  Note that this is only useful after a nick collision "
+            "if the conflicting nick has left the network."
+            ),
+
+        "TOPIC":(
+            "<text>",
+            "If no argument is provided, this command will display the "
+            "current topic for the network.  This is the same text which "
+            "is shown in the title bar.  If you provide a string of text, "
+            "this will attempt to set a new topic.  Note that if Dtella "
+            "is bridged to an IRC network, the admins may decide to lock "
+            "the topic to prevent changes."
+            ),
+
+#''' BEGIN NEWITEMS MOD #
+        "I":(
+            "<WANT|WANTNOT|HAVE|HAVENOT> ([@<cat>] <desc>|0x<hash>)",
+            "Announce to the network a <description> of an item that you have "
+            "or want, with an optional <category> to place that item into. "
+            "eg. I HAVE @FILM V for Vendetta. You can also use the NOT word "
+            "to cancel a previous submission. eg. I HAVENOT @FILM V for "
+            "Vendetta. You may also specify an already-existing item by its "
+            "<hash>, which you can find out with STUFF +HASH"
+            ),
+
+        "STUFF":(
+            "[<filter>*] +<option>*",
+            "Displays the list of stuff based on some <filter>s. If no "
+            "filters are provided, displays new items from the last week. To "
+            "view the syntax for these filters, see STUFF FILTERS. Possible "
+            "<options> are: +HASH (display the hash of each item)."
+            ),
+
+        "NOTIFY":(
+            "<ON | OFF>",
+            "Set whether you wish to be notified by *Dtella when someone "
+            "makes a new item announcement. To see whether you are currently "
+            "receiving notifications, use the command with no arguments."
+            ),
+
+# END NEWITEMS MOD '''#
+        "SUFFIX":(
+            "<suffix>",
+            "This command appends a suffix to your location name, which "
+            "is visible in the Speed/Connection column of everyone's DC "
+            "client.  Typically, this is where you put your room number. "
+            "If you provide no arguments, this will display the "
+            "current suffix.  To clear the suffix, just follow the command "
+            "with a single space."
+            ),
+
+        "TERMINATE":(
+            "",
+            "This will completely kill your current Dtella node.  If you "
+            "want to rejoin the network afterward, you'll have to go "
+            "start up the Dtella program again."
+            ),
+
+        "RESTART":(
+            "",
+            "This will spawn a new Dtella process, which will automatically "
+            "kill this one. In effect, a restart. You may have to reconnect "
+            "to Dtella (Ctrl-R on most clients) if your client doesn't do "
+            "this automatically."
+            ),
+
+        "VERSION":(
+            "",
+            "This will display your current Dtella version number.  If "
+            "available, it will also display the minimum required version, "
+            "the newest available version, and a download link."
+            ),
+
+        "LOCALSEARCH":(
+            "<ON | OFF>",
+            "If local searching is enabled, then when you search, you will "
+            "see search results from the *Dtella user, which are actually "
+            "hosted on your computer.  Use this command without any arguments "
+            "to see whether local searching is currently enabled or not."
+            ),
+
+        "USERS":(
+            "",
+            "This will list all the known locations, and show how many "
+            "people are currently connecting from each."
+            ),
+
+        "SHARED":(
+            "",
+            "This will list all the known locations, and show how many "
+            "bytes of data are being shared from each."
+            ),
+        
+        "DENSE":(
+            "",
+            "This will list all the known locations, and show the calculated "
+            "share density (bytes-per-user) for each."
+            ),
+        
+        "RANK":(
+            "<nick>",
+            "Compare your share size with everyone else in the network, and "
+            "show which place you're currently in.  If <nick> is provided, "
+            "this will instead display the ranking of the user with that nick."
+            ),
+        
+        "UDP":(
+            "<port>",
+            "Specify a port number between 1-65536 to change the UDP port "
+            "that Dtella uses for peer-to-peer communication.  If you don't "
+            "provide a port number, this will display the port number which "
+            "is currently in use."
+            ),
+
+        "ADDPEER":(
+            "<ip>:<port>",
+            "If Dtella is unable to locate any neighbor nodes using the "
+            "remote config data or your local neighbor cache, then you "
+            "can use this command to manually add the address of an existing "
+            "node that you know about."
+            ),
+            
+        "INVITE":(
+            "",
+            "If you wish to invite another user to join the network using the "
+            "!ADDPEER command, you can use this command to retrieve your "
+            "current IP and port to give to them to use."
+            ),
+
+        "REBOOT":(
+            "",
+            "This command takes no arguments.  It will cause your node to "
+            "exit from the network, and immediately restart the connection "
+            "process.  Use of this command shouldn't be necessary for "
+            "normal operation."
+            ),
+
+        "PERSISTENT":(
+            "<ON | OFF>",
+            "This option controls how Dtella will behave when it is not "
+            "attached to a Direct Connect client.  When PERSISTENT mode is "
+            "OFF, Dtella will automatically close its peer connection after "
+            "5 minutes of inactivity.  When this mode is ON, Dtella will "
+            "try to stay connected to the network continuously.  To see "
+            "whether PERSISTENT is enabled, enter the command with no "
+            "arguments."
+            )
+        }
+
+
+    def handleCmd_HELP(self, out, args, prefix):
+
+        if len(args) == 0:
+            out("This is your local Dtella bot.  You can send messages here "
+                "to control the various features of Dtella.  A list of "
+                "commands is provided below.  Note that you can PM a command "
+                "directly to the %s user, or enter it in the main chat "
+                "window prefixed with an exclamation point (!)" % self.nick)
+
+            for command, description in self.minihelp:
+
+                # Filter location-specific commands
+                if not local.use_locations:
+                    if command in self.location_cmds:
+                        continue
+                
+                if command == "--":
+                    out("")
+                    out("  --%s--" % description)
+                else:
+                    out("  %s%s - %s" % (prefix, command, description))
+
+            out("")
+            out("For more detailed information, type: "
+                "%sHELP <command>" % prefix)
+
+        else:
+            key = ' '.join(args)
+
+            # If they use a !, strip it off
+            if key[:1] == '!':
+                key = key[1:]
+
+            try:
+                # Filter location-specific commands
+                if not local.use_locations:
+                    if key in self.location_cmds:
+                        raise KeyError
+                    
+                (head, body) = self.bighelp[key]
+                
+            except KeyError:
+                out("Sorry, no help available for '%s'." % key)
+
+            else:
+                out("Syntax: %s%s %s" % (prefix, key, head))
+                out("")
+                out(body)
+
+
+    def handleCmd_REBOOT(self, out, args, prefix):
+
+        if len(args) == 0:
+            out("Rebooting Node...")
+            self.main.shutdown(reconnect='instant')
+            return
+
+        self.syntaxHelp(out, 'REBOOT', prefix)
+
+
+    def handleCmd_UDP(self, out, args, prefix):
+        if len(args) == 0:
+            out("Dtella's UDP port is currently set to: %d"
+                % self.main.state.udp_port)
+            return
+
+        elif len(args) == 1:
+            try:
+                port = int(args[0])
+                if not 1 <= port <= 65535:
+                    raise ValueError
+            except ValueError:
+                pass
+            else:
+                out("Changing UDP port to: %d" % port)
+                self.main.changeUDPPort(port)
+                return
+            
+        self.syntaxHelp(out, 'UDP', prefix)
+
+
+    def handleCmd_ADDPEER(self, out, args, prefix):
+
+        if len(args) == 1:
+            try:
+                ad = Ad().setTextIPPort(args[0])
+            except ValueError:
+                pass
+            else:
+                if not ad.port:
+                    out("Port number must be nonzero.")
+                    
+                elif ad.auth('sx', self.main):
+                    self.main.state.refreshPeer(ad, 0)
+                    out("Added to peer cache: %s" % ad.getTextIPPort())
+
+                    # Jump-start stuff if it's not already going
+                    self.main.startConnecting()
+                else:
+                    out("The address '%s' is not permitted on this network."
+                        % ad.getTextIPPort())
+                return
+
+        self.syntaxHelp(out, 'ADDPEER', prefix)
+        
+    
+    def handleCmd_INVITE(self, out, args, prefix):
+        
+        if len(args) == 0:
+            osm = self.main.osm
+            if osm:
+                out("Tell your friend to enter the following into their client "
+                    "to join the network:")
+                out("")
+                out("  !addpeer %s"
+                    % Ad().setRawIPPort(osm.me.ipp).getTextIPPort())
+                out("")
+            else:
+                out("You cannot invite someone until you are connected to the "
+                    "network yourself.")
+            return
+        
+        self.syntaxHelp(out, 'INVITE', prefix)
+        
+
+    def handleCmd_PERSISTENT(self, out, args, prefix):
+        if len(args) == 0:
+            if self.main.state.persistent:
+                out("Persistent mode is currently ON.")
+            else:
+                out("Persistent mode is currently OFF.")
+            return
+
+        if len(args) == 1:
+            if args[0] == 'ON':
+                out("Set persistent mode to ON.")
+                self.main.state.persistent = True
+                self.main.state.saveState()
+
+                if self.main.osm:
+                    self.main.osm.updateMyInfo()
+
+                self.main.startConnecting()
+                return
+
+            elif args[0] == 'OFF':
+                out("Set persistent mode to OFF.")
+                self.main.state.persistent = False
+                self.main.state.saveState()
+
+                if self.main.osm:
+                    self.main.osm.updateMyInfo()
+                return
+
+        self.syntaxHelp(out, 'PERSISTENT', prefix)
+
+
+    def handleCmd_LOCALSEARCH(self, out, args, prefix):
+        if len(args) == 0:
+            if self.main.state.localsearch:
+                out("Local searching is currently ON.")
+            else:
+                out("Local searching is currently OFF.")
+            return
+
+        if len(args) == 1:
+            if args[0] == 'ON':
+                out("Set local searching to ON.")
+                self.main.state.localsearch = True
+                self.main.state.saveState()
+                return
+
+            elif args[0] == 'OFF':
+                out("Set local searching to OFF.")
+                self.main.state.localsearch = False
+                self.main.state.saveState()
+                return
+
+        self.syntaxHelp(out, 'LOCALSEARCH', prefix)
+
+
+    def handleCmd_REJOIN(self, out, args, prefix):
+
+        if len(args) == 0:
+
+            if self.dch.state != 'invisible':
+                out("Can't rejoin: You're not invisible!")
+                return
+
+            out("Rejoining...")
+            self.dch.doRejoin()
+            return
+        
+        self.syntaxHelp(out, 'REJOIN', prefix)
+
+
+    def handleCmd_USERS(self, out, args, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sUSERS." % prefix)
+            return
+        
+        self.showStats(
+            out,
+            "User Counts",
+            lambda u,b: u,
+            lambda v: "%d" % v,
+            peers_only=False
+            )
+
+
+    def handleCmd_SHARED(self, out, args, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sSHARED." % prefix)
+            return
+        
+        self.showStats(
+            out,
+            "Bytes Shared",
+            lambda u,b: b,
+            lambda v: "%s" % format_bytes(v),
+            peers_only=True
+            )
+
+
+    def handleCmd_DENSE(self, out, args, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sDENSE." % prefix)
+            return
+
+        def compute(u,b):
+            try:
+                return (b/u, u)
+            except ZeroDivisionError:
+                return (0, u)
+        
+        self.showStats(
+            out,
+            "Share Density",
+            compute,
+            lambda v: "%s/user (%d)" % (format_bytes(v[0]), v[1]),
+            peers_only=True
+            )
+
+
+    def handleCmd_RANK(self, out, args, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sRANK." % prefix)
+            return
+
+        osm = self.main.osm
+
+        tie = False
+        rank = 1
+
+        target = None
+
+        if len(args) == 0:
+            target = osm.me
+        elif len(args) == 1:
+            try:
+                target = osm.nkm.lookupNodeFromNick(args[0])
+            except KeyError:
+                out("The nick <%s> cannot be located." % args[0])
+                return
+        else:
+            self.syntaxHelp(out, 'RANK', prefix)
+            return
+        
+        if target is osm.me:
+            who = "You are"
+        else:
+            who = "%s is" % target.nick
+
+        for n in osm.nkm.nickmap.values():
+            if n is target:
+                continue
+
+            if n.shared > target.shared:
+                rank += 1
+            elif n.shared == target.shared:
+                tie = True
+
+        try:
+            suffix = {1:'st',2:'nd',3:'rd'}[rank % 10]
+            if 11 <= (rank % 100) <= 13:
+                raise KeyError
+        except KeyError:
+            suffix = 'th'
+
+        if tie:
+            tie = "tied for"
+        else:
+            tie = "in"
+
+        out("%s %s %d%s place, with a share size of %s." %
+            (who, tie, rank, suffix, format_bytes(target.shared))
+            )
+        
+    def handleCmd_TOPIC(self, out, topic, prefix):
+        
+        if not self.dch.isOnline():
+            out("You must be online to use %sTOPIC." % prefix)
+            return
+
+        tm = self.main.osm.tm
+
+        if topic is None:
+            out(tm.getFormattedTopic())
+        else:
+            out(None)
+            tm.broadcastNewTopic(topic)
+
+
+    def handleCmd_SUFFIX(self, out, text, prefix):
+
+        if text is None:
+            out("Your location suffix is \"%s\"" % self.main.state.suffix)
+            return
+
+        text = text[:8].rstrip().replace('$','')
+
+        self.main.state.suffix = text
+        self.main.state.saveState()
+        
+        out("Set location suffix to \"%s\"" % text)
+
+        osm = self.main.osm
+        if osm:
+            osm.updateMyInfo()
+
+#''' BEGIN NEWITEMS MOD #
+
+    def handleCmd_I(self, out, desc, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sI." % prefix)
+            return
+
+        if desc is None:
+            self.syntaxHelp(out, 'I', prefix)
+            return
+
+        itm = self.main.osm.itm
+
+        try:
+            type, desc = desc.split(' ', 1)
+        except ValueError:
+            self.syntaxHelp(out, 'I', prefix)
+            return
+
+        type = type.upper()
+        src = []
+
+        # check if this is a hash entry
+        if desc[:2] == '0x':
+            cat = None
+            try:
+                import sys
+                test = int(desc, 16)
+                longmask = sys.maxint << 1 | 1
+                for i in itm.items:
+                    if (hash(i) & longmask) == test:
+                        cat, desc = i
+            except:
+                pass
+
+            if cat is None:
+                out("Item with hash %s not found." % desc)
+                out("(If you need to refer to an item whose description "
+                    "starts '0x', use *its* hash.)")
+                return
+
+        else:
+            # retrieve category
+            if desc[0] == '@':
+                try:
+                    cat, desc = desc.split(' ',1)
+                except ValueError:
+                    self.syntaxHelp(out, 'I', prefix)
+                    return
+
+                cat = cat[1:].upper()
+                if cat and cat[-1] == 'S': cat = cat[:-1] # allow plurals
+
+                try:
+                    cat = itm.categories.index(cat)
+                except ValueError:
+                    out("Invalid category: " + cat + ". Available categories are " + itm.catlist + ".")
+                    return
+
+            else:
+                cat = 0
+
+            # retrieve magnet links
+            if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
+                desc = desc.split(' ')
+                for (i, word) in enumerate(desc):
+                    if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
+                        src.append(word)
+                        del desc[i]
+                desc = ' '.join(desc)
+
+        remove = False
+
+        if type == 'HAVE':
+            src.append(self.main.osm.me.nick)
+        elif type == 'WANT':
+            # note: if the description contain magnet links, that will be added to the sources
+            pass
+        elif type == 'HAVENOT':
+            remove = True
+            src.append(self.main.osm.me.nick)
+        elif type == 'WANTNOT':
+            remove = True
+            # we don't just test for emptylist, since we want !i wantnot [magnet link]
+            # to be able to reverse the effects of !i want [magnet link]
+            if (cat, desc[:255]) in itm.items and itm.items[(cat, desc[:255])][0].difference(src):
+                # other people have that item
+                return
+        elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
+            remove = True
+            # force a remove, remove all sources
+            src = itm.items[(cat, desc[:255])][0]
+        else:
+            self.syntaxHelp(out, 'I', prefix)
+            return
+
+        out("") # force "you commanded" to be said
+        itm.broadcastSrcForItem(remove, cat, desc, src)
+
+
+    def handleCmd_NOTIFY(self, out, args, prefix):
+        if len(args) == 0:
+            if self.main.state.newitems_notify:
+                out("Notification of new items is currently ON.")
+            else:
+                out("Notification of new items is currently OFF.")
+            return
+
+        if len(args) == 1:
+            if args[0] == 'ON':
+                out("Set notifications to ON.")
+                self.main.state.newitems_notify = True
+                self.main.state.saveState()
+                return
+
+            elif args[0] == 'OFF':
+                out("Set notifications to OFF.")
+                self.main.state.newitems_notify = False
+                self.main.state.saveState()
+                return
+
+        self.syntaxHelp(out, 'NOTIFY', prefix)
+
+
+    def handleCmd_STUFF(self, out, text, prefix):
+
+        if not self.dch.isOnline():
+            out("You must be online to use %sSTUFF." % prefix)
+            return
+
+        if text is None: userargs = []
+        else: userargs = text.split(' ')
+
+        filters = [None, None, [], []]
+        options = {}
+
+        badfilters = []
+        validoptions = ['HASH']
+
+        if len(userargs) == 0:
+            # default is set later on
+            pass
+
+        elif userargs[0].upper() == 'FILTERS':
+
+            lines = [
+                "STUFF filters",
+                "An entry is displayed if it satisfies ALL* range filters and "
+                "AT LEAST ONE category filter and AT LEAST ONE source filter.",
+                "",
+                "Range filters [<D|N>x[:y]]",
+                "These are a single character followed by either two integers "
+                "x:y or a single integer x, short for 0:x. (eg. D2:3 or D4) ",
+                "  - Dx:y filters entries between x and y days ago. ",
+                "  - Nx:y filters to the last xth to yth entries. ",
+                "*When multiple range filters of the same type are supplied, "
+                "only the last one is used.",
+                "",
+                "Category filters [@CAT]",
+                "These filter entries according to their category as assigned "
+                "by the original announcer. Currently accepted categories are:",
+                "  - " + self.main.osm.itm.catlist + ".",
+                "",
+                "Source filters [~SRC|WANTED]",
+                "These filter entries according to their sources as advertised "
+                "by various people. WANTED is a special filter that matches "
+                "entries with no listed sources.",
+                ]
+
+            for line in lines:
+                for l in word_wrap(line):
+                    if l:
+                        out(l)
+                    else:
+                        out(" ")
+
+            return
+
+        else:
+
+            for argv in userargs:
+                arg = argv.upper()
+
+                if not arg:
+                    continue
+
+                elif arg[0] == 'N':
+                    i = 0
+                elif arg[0] == 'D':
+                    i = 1
+
+                elif arg[0] == '@':
+                    # category filters
+                    try:
+                        filters[2].append(self.main.osm.itm.categories.index(arg[1:]))
+                    except ValueError:
+                        badfilters.append((arg, 'Category not available'))
+                    continue
+
+                elif arg[0] == '~' and filters[3] is not None:
+                    # source filters
+                    filters[3].append(argv[1:])
+                    continue
+
+                elif arg[0] == '+':
+                    # options
+                    arg = arg[1:]
+                    if '=' in arg:
+                        k, v = arg.split('=', 1)
+                    else:
+                        k, v = arg, True
+
+                    if k in validoptions:
+                        options[k] = v
+                    else:
+                        badfilters.append((k, 'Unrecognised option; see HELP STUFF for help.'))
+                    continue
+
+                elif arg == 'WANTED':
+                    filters[3] = None
+                    continue
+
+                else:
+                    badfilters.append((arg, 'Unrecognised filter; see STUFF FILTERS for help.'))
+                    continue
+
+                try:
+                    # range filters
+                    t = map(lambda x: int(x), arg[1:].split(':'))
+                    t.sort()
+                    if len(t) == 1 or len(t) == 2:
+                        filters[i] = tuple(t)
+                    else:
+                        badfilters.append((arg, 'Need to specify one or two numbers'))
+                except ValueError:
+                    badfilters.append((arg, 'Badly formatted number'))
+
+        if filters == [None, None, [], []]:
+            filters = [(0,16), (0,7), [],[]]
+
+        lines = self.main.osm.itm.getFormattedItems(options, *filters)
+        for line in lines:
+            out(line)
+        if badfilters:
+            out('Some filters were invalid and ignored:')
+            for f in badfilters:
+                out("  %s: %s" % f)
+
+# END NEWITEMS MOD '''#
+
+    def showStats(self, out, title, compute, format, peers_only):
+
+        CHECK(self.dch.isOnline())
+
+        # Count users and bytes
+        ucount = {}
+        bcount = {}
+
+        # Collect user count and share size
+        for n in self.main.osm.nkm.nickmap.values():
+
+            if peers_only and not n.is_peer:
+                continue
+            
+            try:
+                ucount[n.location] += 1
+                bcount[n.location] += n.shared
+            except KeyError:
+                ucount[n.location] = 1
+                bcount[n.location] = n.shared
+
+        # Collect final values
+        values = {}
+        for loc in ucount:
+            values[loc] = compute(ucount[loc], bcount[loc])
+
+        # Sort by value, in descending order
+        locs = values.keys()
+        locs.sort(key=lambda loc: values[loc], reverse=True)
+
+        overall = compute(sum(ucount.values()), sum(bcount.values()))
+
+        # Build info string and send it
+        out("/== %s, by Location ==\\" % title)
+        for loc in locs:
+            out("| %s <= %s" % (format(values[loc]), loc))
+        out("|")
+        out("\\_ Overall: %s _/" % format(overall))
+
+
+    def handleCmd_VERSION(self, out, args, prefix):
+        if len(args) == 0:
+            out("You have Dtella version %s." % local.version)
+
+            if self.main.dcfg.version:
+                min_v, new_v, url, repo = self.main.dcfg.version
+                out("The minimum required version is %s." % min_v)
+                out("The latest posted version is %s." % new_v)
+                out("Download Link: %s" % url)
+
+            return
+
+        self.syntaxHelp(out, 'VERSION', prefix)
+
+
+    def handleCmd_TERMINATE(self, out, args, prefix):
+        if len(args) == 0:
+            reactor.stop()
+            return
+
+        self.syntaxHelp(out, 'TERMINATE', prefix)
+
+
+    def handleCmd_RESTART(self, out, args, prefix):
+        if len(args) == 0:
+            import sys, subprocess
+
+            try:
+                try:
+                    subprocess.Popen(sys.argv)
+                except OSError, e:
+                    # if Dtella was started as "python dtella.py", then
+                    # sys.argv[0] will be "dtella.py" which will interpreted
+                    # as a system command
+                    if e.errno == 2:
+                        import os, os.path
+                        sys.argv[0] = os.path.join(os.getcwd(), sys.argv[0])
+                        subprocess.Popen(sys.argv)
+                    else:
+                        raise
+
+                out("The new Dtella is up and running. This one will shortly "
+                    "disconnect and exit. You may have to reconnect to Dtella "
+                    "(ctrl-R on most clients) if your client doesn't do this "
+                    "automatically.")
+
+            except Exception, e:
+                out("Failed to start a new Dtella process: %s" % e)
+            return
+
+        self.syntaxHelp(out, 'RESTART', prefix)
+
+
+    def handleCmd_VERSION_OVERRIDE(self, out, args, prefix):
+        if self.main.dcfg.overrideVersion():
+            out("Overriding minimum version!  Don't be surprised "
+                "if something breaks.")
+            self.main.startConnecting()
+        else:
+            out("%sVERSION_OVERRIDE not needed." % prefix)
+
+
+    def handleCmd_UPGRADE(self, out, args, prefix):
+        min_v, new_v, url, repo = self.main.dcfg.version
+        name, cur_v, type = local.build_prefix, local.version, local.build_type
+
+        if cmpify_version(new_v) <= cmpify_version(cur_v) and \
+        (not args or args[0] != "FORCE"):
+            out("You are already at the newest version.")
+            return
+
+        if type not in ["tar.bz2", "tar.gz", "dmg", "exe"]:
+            out("Upgrade not supported for build type %s" % type)
+            return
+
+        import os, urllib, sys, subprocess
+
+        new_p = name + new_v
+        if not url.endswith('/'): url += '/'
+        if not repo.endswith('/'): repo += '/'
+        binurl = url + repo + new_p
+        if type == 'exe': binurl += ".updater." + type
+        else: binurl += "." + type
+
+        out("Upgrading from %s to %s" % (cur_v, new_v))
+
+        out("- Downloading %s" % binurl)
+
+        def install_cb():
+            try:
+                fpath, headers = urllib.urlretrieve(binurl)
+            except Exception, e:
+                out("Error: Couldn't download the update: %s" % e)
+                out("Try again later, or ask for help in main chat.")
+                return
+
+            try:
+                if type == 'tar.bz2' or type == 'tar.gz':
+                    import sys, time, shutil
+
+                    bk_sep = '-'
+                    basep = sys.path[0] + os.sep
+                    bkup = name + cur_v + bk_sep + \
+                        str(int(time.time())) + os.sep
+                    blist = os.listdir(basep)
+
+                    '''
+                    if os.name != 'posix':
+                        out("Source upgrade not supported on non-posix platforms.")
+                        return
+
+                    import commands, os.path, tempfile
+
+                    sudoterm = []
+                    terminals = {
+                        'gnome-terminal': '-x',
+                        'konsole': '-e',
+                        'xfce4-terminal': '-x',
+                        'xterm': '-e',
+                        'rxvt': '-e',
+                    }
+
+                    ret, output = commands.getstatusoutput('which x-terminal-emulator')
+                    if ret:
+                        for term in terminals:
+                            if not subprocess.call(['which', term]):
+                                sudoterm.extend([term, terminals[term]])
+                                break
+                        else:
+                            out("Couldn't find a suitable terminal program; abort.")
+                            return
+                    else:
+                        term = os.path.basename(os.path.realpath(output))
+                        if term in terminals:
+                            sudoterm.extend([term, terminals[term]])
+                        elif term.endswith(".wrapper") and term[:-8] in terminals:
+                            sudoterm.extend([term[:-8], terminals[term[:-8]]])
+                        else:
+                            sudoterm.extend(['x-terminal-emulator', '-e'])
+
+                    try:
+                        os.mkdir(basep + bkup)
+                    except Exception, e:
+                        if e.errno == 13: # permission denied
+                            if not subprocess.call(['which', 'gksu']):
+                                sudoterm.extend(['gksu', '--'])
+                            elif not subprocess.call(['which', 'kdesu']):
+                                sudoterm.extend(['kdesu', '--'])
+                            pass # the shell script will attempt to give itself root
+                        else:
+                            out("Error: Couldn't make backup directory: %s", e)
+                            return
+
+                    shp, shpath = tempfile.mkstemp()
+                    script = """\
+#!/bin/sh
+
+BASEDIR=%s
+ARCHIVE=%s
+BKUPDIR=%s
+PRODUCT=%s
+
+perror () {
+    echo "Error: $@" >&2
+    echo -n "press ENTER to continue..."
+    read ENTER
+    exit 1
+}
+
+pwclean () {
+    echo "Warning: could not remove $@" >&2
+    echo "You should do this yourself." >&2
+}
+
+cd "$BASEDIR"
+echo $$ >> "$PRODUCT.pid" 2>/dev/null
+chmod 777 "$PRODUCT.pid"
+
+echo "- make backup directory $BKUPDIR"
+if ! mkdir -p "$BKUPDIR"; then
+    if [ "$(id -u)" -gt 0 ]; then
+        # -S is needed for subprocess.communicate() to work properly in the
+        # case of the user *having* sudo permissions. sudo will read empty
+        # passwords and return exit code 1; if -S is not specified, sudo will
+        # take input from the terminal instead of subprocess.stdin, and hang
+        # when trying to retrieve the password from the user.
+        if sudo -vS >/dev/null; then
+            echo "- using sudo to grant access"
+            sudo "$0";
+        else
+            echo "- using su to grant access"
+            su -c "$0";
+        fi
+        exit
+    fi
+    perror "could not make backup directory; abort"
+fi
+
+echo "- extracting $PRODUCT from $ARCHIVE"
+if ! tar xf "$ARCHIVE" "$PRODUCT"; then
+    perror "could not extract $PRODUCT; abort"
+fi
+
+echo "- move old installation to $BKUPDIR"
+if ! mv docs dtella dtella.py "$BKUPDIR"; then
+    perror "could not move old installation; abort"
+fi
+
+echo "- install $PRODUCT to $BASEDIR"
+if ! mv "$PRODUCT"/* .; then
+    echo "Error: could not install new files; attempting to restore old files"
+    if ! mv "$BKUPDIR"/* .; then
+        perror "could not restore old files. sorry."
+    else
+        echo "- backups restored."
+    fi
+    exit 1
+fi
+
+echo "- cleaning up"
+if ! rm -rf "$PRODUCT"; then pwclean "temporary extraction directory $PRODUCT"; fi
+if ! rm -rf "$BKUPDIR"; then pwclean "temporary backup directory $BKUPDIR"; fi
+if ! rm -rf "$0"; then pwclean "this update script $0"; fi
+
+echo "REMOVE ME" > "$PRODUCT.complete"
+chmod 777 "$PRODUCT.complete"
+
+echo "- Upgrade successful."
+echo -n "Press ENTER to continue... "
+read ENTER
+exit 0
+""" % tuple([commands.mkarg(i)[1:] for i in [basep, fpath, bkup, new_p]])
+                    if 'gksu' in sudoterm:
+                        # This is necessary because of
+                        # http://savannah.nongnu.org/bugs/?13306
+                        script = script.replace(
+                            'echo -n "Press ENTER to continue... "\n'
+                            'read ENTER\n',
+                            'echo -n "You may now close this window."\n'
+                            'sleep 99999\n'
+                            )
+                    os.write(shp, script)
+                    os.close(shp)
+                    os.chmod(shpath, 0755)
+                    sudoterm.append(shpath)
+
+                    updater = subprocess.Popen(sudoterm)
+                    if updater.wait():
+                        out("Warning: could not execute a terminal emulator; running upgrade without one.")
+                        out("Note that sudo and su will be unable to accept passwords.")
+                        updater = subprocess.Popen([shpath],
+                                                   stdin=subprocess.PIPE,
+                                                   stdout=subprocess.PIPE,
+                                                   stderr=subprocess.STDOUT,
+                                                  )
+                        stdout, stderr = updater.communicate()
+                        if updater.returncode:
+                            out("Error: Upgrade failed. Details:")
+                            for line in stdout.split("\n"):
+                                if line:
+                                    out("  " + line)
+                            return
+                        else:
+                            out("- Upgrade complete. Details:")
+                            for line in stdout.split("\n"):
+                                if line:
+                                    out("  - " + line)
+                    else:
+                        import time
+                        pidfile = basep + new_p + ".pid"
+                        cmpfile = basep + new_p + ".complete"
+
+                        while not os.path.exists(pidfile) or \:
+                        os.path.getsize(pidfile) == 0
+                            time.sleep(0.25)
+                        for line in file(pidfile):
+                            pid = int(line)
+                            break
+
+                        while not os.path.exists(cmpfile) or \
+                        os.path.getsize(cmpfile) == 0:
+                            time.sleep(0.25)
+                            try:
+                                os.getpgid(pid)
+                            except OSError, e:
+                                if e.errno == 3: # No such process
+                                    break
+                                else:
+                                    raise
+
+                        if os.path.exists(cmpfile):
+                            try:
+                                file(pidfile, 'w').close()
+                                file(cmpfile, 'w').close()
+                                os.remove(pidfile)
+                                os.remove(cmpfile)
+                            except:
+                                pass
+                            out("- Upgrade complete")
+                        else:
+                            out("Error: Upgrade failed")
+                            return
+                    '''
+
+                    #'''
+                    out("- Backing up current dtella to %s" % bkup)
+                    bkup = basep + bkup
+                    try:
+                        # TODO: the following only works in python 2.6:
+                        # shutil.copytree(basep, basep + bkup, True,
+                        #    basep + name + cur_v + "-*")
+                        os.mkdir(bkup)
+                        for d in blist:
+                            if name + cur_v + bk_sep in d:
+                                continue
+                            src = basep + d
+                            dst = bkup + d
+                            if os.path.islink(src):
+                                os.symlink(os.readlink(src), dst)
+                            elif os.path.isdir(src):
+                                shutil.copytree(src, dst, True)
+                            else:
+                                shutil.copy2(src, dst)
+                    except Exception, e:
+                        out("Error: Backup failed: %s" % e)
+                        return
+
+                    out("- Extracting %s archive to %s" % (type, basep))
+                    try:
+                        import tarfile
+                        tar = tarfile.open(fpath)
+                        # verify that the dtella package exists
+                        tar.getmember(new_p + os.sep)
+                        tar.extractall(basep)
+                        tar.close()
+                    except Exception, e:
+                        out("Error: could not extract archive: %s" % e)
+                        return
+
+                    out("- Installing new dtella")
+                    try:
+                        srcp = basep + new_p + os.sep
+                        try:
+                            for d in os.listdir(srcp):
+                                src = srcp + d
+                                dst = basep + d
+                                if d in blist:
+                                    if os.path.isdir(dst):
+                                        shutil.rmtree(dst)
+                                    else:
+                                        os.remove(dst)
+                                if os.path.isdir(src):
+                                    shutil.copytree(src, dst)
+                                else:
+                                    shutil.copy2(src, dst)
+                        except Exception, e:
+                            out("Error: Install failed: %s" % e)
+                            out("- Restoring backup from %s" % bkup)
+                            try:
+                                ilist = os.listdir(basep)
+                                for d in os.listdir(bkup):
+                                    src = bkup + d
+                                    dst = basep + d
+                                    if d in ilist:
+                                        if os.path.isdir(dst):
+                                            shutil.rmtree(dst)
+                                        else:
+                                            os.remove(basep + d)
+                                    if os.path.islink(src):
+                                        os.symlink(os.readlink(src), dst)
+                                    elif os.path.isdir(src):
+                                        shutil.copytree(src, dst, True)
+                                    else:
+                                        shutil.copy2(src, dst)
+                            except Exception, e:
+                                out("Error: Sorry! Restore failed: %s" % e)
+                            return
+
+                    finally:
+                        out("- Cleaning up extracted files")
+                        try:
+                            shutil.rmtree(srcp)
+                        except:
+                            out("Warning: %s could not be fully removed: %s" % (srcp, e))
+                            out("You may want to remove it manually.")
+
+                    out("- Install complete. A backup of the old installation is at %s" % bkup)
+                    #'''
+
+
+                elif type == 'dmg':
+                    vpath = "/Volumes/%s" % new_p
+                    cp_src = os.path.join(vpath, "Dtella.app")
+                    
+                    if sys.path[0].find('.app') != -1:
+                        ipath = sys.path[0][:sys.path[0].find('.app')+4]
+                    else:
+                        out("Error: not running as appbundle, will not auto update")
+                        return
+
+                    tpath = os.path.join(
+                                os.path.split(ipath)[0],
+                                ('.%s.' % cur_v).join(os.path.split(ipath)[1].split('.'))
+                            )
+                    
+                    out("- Attaching disk image")
+                    if os.system(r'hdiutil attach "%s"' % fpath):
+                        out("Error: Could not attach disk image")
+                        return
+                    
+                    out("- Installing new Dtella.app to %s" % ipath)
+                    out("- and creating temporary backup at %s" % tpath)
+                    shscript = 'mv ' + ipath  + ' ' + tpath +\
+                               ' && cp -R ' + cp_src + ' ' + ipath +\
+                               ' && rm -Rf '+ tpath
+
+                    if os.system(r'osascript -e "do shell script \"%s\" with administrator privileges"' % shscript):
+                        out("Error: Could not copy files")
+                    
+                    out("- Detaching disk image")
+                    if os.system(r'hdiutil detach %s' % vpath):
+                        out("Warning: Could not detach disk image")
+                        out("You may want to eject %s manually" % vpath)
+
+
+                elif type == 'exe':
+                    from win32api import ShellExecute
+                    from win32gui import GetForegroundWindow
+                    import pywintypes
+                    dir, _ = os.path.split(fpath)
+                    npath = os.path.join(dir, new_p + '.updater.exe')
+                    try:
+                        # remove file if it already exists
+                        os.remove(npath)
+                    except os.error:
+                        pass
+
+                    os.rename(fpath,npath)
+                    fpath = npath
+
+                    out("- Attempting to run the upgrader. Accept the UAC prompt if you are on Vista")
+                    out("- If the upgrade succeeds, you may need to reconnect your client (Ctrl-R).")
+                    try:
+                        ShellExecute(GetForegroundWindow(), "open", fpath, "", "", 5)
+                    except pywintypes.error, e:
+                        if e[0] == 5: # Access denied
+                            out("Error: Access was denied to the updater.")
+                        else: # Other
+                            out("Error: %s" % e[2])
+
+                    return # python: finally clause is executed "on the way out" and prevents calling RESTART
+
+
+            finally:
+                out("- Cleaning up downloaded file")
+                try:
+                    os.remove(fpath)
+                except Exception, e:
+                    if type == 'exe':
+                        return
+                    out("Warning: %s could not be removed: %s" % (fpath, e))
+                    out("You may want to remove it manually.")
+
+            out("- Upgrade completed. Running new Dtella...")
+            self.handleCmd_RESTART(out, "", prefix)
+
+        # Hack so twisted flushes the out buffer before hanging while getting the file
+        reactor.callLater(0.1, install_cb)
+
+
+    def handleCmd_DEBUG(self, out, text, prefix):
+
+        out(None)
+        
+        if not text:
+            return
+
+        text = text.strip().lower()
+        args = text.split()
+
+        if args[0] == "nbs":
+            self.debug_neighbors(out)
+
+        elif args[0] == "nodes":
+            try:
+                sortkey = int(args[1])
+            except (IndexError, ValueError):
+                sortkey = 0
+            self.debug_nodes(out, sortkey)
+
+        elif args[0] == "packets":
+            if len(args) < 2:
+                pass
+            elif args[1] == "on":
+                self.dbg_show_packets = True
+            elif args[1] == "off":
+                self.dbg_show_packets = False
+
+        elif args[0] == "killudp":
+            self.main.ph.transport.stopListening()
+
+
+    def debug_neighbors(self, out):
+
+        osm = self.main.osm
+        if not osm:
+            return
+
+        out("Neighbor Nodes: {direction, ipp, ping, nick}")
+
+        for pn in osm.pgm.pnbs.itervalues():
+            info = []
+
+            if pn.outbound and pn.inbound:
+                info.append("<->")
+            elif pn.outbound:
+                info.append("-->")
+            elif pn.inbound:
+                info.append("<--")
+
+            info.append(binascii.hexlify(pn.ipp).upper())
+
+            if pn.avg_ping is not None:
+                delay = pn.avg_ping * 1000.0
+            else:
+                delay = 0.0
+            info.append("%7.1fms" % delay)
+
+            try:
+                nick = osm.lookup_ipp[pn.ipp].nick
+            except KeyError:
+                nick = ""
+            info.append("(%s)" % nick)
+
+            out(' '.join(info))
+
+
+    def debug_nodes(self, out, sortkey):
+
+        osm = self.main.osm
+        if not (osm and osm.syncd):
+            out("Not syncd")
+            return
+
+        me = osm.me
+
+        now = seconds()
+
+        out("Online Nodes: {ipp, nb, persist, expire, uptime, dttag, nick}")
+
+        lines = []
+
+        for n in ([me] + osm.nodes):
+            info = []
+            info.append(binascii.hexlify(n.ipp).upper())
+
+            if n.ipp in osm.pgm.pnbs:
+                info.append("Y")
+            else:
+                info.append("N")
+
+            if n.persist:
+                info.append("Y")
+            else:
+                info.append("N")
+
+            if n is me:
+                info.append("%4d" % dcall_timeleft(osm.sendStatus_dcall))
+            else:
+                info.append("%4d" % dcall_timeleft(n.expire_dcall))
+
+            info.append("%8d" % (now - n.uptime))
+            info.append("%8s" % n.dttag[3:])
+            info.append("(%s)" % n.nick)
+
+            lines.append(info)
+
+        if 1 <= sortkey <= 7:
+            lines.sort(key=lambda l: l[sortkey-1])
+
+        for line in lines:
+            out(' '.join(line))

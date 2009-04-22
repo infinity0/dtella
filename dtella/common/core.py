@@ -2,7 +2,8 @@
 Dtella - Core P2P Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
-Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com)
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 
@@ -29,6 +30,8 @@ import bisect
 import socket
 from binascii import hexlify
 from hashlib import md5
+from tiger import treehash
+from base64 import b32encode, b32decode
 #''' BEGIN NEWITEMS MOD #
 import bz2
 # END NEWITEMS MOD '''#
@@ -43,7 +46,9 @@ import dtella.common.crypto
 from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 randbytes, validateNick, word_wrap,
                                 parse_incoming_info, get_version_string,
-                                parse_dtella_tag, CHECK, SSLHACK_filter_flags)
+                                parse_dtella_tag, CHECK, SSLHACK_filter_flags,
+                                adc_infodict, adc_infostring, split_info,
+                                split_tag, dc_escape, dc_unescape)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -86,6 +91,16 @@ class NickError(Exception):
 class MessageCollisionError(Exception):
     pass
 
+
+# ADC flags
+adc_mode = local.adc_mode
+adc_fcrypto = local.adc_fcrypto
+nmdc_back_compat = False # dynamic config pull can set this to True
+
+# Protocol Flags
+PROTOCOL_MASK = 0x80
+PROTOCOL_NMDC = 0x00
+PROTOCOL_ADC = 0x80
 
 # How many seconds our node will last without incoming pings
 ONLINE_TIMEOUT = 30.0
@@ -140,6 +155,7 @@ REJOIN_BIT = 0x1
 MODERATED_BIT = 0x1
 
 # Init response codes
+CODE_IP_MASK = 0x03
 CODE_IP_OK = 0
 CODE_IP_FOREIGN = 1
 CODE_IP_BANNED = 2
@@ -156,60 +172,96 @@ class NickManager(object):
 
     def __init__(self, main):
         self.main = main
-        self.nickmap = {}  # {nick.lower() -> Node}
-
+        self.nickmap = {}   # {nick.lower() -> Node}
+        self.sidmap = {}    # {sid -> Node}
 
     def getNickList(self):
         return [n.nick for n in self.nickmap.itervalues()]
 
-
-    def lookupNick(self, nick):
+    def lookupNodeFromNick(self, nick):
         # Might raise KeyError
         return self.nickmap[nick.lower()]
+        
+    def lookupSIDFromNick(self, nick):
+        # Might raise KeyError
+        return self.nickmap[nick.lower()].sid
 
+    def lookupNodeFromSID(self, sid):
+        # Might raise KeyError
+        return self.sidmap[sid]
+        
+    def lookupNickFromSID(self, sid):
+        # Might raise KeyError
+        return self.sidmap[sid].nick
 
     def removeNode(self, n, reason):
         try:
-            if self.nickmap[n.nick.lower()] is not n:
+            if self.nickmap[n.nick.lower()] is not n or \
+               self.sidmap[n.sid] is not n:
                 raise KeyError
         except KeyError:
             return
 
-        del self.nickmap[n.nick.lower()]
-
         so = self.main.getStateObserver()
         if so:
             so.event_RemoveNick(n, reason)
+            
+        del self.nickmap[n.nick.lower()]
+        del self.sidmap[n.sid]
 
         # Clean up nick-specific stuff
         if n.is_peer:
             n.nickRemoved(self.main)
 
 
+    sid_counter = 2
+    baseSID = b32encode(treehash("\0"))[:4] # semi-reserved SID for the conecting client
+    def generateNewSID(self):
+        '''
+        Generates a new session ID
+        This does NOT keep track of collisions; it is done in addNode.
+        '''
+        sid = b32encode(treehash(struct.pack('I',NickManager.sid_counter)))[:4]
+        NickManager.sid_counter += 1
+        return sid
+
+
     def addNode(self, n):
 
         if not n.nick:
             return
-
+            
+        so = self.main.getStateObserver()
         lnick = n.nick.lower()
-
+        
+        if isinstance(n, MeNode): # always use this SID for the connecting client
+            sid = self.baseSID
+        else:
+            sid = self.generateNewSID()
+            while sid in self.sidmap:
+                sid = self.generateNewSID()
+        
         if lnick in self.nickmap:
             raise NickError("collision")
-
-        so = self.main.getStateObserver()
+            
         if so:
             # Might raise NickError
             so.event_AddNick(n)
+            
+        n.sid = sid
+        self.nickmap[lnick] = n
+        self.sidmap[n.sid] = n
+        
+        if so:
+            # Might raise NickError
             so.event_UpdateInfo(n)
 
-        self.nickmap[lnick] = n
 
-
-    def setInfoInList(self, n, info):
+    def setInfoInList(self, n, info, adc=adc_mode):
         # Set the info of the node, and synchronize the info with
         # an observer if it changes.
 
-        if not n.setInfo(info):
+        if not n.setInfo(info, adc):
             # dcinfo hasn't changed, so there's nothing to send
             return
 
@@ -582,7 +634,7 @@ class PeerHandler(DatagramProtocol):
 
 
     def handlePrivMsg(self, ad, data, cb):
-        # Common code for handling private messages (PM, CA, CP)
+        # Common code for handling private messages (PM, CA, CP, AC, AP)
 
         (kind, src_ipp, ack_key, src_nhash, dst_nhash, rest
          ) = self.decodePacket('!2s6s8s4s4s+', data)
@@ -694,10 +746,54 @@ class PeerHandler(DatagramProtocol):
                 (osm and osm.bsm and src_ipp == osm.me.ipp))
 
 
+    def checkProtocolFlag(self, rest):
+        """
+        Check whether the flag's protocol bits match the protocol of this node.
+        Older nodes do not mark this flag, so if nmdc_back_compt is True, just
+        do nothing.
+        
+        @param rest: Rest of the packet to be parsed.
+        """
+        flags, rest = self.decodePacket('!B+', rest)
+
+        proto = flags & PROTOCOL_MASK
+        if nmdc_back_compat:
+            pass
+        elif proto == PROTOCOL_ADC and adc_mode:
+            pass
+        elif proto == PROTOCOL_NMDC and not adc_mode:
+            pass
+        else:
+            raise BadPacketError("Network uses a different DC client protocol")
+
+        return flags, rest
+
+
+    def setProtocolFlag(self, flag):
+        """
+        Set the correct protocol bit on the flag. Older nodes do not use this
+        flag, so if nmdc_back_compat is True, just do nothing.
+
+        @param flag: The flag we want to set.
+        """
+        if not nmdc_back_compat:
+            if adc_mode:
+                flag |= PROTOCOL_ADC
+            else:
+                flag |= PROTOCOL_NMDC
+
+        return flag
+
+
     def handlePacket_IQ(self, ad, data):
         # Initialization Request; someone else is trying to get online
-        (kind, myip, port
-         ) = self.decodePacket('!2s4sH', data)
+        (kind, myip, port, rest
+         ) = self.decodePacket('!2s4sH+', data)
+
+        if not nmdc_back_compat:
+            flags, rest = self.checkProtocolFlag(rest)
+        elif rest:
+                raise BadPacketError("Extra data")
 
         if port == 0:
             raise BadPacketError("Zero Port")
@@ -827,7 +923,7 @@ class PeerHandler(DatagramProtocol):
         packet.append(src_ad.getRawIP())
 
         # Add 1-byte flag: 1 if IP is invalid
-        packet.append(struct.pack('!B', ip_code))
+        packet.append(struct.pack('!B', self.setProtocolFlag(ip_code)))
 
         # Add the peercache list
         packet.append(struct.pack('!B', len(ic_peercache)))
@@ -849,7 +945,7 @@ class PeerHandler(DatagramProtocol):
         packet.append(src_ad.getRawIP())
 
         # Add 1-byte flag: 1 if IP is invalid
-        packet.append(struct.pack('!B', ip_code))
+        packet.append(struct.pack('!B', self.setProtocolFlag(ip_code)))
 
         # Add the node list
         packet.append(struct.pack('!B', len(ir_nodes)))
@@ -869,8 +965,10 @@ class PeerHandler(DatagramProtocol):
     def handlePacket_IC_alt(self, ad, data):
         # Initialization Peer Cache (Alt port)
 
-        (kind, src_ipp, myip, code, rest
-         ) = self.decodePacket('!2s6s4sB+', data)
+        (kind, src_ipp, myip, rest
+         ) = self.decodePacket('!2s6s4s+', data)
+
+        flags, rest = self.checkProtocolFlag(rest)
 
         src_ad = Ad().setRawIPPort(src_ipp)
         if ad.isPrivate():
@@ -884,6 +982,7 @@ class PeerHandler(DatagramProtocol):
         if rest:
             raise BadPacketError("Extra data")
 
+        code = flags & CODE_IP_MASK
         if code not in (CODE_IP_OK, CODE_IP_FOREIGN, CODE_IP_BANNED):
             raise BadPacketError("Bad Response Code")
 
@@ -895,8 +994,10 @@ class PeerHandler(DatagramProtocol):
 
     def handlePacket_IR(self, ad, data):
         # Initialization Response
-        (kind, src_ipp, myip, code, rest
-         ) = self.decodePacket('!2s6s4sB+', data)
+        (kind, src_ipp, myip, rest
+         ) = self.decodePacket('!2s6s4s+', data)
+
+        flags, rest = self.checkProtocolFlag(rest)
 
         src_ad = Ad().setRawIPPort(src_ipp)
         if ad.isPrivate():
@@ -912,6 +1013,7 @@ class PeerHandler(DatagramProtocol):
         if rest:
             raise BadPacketError("Extra data")
 
+        code = flags & CODE_IP_MASK
         if code not in (CODE_IP_OK, CODE_IP_FOREIGN, CODE_IP_BANNED):
             raise BadPacketError("Bad Response Code")
 
@@ -932,10 +1034,35 @@ class PeerHandler(DatagramProtocol):
              ) = self.decodePacket('!IH4sIB+', rest)
 
             nick, rest = self.decodeString1(rest)
-            info, rest = self.decodeString1(rest)
+
+            if flags & PROTOCOL_MASK == PROTOCOL_ADC:
+                adc = True
+            else:
+                adc = False
+
+            '''
+            NMDC-BACK-COMPAT:
+            A sizeable proportion of ADC infostrings are longer than 255
+            characters, so we need to use a string2 for these packets. Under
+            the back-compat mode, old-style packets are *also* sent, which
+            contain the minimum subset of information that is needed to
+            register that client as a valid user to both NMDC and ADC clients.
+            
+            YR packets are also affected by this.
+            '''
+            if adc:
+                if adc_mode:
+                    info, rest = self.decodeString2(rest)
+                else:
+                    raise BadPacketError("This node does not accept ADC infostrings")
+            else:
+                if not adc_mode or nmdc_back_compat:
+                    info, rest = self.decodeString1(rest)
+                else:
+                    raise BadPacketError("This node does not accept NMDC infostrings")
 
             persist = bool(flags & PERSIST_BIT)
-
+            
             if rest:
                 raise BadPacketError("Extra data")
 
@@ -950,7 +1077,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadBroadcast("Outdated")
 
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, adc)
 
             # They had a nick, now they don't.  This indicates a problem.
             # Stop forwarding and notify the user.
@@ -1209,14 +1336,62 @@ class PeerHandler(DatagramProtocol):
             if src_n:
                 # Looks good
                 dch = self.main.getOnlineDCH()
-                if dch:
-                    dch.pushSearchRequest(src_ipp, string)
+                if dch: # BACKWARDS-COMPAT
+                    if adc_mode and nmdc_back_compat and \
+                        string[:8] == "????????" and len(string) > 8:
+                        flags, string = self.decodePacket('!B+', dc_unescape(string[8:]))
+                        dch.push_ADC_SearchRequest(src_n, string, flags)
+                    else:
+                        dch.push_NMDC_SearchRequest(src_ipp, string)
 
             else:
                 # From an invalid node
                 raise Reject
 
         self.handleBroadcast(ad, data, check_cb)
+
+
+    def handlePacket_AQ(self, ad, data):
+        # Broadcast: ADC Search reQuest
+        if not adc_mode: return
+
+        osm = self.main.osm
+
+        def cb(src_n, src_ipp, rest):
+
+            pktnum, flags, rest = self.decodePacket('!IB+', rest)
+
+            search_str, rest = self.decodeString2(rest)
+            if rest:
+                raise BadPacketError("Extra data")
+
+            if src_ipp == osm.me.ipp:
+                raise BadBroadcast("Spoofed search")
+
+            if not osm.syncd:
+                # Not syncd, forward blindly
+                return
+
+            if src_n:
+                dch = self.main.getOnlineDCH()
+                if dch:
+                    dch.push_ADC_SearchRequest(src_n, search_str, flags)
+
+        self.handleBroadcast(ad, data, cb)
+
+
+    def handlePacket_AR(self, ad, data):
+        # Direct: ADC Search Result
+
+        def cb(dch, n, rest):
+            str, rest = self.decodeString2(rest)
+            
+            if rest:
+                raise BadPacketError("Extra data")
+            
+            dch.push_ADC_SearchResponce(n, str)
+        
+        self.handlePrivMsg(ad, data, cb)
 
 
     def handlePacket_AK(self, ad, data):
@@ -1277,7 +1452,41 @@ class PeerHandler(DatagramProtocol):
             ad = Ad().setRawIPPort(n.ipp)
             ad.port = port
             use_ssl = bool(flags & USE_SSL_BIT)
-            dch.pushConnectToMe(ad, use_ssl)
+            dch.push_NMDC_ConnectToMe(ad, use_ssl)
+
+        self.handlePrivMsg(ad, data, cb)
+
+
+    def handlePacket_AC(self, ad, data):
+        # Direct: ADC CTM
+
+        def cb(dch, n, rest):
+            flags, rest = self.decodePacket('!B+', rest)
+            protocol_str, rest = self.decodeString1(rest)
+            port , rest = self.decodePacket('!H+', rest)
+            token , rest = self.decodeString1(rest)
+
+            if rest:
+                raise BadPacketError("Extra data")
+
+            try:
+                dch.push_ADC_ConnectToMe(n, protocol_str, port, token)
+
+            except Reject, r:
+                ack_key = n.getPMAckKey()
+                packet = ['AE']
+                packet.append(dch.main.osm.me.ipp)
+                packet.append(ack_key)
+                packet.append(dch.main.osm.me.nickHash())
+                packet.append(n.nickHash())
+                packet.append(struct.pack('!B', len(r.message)))
+                packet.append(r.message)
+                packet = ''.join(packet)
+
+                def fail_cb(reason = None):
+                    pass # not much we can do
+
+                n.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
 
         self.handlePrivMsg(ad, data, cb)
 
@@ -1290,14 +1499,44 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Extra data")
 
             n.openRevConnectWindow()
-            dch.pushRevConnectToMe(n.nick)
+            dch.push_NMDC_RevConnectToMe(n.nick)
+
+        self.handlePrivMsg(ad, data, cb)
+
+
+    def handlePacket_AP(self, ad, data):
+        # Direct: ADC Reverse Connect To Me
+
+        def cb(dch, n, rest):
+            flags, rest = self.decodePacket('!B+', rest)
+            protocol_str, rest = self.decodeString1(rest)
+            token, rest = self.decodeString1(rest)
+
+            if rest:
+                raise BadPacketError("Extra data")
+
+            dch.push_ADC_RevConnectToMe(n, protocol_str, token)
+            
+        self.handlePrivMsg(ad, data, cb)
+
+
+    def handlePacket_AE(self, ad, data):
+        # Direct: ADC Error
+
+        def cb(dch, n, rest):
+            str, rest = self.decodeString1(rest)
+
+            if rest:
+                raise BadPacketError("Extra data")
+
+            dch.push_ADC_Error(n, str)
 
         self.handlePrivMsg(ad, data, cb)
 
 
     def handlePacket_PM(self, ad, data):
         # Direct: Private Message
-
+        
         def cb(dch, n, rest):
 
             flags, rest = self.decodePacket('!B+', rest)
@@ -1309,9 +1548,10 @@ class PeerHandler(DatagramProtocol):
 
             notice = bool(flags & NOTICE_BIT)
 
-            if notice:
-                nick = "*N %s" % n.nick
-                dch.pushChatMessage(nick, text)
+            if notice: # No equivelent in ADC but kept for NMDC compatability
+                # TODO: make separate versions for ADC/NMDC
+                # nick = "*N %s" % n.nick
+                dch.pushChatMessage(n.nick, text)
             else:
                 dch.pushPrivMsg(n.nick, text)
 
@@ -1408,9 +1648,35 @@ class PeerHandler(DatagramProtocol):
         self.checkSource(src_ipp, ad)
 
         persist = bool(flags & PERSIST_BIT)
+        
+        if flags & PROTOCOL_MASK == PROTOCOL_ADC:
+            adc = True
+        else:
+            adc = False
 
         nick, rest = self.decodeString1(rest)
-        info, rest = self.decodeString1(rest)
+
+        '''
+        NMDC-BACK-COMPAT:
+        A sizeable proportion of ADC infostrings are longer than 255
+        characters, so we need to use a string2 for these packets. Under
+        the back-compat mode, old-style packets are *also* sent, which
+        contain the minimum subset of information that is needed to
+        register that client as a valid user to both NMDC and ADC clients.
+        
+        NS packets are also affected by this.
+        '''
+        if adc:
+            if adc_mode:
+                info, rest = self.decodeString2(rest)
+            else:
+                raise BadPacketError("This node does not accept ADC infostrings")
+        else:
+            if not adc_mode or nmdc_back_compat:
+                info, rest = self.decodeString1(rest)
+            else:
+                raise BadPacketError("This node does not accept NMDC infostrings")
+
         topic, rest = self.decodeString1(rest)
 
         c_nbs, rest = self.decodeNodeList(rest)
@@ -1433,7 +1699,7 @@ class PeerHandler(DatagramProtocol):
         # Check for outdated status, in case an NS already arrived.
         if not self.isOutdatedStatus(n, pktnum):
             n = osm.refreshNodeStatus(
-                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info)
+                src_ipp, pktnum, expire, sesid, uptime, persist, nick, info, adc)
 
         if topic:
             osm.tm.receivedSyncTopic(n, topic)
@@ -1670,6 +1936,8 @@ class InitialContactManager(DatagramProtocol):
             packet = ['IQ']
             packet.append(ad.getRawIP())
             packet.append(struct.pack('!H', self.main.state.udp_port))
+            if not nmdc_back_compat:
+                packet.append(struct.pack('!B', self.main.ph.setProtocolFlag(0)))
 
             self.main.logPacket("IQ -> %s:%d" % ad.getAddrTuple())
 
@@ -1905,7 +2173,6 @@ class Node(object):
     # Remember when we receive a RevConnect
     rcWindow_dcall = None
 
-
     def __init__(self, ipp):
         # Dtella Tracking stuff
         self.ipp = ipp            # 6-byte IP:Port
@@ -1926,10 +2193,23 @@ class Node(object):
         # General Info
         self.nick = ''
         self.dcinfo = ''
+        self.info = {}
         self.location = ''
         self.shared = 0
 
         self.dttag = ""
+        '''
+        NMDC-BACK-COMPAT:
+        This allows the ADC client frontend of Dtella to see which nodes are
+        running what protocol, and take action accordingly. This is only needed
+        in the case of backwards-compat mode. Nodes are assumed to be ADC until
+        an ADC-node specific packet is seen: either one that contains an ADC
+        infostring, or an NMDC infostring with an ADC CID & SU encoded into it.
+        '''
+        if not adc_mode or nmdc_back_compat:
+            self.protocol = PROTOCOL_NMDC # assume NMDC until we get an ADC packet
+        else:
+            self.protocol = PROTOCOL_ADC
 
         self.infohash = None
 
@@ -1991,19 +2271,129 @@ class Node(object):
             return True
 
 
-    def setInfo(self, info):
-
+    def setInfo(self, info, adc=adc_mode):
+        """
+        @param info: The infostring of the client
+        @param adc: Whether the infostring is in the ADC or NMDC format.
+                    Defaults to the mode that the Dtella node is running in.
+        @return: Whether the infostring has changed
+        """
         old_dcinfo = self.dcinfo
-        self.dcinfo, self.location, self.shared = (
-            parse_incoming_info(SSLHACK_filter_flags(info)))
+
+        if adc_mode:
+
+            if adc:
+                self.info.update(adc_infodict(info))
+                try:
+                    self.shared = int(self.info['SS'])
+                except KeyError:
+                    self.shared = 0
+
+                if 'I4' in self.info and self.info['I4']:
+                    self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+                # otherwise do nothing (no I4 == not changed, empty I4 == leave as is)
+
+            elif nmdc_back_compat: # BACKWARDS COMPAT: construct ADC infodict from NMDC infostring
+                '''
+                NMDC-BACK-COMPAT:
+                We need to parse the NMDC-formatted infostring into a form
+                required by the ADC protocol. Luckily, everything is in there
+                already, with the exception of the Client ID, and SU string.
+                
+                For ADC-Dtella nodes, this has been (somewhat arbitrarily)
+                encoded into the Location/Connection field of the back-compat
+                packet, so here we just extract it. We also mark the node as
+                an ADC node, through the .protocol field.
+                
+                For NMDC-Dtella nodes, we only need a CID so that our ADC
+                client recognises the remote client as a valid ADC client 
+                (so that they appear in our nodelist and we can receive chat
+                messages from them). Apart from this, the CID never leaves our
+                own Dtella node. So, we can just generate any random one.
+                '''
+                info, self.location, self.shared = (
+                    parse_incoming_info(SSLHACK_filter_flags(info)))
+
+                try:
+                    # data in info{} is plaintext, so dc_unescape everything that goes into it
+                    infs = [dc_unescape(i) for i in split_info(info)]
+                    self.info['NI'] = self.nick
+                    self.info['DE'], rest = split_tag(infs[0])
+                    self.info['SS'] = str(self.shared)
+                    self.info['EM'] = infs[3]
+
+                    location = infs[2][:-1]
+                    if location:
+                        if location[-2:] == '__':
+                            try:
+                                location, cid, su, none = location.split('__')
+                                try:
+                                    # decode to check validity
+                                    cidraw = b32decode(cid)
+                                    self.info['ID'] = cid
+                                    self.info['SU'] = su
+                                    # this is required due to reconnecting clients not triggering a YR
+                                    self.protocol = PROTOCOL_ADC
+                                except TypeError:
+                                    raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
+                            except ValueError:
+                                self.info['ID'] = b32encode(treehash(self.nick))
+                        else:
+                            # NMDC node, so generate a throwaway CID that will never be used
+                            self.info['ID'] = b32encode(treehash(self.nick))
+                        self.info['DE'] = "[%s] %s" % (dc_unescape(location), self.info['DE'])
+
+                    self.info['VE'], rest = rest.split(' ') # as per standard clients
+                    tags = {}
+                    for i in rest.split(','):
+                        k, v = i.split(':')
+                        tags[k] = v
+                    self.info['VE'] = self.info['VE'] + " " + tags['V'] + ";" + dc_unescape(self.dttag)
+
+                    self.info['SL'] = tags['S']
+                    self.info['HN'], self.info['HR'], self.info['HO'] = tags['H'].split('/')
+                    if 'O' in tags:
+                        self.info['AS'] = tags['O']
+                    if 'L' in tags:
+                        self.info['US'] = str(int(tags['L']) * 1024)
+
+                    if 'M' in tags:
+                        if tags['M'] == 'A':
+                            self.info['I4'] = Ad().setRawIPPort(self.ipp).getTextIP()
+                        else:
+                            self.info['I4'] = ""
+
+                except ValueError:
+                    if not info: # bridge node
+                        pass
+                    elif info[0] == '<' and info[-1] == '>': # persistent node
+                        self.info['VE'] = dc_unescape(self.dttag)
+                    else:
+                        raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
+                        
+            else:
+                raise BadPacketError("This node does not accept NMDC infostrings")
+
+            self.location = ""
+            self.dcinfo = adc_infostring(self.info)
+
+        else:
+            if adc:
+                raise BadPacketError("This node does not accept ADC infostrings")
+
+            self.dcinfo, self.location, self.shared = (
+                parse_incoming_info(SSLHACK_filter_flags(info)))
 
         if self.sesid is None:
             # Node is uninitialized
             self.infohash = None
         else:
-            self.infohash = md5(
-                self.sesid + self.flags() + self.nick + '|' + info
-                ).digest()[:4]
+            if not (adc_mode and nmdc_back_compat and adc):
+            # if we are in backwards-compat mode and this is an ADC infostring
+            # then we DON'T want to set the infohash
+                self.infohash = md5(
+                    self.sesid + self.flags() + self.nick + '|' + info
+                    ).digest()[:4]
 
         return self.dcinfo != old_dcinfo
 
@@ -2012,7 +2402,10 @@ class Node(object):
         # Wipe out the nick, and set info to contain only a Dt tag.
         self.nick = ''
         if self.dttag:
-            self.setInfo("<%s>" % self.dttag)
+            if adc_mode:
+                self.setInfo("VE%s" % self.dttag)
+            else:
+                self.setInfo("<%s>" % self.dttag)
         else:
             self.setInfo("")
 
@@ -2103,8 +2496,8 @@ class Node(object):
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
-
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         osm = main.osm
 
         ack_key = self.getPMAckKey()
@@ -2125,9 +2518,29 @@ class Node(object):
 
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
+        osm = main.osm
 
-    def event_RevConnectToMe(self, main, fail_cb):
+        ack_key = self.getPMAckKey()
+        flags = 0 # for forward compatability
 
+        packet = ['AC'] # ADC CTM
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(self.nickHash())
+        
+        packet.append(struct.pack('!BB', flags, len(protocol)))
+        packet.append(protocol)
+        packet.append(struct.pack('!HB', port, len(token)))
+        packet.append(token)
+        packet = ''.join(packet)
+        
+        self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
+
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         osm = main.osm
 
         ack_key = self.getPMAckKey()
@@ -2141,6 +2554,27 @@ class Node(object):
 
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
+    def event_ADC_RevConnectToMe(self, main, protocol, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
+        osm = main.osm
+
+        ack_key = self.getPMAckKey()
+        flags = 0 # for forward compatability
+
+        packet = ['AP'] # ADC RCM
+        packet.append(osm.me.ipp)
+        packet.append(ack_key)
+        packet.append(osm.me.nickHash())
+        packet.append(self.nickHash())
+        
+        packet.append(struct.pack('!BB', flags, len(protocol)))
+        packet.append(protocol)
+        packet.append(struct.pack('!B', len(token)))
+        packet.append(token)
+        packet = ''.join(packet)
+        
+        self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
+        
 
     def nickRemoved(self, main):
 
@@ -2186,12 +2620,22 @@ class MeNode(Node):
         else:
             fail_cb("I'm not online!")
 
-    def event_ConnectToMe(self, main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
-
-    def event_RevConnectToMe(self, main, fail_cb):
+        
+    def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
-
+        
+    def event_NMDC_RevConnectToMe(self, main, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_NMDC)
+        fail_cb("can't get files from yourself!")
+        
+    def event_ADC_RevConnectToMe(self, protocol, main, token, fail_cb):
+        CHECK(main.dch.protocol == PROTOCOL_ADC)
+        fail_cb("can't get files from yourself!")
+        
 verifyClass(IDtellaNickNode, MeNode)
 
 
@@ -2576,7 +3020,7 @@ class OnlineStateManager(object):
 # END NEWITEMS MOD '''#
 
     def refreshNodeStatus(self, src_ipp, pktnum, expire, sesid, uptime,
-                          persist, nick, info):
+                          persist, nick, info, adc=adc_mode):
         CHECK(src_ipp != self.me.ipp)
         try:
             n = self.lookup_ipp[src_ipp]
@@ -2584,6 +3028,16 @@ class OnlineStateManager(object):
         except KeyError:
             n = Node(src_ipp)
             in_nodes = False
+
+        '''
+        NMDC-BACK-COMPAT:
+        The adc argument indicates whether the triggering packet was formatted
+        as an ADC or NMDC infostring. If an ADC infostring is ever observed,
+        we mark the node as such. (We don't mark NMDC infostrings as NMDC,
+        since this could be ADC nodes sending backwards-compat packets.)
+        '''
+        if adc: # if we ever see an ADC packet, it means they are using ADC-Dtella
+            n.protocol = PROTOCOL_ADC
 
         self.main.logPacket("Status: %s %d (%s)" %
                             (hexlify(src_ipp), expire, nick))
@@ -2610,7 +3064,7 @@ class OnlineStateManager(object):
 
         if nick == n.nick:
             # Nick hasn't changed, just update info
-            self.nkm.setInfoInList(n, info)
+            self.nkm.setInfoInList(n, info, adc)
 
         else:
             # Nick has changed.
@@ -2626,7 +3080,7 @@ class OnlineStateManager(object):
             else:
                 # Good nick, update the info
                 n.nick = nick
-                n.setInfo(info)
+                n.setInfo(info, adc)
 
                 # Try to add the new nick (no-op if the nick is empty)
                 try:
@@ -2718,8 +3172,11 @@ class OnlineStateManager(object):
         n.expire_dcall = reactor.callLater(when, cb)
 
 
-    def getStatus(self):
-
+    def getStatus(self, adc=adc_mode):
+        """
+        @param adc: Whether to construct an ADC or NMDC infostring.
+                    Defaults to the mode that the Dtella node is running in.
+        """
         status = []
 
         # My Session ID
@@ -2727,15 +3184,75 @@ class OnlineStateManager(object):
 
         # My Uptime and Flags
         status.append(struct.pack('!I', int(seconds() - self.me.uptime)))
-        status.append(self.me.flags())
+        if adc:
+            status.append(chr(ord(self.me.flags()) | PROTOCOL_ADC))
+        else:
+            status.append(self.me.flags())
 
         # My Nick
         status.append(struct.pack('!B', len(self.me.nick)))
         status.append(self.me.nick)
 
         # My Info
-        status.append(struct.pack('!B', len(self.me.info_out)))
-        status.append(self.me.info_out)
+        if adc:
+            status.append(struct.pack('!H', len(self.me.info_out)))
+            status.append(self.me.info_out)
+
+        elif adc_mode: # BACKWARDS COMPAT: convert adc infodict to nmdc infostring
+            '''
+            NMDC-BACK-COMPAT:
+            This is straightforward; we just put as much information as is
+            relevant into the NMDC infostring. We encode the CID and SU of our
+            ADC client, which it gave to this node on login, into the location
+            part of the infostring.
+            '''
+            inf = adc_infodict(self.me.info_out)
+            # everything in inf{} is plaintext, so escape everything that comes out
+            
+            if len(inf) == 1 and 'VE' in inf: # offline nodes have this info
+                info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
+
+            else:
+                i = inf['VE'].rindex(';Dt') # this must exist due to ADCHandler.formatMyInfo
+                dc, dt = dc_escape(inf['VE'][:i]), dc_escape(inf['VE'][i+1:])
+                dc = dc.split(' ', 1)
+                dcstr, dcver = dc[0], ""
+                if len(dc) > 1: dcver = dc[1]
+                
+                if 'EM' not in inf: inf['EM'] = ""
+                if 'DE' not in inf: inf['DE'] = ""
+                if 'SU' not in inf: inf['SU'] = ""
+                
+                loctag = "[%s]" % self.main.getOnlineDCH().locstr
+                
+                if inf['DE'].startswith(loctag):
+                    inf['DE'] = inf['DE'][len(loctag):]
+                    if inf['DE']:
+                        inf['DE'] = inf['DE'][1:]
+
+                if 'I4' in inf and inf['I4']:
+                    mode = "A"
+                else:
+                    mode = "P"
+
+                info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s__%s$%s$%s$" % (
+                    dc_escape(inf['DE']), dcstr, dcver, mode,
+                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt, dc_escape(loctag[1:-1]),
+                    inf['ID'], inf['SU'], chr(1), dc_escape(inf['EM']), self.me.shared)
+
+            status.append(struct.pack('!B', len(info_out)))
+            status.append(info_out)
+
+            if self.me.infohash is None:
+            # We want to use this as our infohash; also, we must set it here,
+            # as there is no other place to do this reliably.
+                self.me.infohash = md5(
+                self.me.sesid + self.me.flags() + self.me.nick + '|' + info_out
+                ).digest()[:4]
+
+        else:
+            status.append(struct.pack('!B', len(self.me.info_out)))
+            status.append(self.me.info_out)
 
         return status
 
@@ -2759,11 +3276,14 @@ class OnlineStateManager(object):
         me.persist = self.main.state.persistent
         me.dttag = get_version_string()
 
-        if dch:
+        if dch: # TODO: andy, wtf is this: "TTTTT"
             me.info_out = dch.formatMyInfo()
             nick = dch.nick
         else:
-            me.info_out = "<%s>" % me.dttag
+            if adc_mode:
+                me.info_out = "VE%s" % me.dttag
+            else:
+                me.info_out = "<%s>" % me.dttag
             nick = ''
 
         if me.nick == nick:
@@ -2829,6 +3349,17 @@ class OnlineStateManager(object):
                 packet.append(struct.pack('!H', int(expire)))
                 packet.extend(self.getStatus())
 
+                self.mrm.newMessage(''.join(packet), tries=8)
+
+                if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
+                    packet = self.mrm.broadcastHeader('NS', self.me.ipp)
+                    pkt_id = struct.pack('!I', self.mrm.getPacketNumber_status())
+                    packet.append(pkt_id)
+                    packet.append(struct.pack('!H', int(expire)))
+                    packet.extend(self.getStatus(False))
+
+                    self.mrm.newMessage(''.join(packet), tries=8)
+ 
             else:
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
                 packet.append(pkt_id)
@@ -2836,7 +3367,7 @@ class OnlineStateManager(object):
                 packet.append(struct.pack('!H', expire))
                 packet.append(self.me.infohash)
 
-            self.mrm.newMessage(''.join(packet), tries=8)
+                self.mrm.newMessage(''.join(packet), tries=8)
 
         dcall_discard(self, 'sendStatus_dcall')
         cb(sendfull)
@@ -3669,7 +4200,7 @@ class MessageRoutingManager(object):
         if data[10:16] == osm.me.ipp:
             CHECK(not self.main.hide_node)
 
-            if kind in ('NH','CH','SQ','TP'):
+            if kind in ('NH','CH','SQ','TP','AQ'):
                 # Save the current status_pktnum for this message, because
                 # it's useful if we receive a Reject message later.
                 m.status_pktnum = osm.me.status_pktnum
@@ -3870,8 +4401,17 @@ class SyncRequestRoutingManager(object):
         if isnew or timedout:
             self.sendSyncReply(src_ipp, cont, uncont)
 
+            if adc_mode and nmdc_back_compat: # BACKWARDS-COMPAT: send both packets
+                # If the NMDC infostring is received, then sync completes,
+                # then the ADC infostring is received, then the ADC info will
+                # be ignored. The timeout gives ADC nodes a chance to receive
+                # the full ADC infostring *before* sync completes.
+                def cb():
+                    self.sendSyncReply(src_ipp, cont, uncont, False)
+                reactor.callLater(1, cb)
 
-    def sendSyncReply(self, src_ipp, cont, uncont):
+
+    def sendSyncReply(self, src_ipp, cont, uncont, adc=adc_mode):
         ad = Ad().setRawIPPort(src_ipp)
         osm = self.main.osm
 
@@ -3903,7 +4443,7 @@ class SyncRequestRoutingManager(object):
         packet.append(struct.pack('!H', int(expire)))
 
         # Session ID, Uptime, Flags, Nick, Info
-        packet.extend(osm.getStatus())
+        packet.extend(osm.getStatus(adc))
 
         # If I think I set the topic last, then put it in here.
         # It's up to the receiving end whether they'll believe me.
@@ -4699,6 +5239,33 @@ class DtellaMain_Base(object):
 
         # Set to True to prevent this node from broadcasting.
         self.hide_node = False
+        
+        self.nmdc_bc_expire_dcall = None
+
+
+    def expireNMDCBC(self, t):
+        # sets a time to expire the NMDC backwards-compat
+        try:
+            t = int(t)
+            t2 = int(time.time())
+            if (t <= t2):
+                return
+        except ValueError:
+            return
+
+        def cb():
+            self.nmdc_bc_expire_dcall = None
+            global adc_mode, nmdc_back_compat
+            nmdc_back_compat = False
+            self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes has EXPIRED.")
+
+            if adc_mode:
+                self.showLoginStatus("-- The network should have full ADC capabilities in a few minutes.")
+
+        if not self.nmdc_bc_expire_dcall:
+            self.nmdc_bc_expire_dcall = reactor.callLater(t - t2, cb)
+        elif self.nmdc_bc_expire_dcall.active():
+            self.nmdc_bc_expire_dcall.reset(t - t2)
 
 
     def cleanupOnExit(self):

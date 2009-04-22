@@ -3,6 +3,8 @@ Dtella - Client Main Module
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2008  Jacob Feisley (http://www.feisley.com/)
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 
@@ -188,6 +190,25 @@ class DtellaMain_Client(core.DtellaMain_Base):
                 for ipp in ipps:
                     ad = Ad().setRawIPPort(ipp)
                     self.state.refreshPeer(ad, age)
+
+            if core.nmdc_back_compat:
+                self.showLoginStatus("-- The network is currently also accepting old NMDC-only nodes.")
+
+                if local.adc_mode:
+                    self.showLoginStatus("-- Due to this, some ADC functionality may be limited.")
+
+            if self.nmdc_bc_expire_dcall and self.nmdc_bc_expire_dcall.active():
+                self.showLoginStatus("-- Backwards compatibility for NMDC-only nodes will expire on ")
+                t = self.nmdc_bc_expire_dcall.getTime()
+                t2 = time.time()
+                if t < t2:
+                    # THIS IS UGLY. HACK AROUND A HACK :|
+                    # fix_twisted causes reactor.seconds() == 0 to mark the time
+                    # the reactor was started, instead of the epoch as per
+                    # twisted documentation. therefore, the actual time of any
+                    # call to be fired is this:
+                    t += t2 - reactor.seconds()
+                self.showLoginStatus("   %s" % time.ctime(t))
 
             self.startInitialContact()
 

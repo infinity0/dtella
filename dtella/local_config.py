@@ -3,7 +3,8 @@ Dtella - Local Site Configuration
 Copyright (C) 2007-2008  Dtella Labs (http://www.dtella.org/)
 Copyright (C) 2007-2008  Paul Marks (http://www.pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://www.feisley.com/)
-Copyright (C) 2008-2009  Dtella Cambridge (http://camdc.pcriot.com)
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 
@@ -29,6 +30,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 # It will be concatenated with the version number below.
 build_prefix = "dtella-cambridge-"
 
+# Set this type when building executables and installers. This allows
+# Dtelle to select an appropriate upgrade method.
+# Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
+build_type = "tar.bz2"
+
 # Dtella version number.
 version = "1.2.4.3"
 
@@ -40,7 +46,15 @@ network_key = 'DC-Comics-Reloaded'
 # This is the name of the "hub" which is seen by the user's DC client.
 # "Dtella@____" is the de-facto standard, but nobody's stopping you
 # from picking something else.
-hub_name = "Dtella@Cambridge"
+hub_name = "ADtella@Cambridge"
+
+# Nodes can either emulate an ADC or NMDC hub. ADC is recommended.
+# Clients will connect using adc:// or nmdc:// (default in most clients)
+adc_mode = True
+
+# Set this if you want Dtella to reject plaintext connection attempts.
+# This only works when adc_mode is True. Recommended for fascist networks.
+adc_fcrypto = True
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.
 # It should be set to some sane value to prevent the person managing DNS from
@@ -101,10 +115,6 @@ rdns_servers = ['131.111.8.42','131.111.12.20']
 # Customized data for our implementation of hostnameToLocation
 import re
 suffix_re = re.compile(r"(?:.*?\.)?([^.]+)(?:\.societies|\.private)?\.cam\.ac\.uk")
-#prefix_re = re.compile(r"^([a-z]{1,6}).*\.cam\.ac\.uk")
-
-#pre_table = {
-#    }
 
 suf_table = {
     'chu':'Churchill', 'christs':'Christ\'s', 'clare':'Clare', 'corpus':'Corpus Christi',
@@ -129,12 +139,4 @@ def hostnameToLocation(hostname):
             except KeyError:
                 pass
 
-#        prefix = prefix_re.match(hostname)
-#        if prefix:
-#            try:
-#                return pre_table[prefix.group(1)]
-#            except KeyError:
-#                pass
-
     return "Unknown Location"
-

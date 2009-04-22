@@ -2,6 +2,8 @@
 Dtella - Utility Functions
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96>, Ximin Luo <xl269> (@cam.ac.uk)
 
 $Id$
 
@@ -193,10 +195,29 @@ def get_user_path(filename):
 
         return "%s/%s" % (path, filename)
 
+def stdlines(text):
+    return text.replace('\r\n', '\n').replace('\r','\n')
 
-def remove_dc_escapes(text):
+def dc_escape(text):
+    return text.replace('|','&#124;').replace('$','&#36;')
+
+def dc_unescape(text):
     return text.replace('&#124;','|').replace('&#36;','$')
 
+def adc_escape(text):
+    return text.replace('\\', '\\\\').replace('\n','\\n').replace(' ', '\\s')
+    
+def adc_unescape(text):
+    return text.replace('\\s',' ').replace('\\n','\n').replace('\\\\', '\\')
+
+def adc_infostring(infdict):
+    return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in infdict.iteritems()])
+
+def adc_infodict(infstring):
+    inf = {}
+    for i in infstring.split(' '):
+        inf[i[:2]] = adc_unescape(i[2:])
+    return inf
 
 def split_info(info):
     # Split a MyINFO string
@@ -310,10 +331,14 @@ def SSLHACK_filter_flags(info_str):
         flags ^= 0x10
         info[2] = info[2][:-1] + struct.pack('!B', flags)
         return '$'.join(info)
-
+    
     return info_str
 
-
+def b32pad(n):
+    _, leftover = divmod(len(n)-1, 8)
+    n += (7-leftover)*'='
+    return n
+    
 def format_bytes(n):
     # Convert an integer into a Bytes representation
     n = float(n)

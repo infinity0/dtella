@@ -2,6 +2,8 @@
 Dtella - Common Interfaces
 Copyright (C) 2008  Dtella Labs (http://www.dtella.org)
 Copyright (C) 2008  Paul Marks
+Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
+Copyright (C) 2009  Andrew Cooper <amc96@cam.ac.uk>
 
 $Id$
 
@@ -45,9 +47,13 @@ class IDtellaNickNode(Interface):
         pass
     def event_PrivateMessage(main, text, fail_cb):
         pass
-    def event_ConnectToMe(main, port, use_ssl, fail_cb):
+    def event_NMDC_ConnectToMe(main, port, use_ssl, fail_cb):
         pass
-    def event_RevConnectToMe(main, fail_cb):
+    def event_ADC_ConnectToMe(main, protocol, port, token, fail_cb):
+        pass
+    def event_NMDC_RevConnectToMe(main, fail_cb):
+        pass
+    def event_ADC_RevConnectToMe(main, protocol, token, fail_cb):
         pass
     def checkRevConnectWindow():
         pass
