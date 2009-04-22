@@ -1,0 +1,65 @@
+; Dtella Updater - NSIS Installer Script
+; Copyright (C) 2009-  Andyhhp
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation; either version 2
+; of the License, or (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, write to the Free Software
+; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+!define PRODUCT_NAME "PATCH_ME"
+!define PRODUCT_VERSION "PATCH_ME"
+!define PRODUCT_SIMPLENAME "PATCH_ME"
+
+!define PRODUCT_REGKEY "SOFTWARE\CamDC\Dtella"
+!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Dtella"
+
+SetCompressor lzma
+
+Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
+OutFile "${PRODUCT_SIMPLENAME}.updater.exe"
+SilentInstall silent
+Icon "${NSISDIR}\Contrib\Graphics\Icons\modern-install-colorful.ico"    
+
+Section
+    ClearErrors
+    
+    ;Check the registry
+    ReadRegStr $0 HKLM "${PRODUCT_REGKEY}" "InstDir"
+    IfErrors Error_No_Key
+    
+    ;Terminate the current dtella process
+    SetShellVarContext all
+    ExecWait '"$0\dtella.exe" --terminate'
+    
+    ;Write the new version
+    SetOutPath $0
+    File "dtella.exe"
+
+    ;Update the reg version strings - nothing else is changing
+    WriteRegStr HKLM "${PRODUCT_REGKEY}" "Version" "${PRODUCT_VERSION}"
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+
+    ;See if the user has the previous source.  If so, give the new source as well
+    IfFileExists "$0\${PRODUCT_NAME}*.tar.bz2" 0 No_Source
+         File "${PRODUCT_SIMPLENAME}.tar.bz2"
+    No_Source:
+    
+    ;Restart the dtella process
+    Exec '"$0\dtella.exe"'
+
+    Return
+    
+    ;If there is no reg key from a previous installer, something is wrong
+    Error_No_Key:
+    MessageBox MB_OK "Cant read installation regkey.  Please ensure you have installed CamDC.  If all else fails, ask for help in main chat"
+    Return
+SectionEnd

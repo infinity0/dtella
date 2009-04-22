@@ -19,18 +19,18 @@
 ;Product defines
 !define PRODUCT_NAME "CamDC"
 !define PRODUCT_VERSION "2.5"
-!define PRODUCT_PUBLISHER "Infinity0 & Andyhhp"
+!define PRODUCT_PUBLISHER "infinity0 & Andyhhp"
 !define PRODUCT_WEB_SITE "http://camdc.pcriot.com/"
 
 !define UNINST_NAME "Uninstall ${PRODUCT_NAME}"
 !define PRODUCT_REG_BASE "Software\${PRODUCT_NAME}"
 
 ;Dtella defines
-!define DTELLA_NAME "Dtella"
-!define DTELLA_VERSION "1.2.4.3"
+!define DTELLA_NAME "PATCH_ME"
+!define DTELLA_VERSION "PATCH_ME"
 !define DTELLA_WEB_SITE "http://camdc.pcriot.com/"
 !define DTELLA_PUBLISHER "infinity0 & Andyhhp"
-!define DTELLA_SOURCENAME "dtella-Cambridge-${DTELLA_VERSION}"
+!define DTELLA_SOURCENAME "PATCH_ME"
 !define DTELLA_DIR_REGKEY "${PRODUCT_REG_BASE}\${DTELLA_NAME}"
 !define DTELLA_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DTELLA_NAME}"
 

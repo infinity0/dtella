@@ -62,15 +62,15 @@ def patch_nsi_template():
     dt_version = local.version
     dt_simplename = local.build_prefix + local.version
 
-    wfile = file("installer_win/common.nsh", "w")
+    wfile = file("installer_win/dtella_updater.nsi", "w")
 
-    for line in file("installer_win/common.template.nsh"):
+    for line in file("installer_win/dtella_updater.template.nsi"):
         if "PATCH_ME" in line:
-            if "DTELLA_NAME" in line:
+            if "PRODUCT_NAME" in line:
                 line = line.replace("PATCH_ME", dt_name)
-            elif "DTELLA_VERSION" in line:
+            elif "PRODUCT_VERSION" in line:
                 line = line.replace("PATCH_ME", dt_version)
-            elif "DTELLA_SOURCENAME" in line:
+            elif "PRODUCT_SIMPLENAME" in line:
                 line = line.replace("PATCH_ME", dt_simplename)
             else:
                 raise Error("Unpatchable NSI line: %s" % line)

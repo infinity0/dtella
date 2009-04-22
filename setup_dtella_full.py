@@ -62,9 +62,9 @@ def patch_nsi_template():
     dt_version = local.version
     dt_simplename = local.build_prefix + local.version
 
-    wfile = file("installer_win/dtella.nsi", "w")
+    wfile = file("installer_win/dtella_full.nsi", "w")
 
-    for line in file("installer_win/dtella.template.nsi"):
+    for line in file("installer_win/dtella_full.template.nsi"):
         if "PATCH_ME" in line:
             if "PRODUCT_NAME" in line:
                 line = line.replace("PATCH_ME", dt_name)
