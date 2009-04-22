@@ -33,10 +33,10 @@ build_prefix = "dtella-cambridge-"
 # Set this type when building executables and installers. This allows
 # Dtelle to select an appropriate upgrade method.
 # Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
-build_type = "exe"
+build_type = "tar.bz2"
 
 # Dtella version number.
-version = "1.2.4.1" ##Number changed for !update testing purposes - ned TODO undo
+version = "1.2.4.3"
 
 # This is an arbitrary string which is used for encrypting packets.
 # It essentially defines the uniqueness of a Dtella network, so every
