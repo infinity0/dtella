@@ -119,6 +119,7 @@ class DtellaBot(object):
     freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
 
     location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF'])
+# END NEWITEMS MOD '''#
 
 
     minihelp = [
@@ -128,8 +129,11 @@ class DtellaBot(object):
         ("INVITE",     "Show your current IP and port to give to a friend"),
         ("REBOOT",     "Exit from the network and immediately reconnect"),
         ("TERMINATE",  "Completely kill your current Dtella process."),
+        ("RESTART",    "Spawn a new Dtella process, also killing this one"),
+#''' BEGIN NEWITEMS MOD #
         ("I",          "Add/remove stuff to the global items list."),
         ("STUFF",      "View the global items list."),
+# END NEWITEMS MOD '''#
         ("--",         "SETTINGS"),
         ("TOPIC",      "View or change the global topic"),
         ("SUFFIX",     "View or change your location suffix"),
@@ -144,7 +148,6 @@ class DtellaBot(object):
         ("DENSE",      "Show the bytes/user density for each location"),
         ("RANK",       "Compare your share size with everyone else"),
         ]
-# END NEWITEMS MOD '''#
 
 
     bighelp = {
