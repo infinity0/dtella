@@ -828,7 +828,6 @@ chmod 777 "$PRODUCT.pid"
 
 echo "- make backup directory $BKUPDIR"
 if ! mkdir -p "$BKUPDIR"; then
-    set -
     if [ "$(id -u)" -gt 0 ]; then
         # -S is needed for subprocess.communicate() to work properly in the
         # case of the user *having* sudo permissions. sudo will read empty

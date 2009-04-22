@@ -54,7 +54,6 @@ adc_mode = True
 
 # Set this if you want Dtella to reject plaintext connection attempts.
 # This only works when adc_mode is True. Recommended for fascist networks.
-# TODO: not yet implemented
 adc_fcrypto = True
 
 # This enforces a maximum cap for the 'minshare' value which appears in DNS.

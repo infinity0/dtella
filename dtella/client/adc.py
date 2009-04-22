@@ -673,15 +673,11 @@ class ADCHandler(BaseADCProtocol):
 
                     # Send now
                     self.chat_counter -= 1
-                    if flags&core.SLASHME_BIT:
-                        print "about to broadcast with /me"
                     self.broadcastChatMessage(flags, line)
 
                 else:
                     # Put in a queue
                     if len(self.chatq) < 5:
-                        if flags&core.SLASHME_BIT:
-                            print "about to append with /me"
                         self.chatq.append( (flags, line) )
                     else:
                         self.pushStatus(
@@ -691,21 +687,20 @@ class ADCHandler(BaseADCProtocol):
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
         show_errors = True
-        
+
         try:
             protocol_str, port_str, token = rest.split(' ')
         except Exception:
             print "CTM Error: rest=%s" % rest
             return
-            
-            
+
         try:
             port = int(port_str)
             if not (1 <= port <= 65535):
                 raise ValueError
         except ValueError:
             port = None
-            
+
         def fail_cb(reason, bot = False):
             if show_errors:
                 if node:
@@ -753,7 +748,6 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RCM(self, con, src_sid, dst_sid, rest):
-        
         show_errors = True
         cancel = True
         
@@ -1086,7 +1080,6 @@ class ADCHandler(BaseADCProtocol):
 
 
     def push_ADC_Error(self, n, str):
-        print "recv ADC error"
         self.sendLine("DSTA %s %s %s" % (n.sid, self.sid, str))
 
 
