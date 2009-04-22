@@ -741,8 +741,8 @@ class DtellaBot(object):
         out("Upgrading from %s to %s" % (cur_v, new_v))
         out("- Downloading \"%s\" - Please wait" % binurl)
         
-        def later_cb():
-            
+        def install_cb():
+
             try:
                 fpath, headers = urllib.urlretrieve(binurl)
             except Exception, e:
@@ -775,32 +775,23 @@ class DtellaBot(object):
                         'rxvt': '-e',
                     }
 
-                sudoterm = []
-                terminals = {
-                    'gnome-terminal': '-x',
-                    'konsole': '-e',
-                    'xfce4-terminal': '-x',
-                    'xterm': '-e',
-                    'rxvt': '-e',
-                }
-
-                ret, output = commands.getstatusoutput('which x-terminal-emulator')
-                if ret:
-                    for term in terminals:
-                        if not subprocess.call(['which', term]):
+                    ret, output = commands.getstatusoutput('which x-terminal-emulator')
+                    if ret:
+                        for term in terminals:
+                            if not subprocess.call(['which', term]):
+                                sudoterm.extend([term, terminals[term]])
+                                break
+                        else:
+                            out("Couldn't find a suitable terminal program; abort.")
+                            return
+                    else:
+                        term = os.path.basename(os.path.realpath(output))
+                        if term in terminals:
                             sudoterm.extend([term, terminals[term]])
-                            break
-                    else:
-                        out("Couldn't find a suitable terminal program; abort.")
-                        return
-                else:
-                    term = os.path.basename(os.path.realpath(output))
-                    if term in terminals:
-                        sudoterm.extend([term, terminals[term]])
-                    elif term.endswith(".wrapper") and term[:-8] in terminals:
-                        sudoterm.extend([term[:-8], terminals[term[:-8]]])
-                    else:
-                        sudoterm.extend(['x-terminal-emulator', '-e'])
+                        elif term.endswith(".wrapper") and term[:-8] in terminals:
+                            sudoterm.extend([term[:-8], terminals[term[:-8]]])
+                        else:
+                            sudoterm.extend(['x-terminal-emulator', '-e'])
 
                     try:
                         os.mkdir(basep + bkup)
@@ -817,84 +808,84 @@ class DtellaBot(object):
 
                     shp, shpath = tempfile.mkstemp()
                     script = """\
-    #!/bin/sh
+#!/bin/sh
 
-    BASEDIR=%s
-    ARCHIVE=%s
-    BKUPDIR=%s
-    PRODUCT=%s
+BASEDIR=%s
+ARCHIVE=%s
+BKUPDIR=%s
+PRODUCT=%s
 
-    perror () {
-        echo "Error: $@" >&2
-        echo -n "press ENTER to continue..."
-        read ENTER
-        exit 1
-    }
+perror () {
+    echo "Error: $@" >&2
+    echo -n "press ENTER to continue..."
+    read ENTER
+    exit 1
+}
 
-    pwclean () {
-        echo "Warning: could not remove $@" >&2
-        echo "You should do this yourself." >&2
-    }
+pwclean () {
+    echo "Warning: could not remove $@" >&2
+    echo "You should do this yourself." >&2
+}
 
-    cd "$BASEDIR"
-    echo $$ >> "$PRODUCT.pid" 2>/dev/null
+cd "$BASEDIR"
+echo $$ >> "$PRODUCT.pid" 2>/dev/null
 chmod 777 "$PRODUCT.pid"
 
-    echo "- make backup directory $BKUPDIR"
-    if ! mkdir -p "$BKUPDIR"; then
-        set -
-        if [ "$(id -u)" -gt 0 ]; then
-            # -S is needed for subprocess.communicate() to work properly in the
-            # case of the user *having* sudo permissions. sudo will read empty
-            # passwords and return exit code 1; if -S is not specified, sudo will
-            # take input from the terminal instead of subprocess.stdin, and hang
-            # when trying to retrieve the password from the user.
-            if sudo -vS >/dev/null; then
-                echo "- using sudo to grant access"
-                sudo "$0";
-            else
-                echo "- using su to grant access"
-                su -c "$0";
-            fi
-            exit
-        fi
-        perror "could not make backup directory; abort"
-    fi
-
-    echo "- extracting $PRODUCT from $ARCHIVE"
-    if ! tar xf "$ARCHIVE" "$PRODUCT"; then
-        perror "could not extract $PRODUCT; abort"
-    fi
-
-    echo "- move old installation to $BKUPDIR"
-    if ! mv docs dtella dtella.py "$BKUPDIR"; then
-        perror "could not move old installation; abort"
-    fi
-
-    echo "- install $PRODUCT to $BASEDIR"
-    if ! mv "$PRODUCT"/* .; then
-        echo "Error: could not install new files; attempting to restore old files"
-        if ! mv "$BKUPDIR"/* .; then
-            perror "could not restore old files. sorry."
+echo "- make backup directory $BKUPDIR"
+if ! mkdir -p "$BKUPDIR"; then
+    set -
+    if [ "$(id -u)" -gt 0 ]; then
+        # -S is needed for subprocess.communicate() to work properly in the
+        # case of the user *having* sudo permissions. sudo will read empty
+        # passwords and return exit code 1; if -S is not specified, sudo will
+        # take input from the terminal instead of subprocess.stdin, and hang
+        # when trying to retrieve the password from the user.
+        if sudo -vS >/dev/null; then
+            echo "- using sudo to grant access"
+            sudo "$0";
         else
-            echo "- backups restored."
+            echo "- using su to grant access"
+            su -c "$0";
         fi
-        exit 1
+        exit
     fi
+    perror "could not make backup directory; abort"
+fi
 
-    echo "- cleaning up"
-    if ! rm -rf "$PRODUCT"; then pwclean "temporary extraction directory $PRODUCT"; fi
-    if ! rm -rf "$BKUPDIR"; then pwclean "temporary backup directory $BKUPDIR"; fi
-    if ! rm -rf "$0"; then pwclean "this update script $0"; fi
+echo "- extracting $PRODUCT from $ARCHIVE"
+if ! tar xf "$ARCHIVE" "$PRODUCT"; then
+    perror "could not extract $PRODUCT; abort"
+fi
 
-    echo "REMOVE ME" > "$PRODUCT.complete"
+echo "- move old installation to $BKUPDIR"
+if ! mv docs dtella dtella.py "$BKUPDIR"; then
+    perror "could not move old installation; abort"
+fi
+
+echo "- install $PRODUCT to $BASEDIR"
+if ! mv "$PRODUCT"/* .; then
+    echo "Error: could not install new files; attempting to restore old files"
+    if ! mv "$BKUPDIR"/* .; then
+        perror "could not restore old files. sorry."
+    else
+        echo "- backups restored."
+    fi
+    exit 1
+fi
+
+echo "- cleaning up"
+if ! rm -rf "$PRODUCT"; then pwclean "temporary extraction directory $PRODUCT"; fi
+if ! rm -rf "$BKUPDIR"; then pwclean "temporary backup directory $BKUPDIR"; fi
+if ! rm -rf "$0"; then pwclean "this update script $0"; fi
+
+echo "REMOVE ME" > "$PRODUCT.complete"
 chmod 777 "$PRODUCT.complete"
 
-    echo "- Upgrade successful."
-    echo -n "Press ENTER to continue... "
-    read ENTER
-    exit 0
-    """ % tuple([commands.mkarg(i)[1:] for i in [basep, fpath, bkup, new_p]])
+echo "- Upgrade successful."
+echo -n "Press ENTER to continue... "
+read ENTER
+exit 0
+""" % tuple([commands.mkarg(i)[1:] for i in [basep, fpath, bkup, new_p]])
                     if 'gksu' in sudoterm:
                         # This is necessary because of
                         # http://savannah.nongnu.org/bugs/?13306
@@ -965,28 +956,6 @@ chmod 777 "$PRODUCT.complete"
                     else:
                         out("Error: Upgrade failed")
                         return
-                '''
-
-                #'''
-                out("- Backing up current dtella to %s" % bkup)
-                bkup = basep + bkup
-                try:
-                    # TODO: the following only works in python 2.6:
-                    # shutil.copytree(basep, basep + bkup, True,
-                    #    basep + name + cur_v + "-*")
-                    os.mkdir(bkup)
-                    for d in blist:
-                        if name + cur_v + bk_sep in d:
-                            continue
-                        src = basep + d
-                        dst = bkup + d
-                        if os.path.islink(src):
-                            os.symlink(os.readlink(src), dst)
-                        elif os.path.isdir(src):
-                            shutil.copytree(src, dst, True)
-                        else:
-                            out("Error: Upgrade failed")
-                            return
                     '''
 
                     #'''
@@ -1074,6 +1043,7 @@ chmod 777 "$PRODUCT.complete"
                     out("- Install complete. A backup of the old installation is at %s" % bkup)
                     #'''
 
+
                 elif type == 'dmg':
                     vpath = "/Volumes/%s" % new_p
                     cp_src = os.path.join(vpath, "Dtella.app")
@@ -1108,11 +1078,11 @@ chmod 777 "$PRODUCT.complete"
                         out("Warning: Could not detach disk image")
                         out("You may want to eject %s manually" % vpath)
 
+
                 elif type == 'exe':
                     from win32api import ShellExecute
                     from win32gui import GetForegroundWindow
                     import pywintypes
-                    #print "head %s, tail %s" % os.path.split(fpath)
                     dir, _ = os.path.split(fpath)
                     npath = dir + '\\' + new_p + '.updater.exe'
                     try:
@@ -1130,28 +1100,30 @@ chmod 777 "$PRODUCT.complete"
                     try:
                         ShellExecute(GetForegroundWindow(), "open", fpath, "", "", 5)
                     except pywintypes.error, e:
-                        if e[0] == 5: #Access denied
+                        if e[0] == 5: # Access denied
                             out("- Access was denied to the updater.  Please accept the UAC prompt if you are on vista")
-                        else: #Other
+                        else: # Other
                             out("- Exception \"%s\" occured - please ask for help" % e[2])
 
-                    
                     return # python: finally clause is executed "on the way out" and prevents calling RESTART
 
 
             finally:
-                if type != 'exe':
-                    out("- Cleaning up downloaded file")
-                    try:
-                        os.remove(fpath)
-                    except Exception, e:
-                        out("Warning: %s could not be removed: %s" % (fpath, e))
-                        out("You may want to remove it manually.")
+                if type == 'exe':
+                    return
+
+                out("- Cleaning up downloaded file")
+                try:
+                    os.remove(fpath)
+                except Exception, e:
+                    out("Warning: %s could not be removed: %s" % (fpath, e))
+                    out("You may want to remove it manually.")
 
             out("- Upgrade completed. Running new Dtella...")
             self.handleCmd_RESTART(out, "", prefix)
-            
-        reactor.callLater(0.1, later_cb)#Hack so twisted flushes the out buffer before hanging while getting the file
+
+        # Hack so twisted flushes the out buffer before hanging while getting the file
+        reactor.callLater(0.1, install_cb) 
 
 
     def handleCmd_DEBUG(self, out, text, prefix):

@@ -61,6 +61,7 @@ copy dtella\common\*.py       %BLDIR%\%FILEBASE%\dtella\common
 copy dtella\modules\*.py      %BLDIR%\%FILEBASE%\dtella\modules
 copy docs\readme.txt          %BLDIR%\%FILEBASE%\docs
 copy docs\changelog.txt       %BLDIR%\%FILEBASE%\docs
+copy docs\changelog_adc.txt   %BLDIR%\%FILEBASE%\docs
 copy docs\requirements.txt    %BLDIR%\%FILEBASE%\docs
 copy docs\gpl.txt             %BLDIR%\%FILEBASE%\docs
 

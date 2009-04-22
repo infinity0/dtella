@@ -89,46 +89,10 @@ class MessageCollisionError(Exception):
     pass
 
 
-'''
-Various sections of code are marked with NMDC-BACK-COMPAT. These sections are
-to provide backwards-compatibility with NMDC-only Dtella nodes.
-
-Any new network should comprise entirely of ADC-mode or NMDC-mode nodes, but
-compatibility between these is supported through the nmdc_back_compat flag in
-the seed config for your local network. The intended use is to help facilitate
-a smoother transition from a network of the old NMDC-only nodes, to one of the
-new ADC-capable nodes - NOT to sustain a hybrid network, which is impossible.
-
-During the transition, nmdc_back_compat (in your seed config) must be set to
-True. New nodes will continue to use the old handshake packet, and accept old
-nodes as part of the network.
-
-When the transition is over, it is recommended to switch the nmdc_back_compat
-flag to False. At this point, the new nodes will prevent old nodes from joining
-the network by using a different (incompatible) handshake packet.
-
-If upgrading from a DC-based network of the old nodes, to an ADC-based network
-of the new nodes, there are some additional effects to be considered:
-
-All Dtella nodes will be able to connect to the network, and NMDC clients will
-be able to fully interact with other NMDC clients. However, interaction between
-NMDC and ADC clients will be limited to [priv]chat, and interaction between ADC
-clients will be limited depending on the proportion of the ADC-mode nodes in
-the network, since NMDC-mode nodes will Reject the ADC-specific Dtella packets
-that it receives.
-'''
-
-''' TODO:
-- document everything
-- get rid of print statements
-- !upgrade command
-  - exe
-'''
-
+# ADC flags
 adc_mode = local.adc_mode
 adc_fcrypto = local.adc_fcrypto
 nmdc_back_compat = False # dynamic config pull can set this to True
-
 
 # Protocol Flags
 PROTOCOL_MASK = 0x80

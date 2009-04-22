@@ -167,6 +167,7 @@ elif sys.platform == 'win32':
     import py2exe
     patch_nsi_template()
 elif os.name == 'posix':
+    patch_build_type()
     sys.exit(build_posix_installer())
 else:
     sys.stderr.write("Unsupported build platform: %s\n" % sys.platform)
