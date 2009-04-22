@@ -24,7 +24,7 @@
 !define PRODUCT_SIMPLENAME "PATCH_ME"
 !define PRODUCT_PUBLISHER "Dtella Labs"
 !define PRODUCT_WEB_SITE "http://dtella.org/"
-!define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\${PRODUCT_NAME}\dtella.exe"
+!define PRODUCT_DIR_REGKEY "SOFTWARE\CamDC\Dtella"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_ROOT_KEY "HKLM"
 
@@ -105,7 +105,7 @@ SectionEnd
 
 Section -Post
   WriteUninstaller "$INSTDIR\uninst.exe"
-  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\dtella.exe"
+  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "InstDir" "$INSTDIR\"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninst.exe"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\dtella.exe"
