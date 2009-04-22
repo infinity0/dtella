@@ -741,7 +741,7 @@ class DtellaBot(object):
                 fpath, headers = urllib.urlretrieve(binurl)
             except Exception, e:
                 out("Error: Couldn't download the update: %s" % e)
-                out("Error: Couldn't download the update: %s" % e)
+                out("Try again later, or ask for help in main chat.")
                 return
 
             try:
@@ -1089,8 +1089,8 @@ exit 0
                     os.rename(fpath,npath)
                     fpath = npath
 
-                    out("- Attempting to run the upgrader. Accept the UAC prompt if you are on vista")
-                    out("- You will have to reconnect your client (Ctrl-R) if all goes well")
+                    out("- Attempting to run the upgrader. Accept the UAC prompt if you are on Vista")
+                    out("- If the upgrade succeeds, you may need to reconnect your client (Ctrl-R).")
                     try:
                         ShellExecute(GetForegroundWindow(), "open", fpath, "", "", 5)
                     except pywintypes.error, e:
@@ -1103,16 +1103,14 @@ exit 0
 
 
             finally:
-                if type == 'exe':
-                    return
-
                 out("- Cleaning up downloaded file")
                 try:
                     os.remove(fpath)
                 except Exception, e:
+                    if type == 'exe':
+                        return
                     out("Warning: %s could not be removed: %s" % (fpath, e))
                     out("You may want to remove it manually.")
-
 
             out("- Upgrade completed. Running new Dtella...")
             self.handleCmd_RESTART(out, "", prefix)
