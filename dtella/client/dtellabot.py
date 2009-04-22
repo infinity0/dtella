@@ -726,27 +726,22 @@ class DtellaBot(object):
         import os, urllib, sys, subprocess
 
         new_p = name + new_v
-        
-        if url[-1] != '/':
-            url += '/'
-        if repo[-1] != '/':
-            repo += '/'
-        
+        if not url.endswith('/'): url += '/'
+        if not repo.endswith('/'): repo += '/'
         binurl = url + repo + new_p
-        if type == 'exe':
-            binurl = binurl + ".updater." + type
-        else:
-            binurl = binurl + "." + type
+        if type == 'exe': binurl += ".updater." + type
+        else: binurl += "." + type
 
         out("Upgrading from %s to %s" % (cur_v, new_v))
-        out("- Downloading \"%s\" - Please wait" % binurl)
-        
-        def install_cb():
 
+        out("- Downloading %s" % binurl)
+
+        def install_cb():
             try:
                 fpath, headers = urllib.urlretrieve(binurl)
             except Exception, e:
-                out("Error: Couldn't download the update: \"%s\" - Please ask for help in main chat." % e)
+                out("Error: Couldn't download the update: %s" % e)
+                out("Error: Couldn't download the update: %s" % e)
                 return
 
             try:
@@ -1084,7 +1079,7 @@ exit 0
                     from win32gui import GetForegroundWindow
                     import pywintypes
                     dir, _ = os.path.split(fpath)
-                    npath = dir + '\\' + new_p + '.updater.exe'
+                    npath = os.path.join(dir, new_p + '.updater.exe')
                     try:
                         # remove file if it already exists
                         os.remove(npath)
@@ -1093,17 +1088,16 @@ exit 0
 
                     os.rename(fpath,npath)
                     fpath = npath
-                    
-                    out("Attempting to run the installer.  Please accept the UAC promt if you are on vista")
-                    out("You will have to reconnect your client (Ctrl R) if all goes well")
-                    
+
+                    out("- Attempting to run the upgrader. Accept the UAC prompt if you are on vista")
+                    out("- You will have to reconnect your client (Ctrl-R) if all goes well")
                     try:
                         ShellExecute(GetForegroundWindow(), "open", fpath, "", "", 5)
                     except pywintypes.error, e:
                         if e[0] == 5: # Access denied
-                            out("- Access was denied to the updater.  Please accept the UAC prompt if you are on vista")
+                            out("Error: Access was denied to the updater.")
                         else: # Other
-                            out("- Exception \"%s\" occured - please ask for help" % e[2])
+                            out("Error: %s" % e[2])
 
                     return # python: finally clause is executed "on the way out" and prevents calling RESTART
 
@@ -1119,11 +1113,12 @@ exit 0
                     out("Warning: %s could not be removed: %s" % (fpath, e))
                     out("You may want to remove it manually.")
 
+
             out("- Upgrade completed. Running new Dtella...")
             self.handleCmd_RESTART(out, "", prefix)
 
         # Hack so twisted flushes the out buffer before hanging while getting the file
-        reactor.callLater(0.1, install_cb) 
+        reactor.callLater(0.1, install_cb)
 
 
     def handleCmd_DEBUG(self, out, text, prefix):
