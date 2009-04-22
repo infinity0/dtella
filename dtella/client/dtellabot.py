@@ -764,7 +764,6 @@ class DtellaBot(object):
                 }
 
                 ret, output = commands.getstatusoutput('which x-terminal-emulator')
-                term = os.path.basename(os.path.realpath(output))
                 if ret:
                     for term in terminals:
                         if not subprocess.call(['which', term]):
@@ -774,7 +773,8 @@ class DtellaBot(object):
                         out("Couldn't find a suitable terminal program; abort.")
                         return
                 else:
-                    if term in terminals in terminals:
+                    term = os.path.basename(os.path.realpath(output))
+                    if term in terminals:
                         sudoterm.extend([term, terminals[term]])
                     elif term.endswith(".wrapper") and term[:-8] in terminals:
                         sudoterm.extend([term[:-8], terminals[term[:-8]]])
@@ -817,6 +817,7 @@ pwclean () {
 
 cd "$BASEDIR"
 echo $$ >> "$PRODUCT.pid" 2>/dev/null
+chmod 777 "$PRODUCT.pid"
 
 echo "- make backup directory $BKUPDIR"
 if ! mkdir -p "$BKUPDIR"; then
@@ -866,6 +867,7 @@ if ! rm -rf "$BKUPDIR"; then pwclean "temporary backup directory $BKUPDIR"; fi
 if ! rm -rf "$0"; then pwclean "this update script $0"; fi
 
 echo "REMOVE ME" > "$PRODUCT.complete"
+chmod 777 "$PRODUCT.complete"
 
 echo "- Upgrade successful."
 echo -n "Press ENTER to continue... "
@@ -909,14 +911,18 @@ exit 0
                                 out("  - " + line)
                 else:
                     import time
+                    pidfile = basep + new_p + ".pid"
+                    cmpfile = basep + new_p + ".complete"
 
-                    while not os.path.exists(basep + new_p + ".pid"):
+                    while not os.path.exists(pidfile) or \:
+                    os.path.getsize(pidfile) == 0
                         time.sleep(0.25)
-                    for line in file(basep + new_p + ".pid"):
+                    for line in file(pidfile):
                         pid = int(line)
                         break
 
-                    while not os.path.exists(basep + new_p + ".complete"):
+                    while not os.path.exists(cmpfile) or \
+                    os.path.getsize(cmpfile) == 0:
                         time.sleep(0.25)
                         try:
                             os.getpgid(pid)
@@ -926,10 +932,12 @@ exit 0
                             else:
                                 raise
 
-                    if os.path.exists(basep + new_p + ".complete"):
+                    if os.path.exists(cmpfile):
                         try:
-                            os.remove(basep + new_p + ".pid")
-                            os.remove(basep + new_p + ".complete")
+                            file(pidfile, 'w').close()
+                            file(cmpfile, 'w').close()
+                            os.remove(pidfile)
+                            os.remove(cmpfile)
                         except:
                             pass
                         out("- Upgrade complete")

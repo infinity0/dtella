@@ -121,9 +121,8 @@ that it receives.
 ''' TODO:
 - document everything
 - get rid of print statements
-- implement FORCE encryption
 - !upgrade command
-  - dmg, exe
+  - exe
 '''
 
 adc_mode = local.adc_mode

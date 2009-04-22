@@ -152,7 +152,8 @@ class DynamicConfigPuller(object):
                 try:
                     min_v, new_v, url = value.split(' ', 2)
                     if '#' in url:
-                        url, repo = url.split('#', 1)
+                        ri = url.rindex('#')
+                        url, repo = url[:ri], url[ri+1:]
                     else:
                         repo = ''
                 except ValueError:
