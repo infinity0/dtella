@@ -1056,7 +1056,8 @@ class ADCHandler(BaseADCProtocol):
 
 
     def push_NMDC_RevConnectToMe(self, nick):
-        print "$RevCTM"
+        #print "$RevCTM"
+        pass
 
 
     def push_ADC_RevConnectToMe(self, node, protocol_str, token):
