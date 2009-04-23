@@ -19,7 +19,7 @@
 !define PRODUCT_VERSION "PATCH_ME"
 !define PRODUCT_SIMPLENAME "PATCH_ME"
 
-!define PRODUCT_REGKEY "SOFTWARE\CamDC\Dtella"
+!define PRODUCT_REGKEY "SOFTWARE\Dtella"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Dtella"
 
 SetCompressor lzma

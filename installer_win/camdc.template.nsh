@@ -23,7 +23,7 @@
 !define PRODUCT_WEB_SITE "http://camdc.pcriot.com/"
 
 !define UNINST_NAME "Uninstall ${PRODUCT_NAME}"
-!define PRODUCT_REG_BASE "Software\${PRODUCT_NAME}"
+!define PRODUCT_REG_BASE "Software"
 
 ;Dtella defines
 !define DTELLA_NAME "PATCH_ME"
