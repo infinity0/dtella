@@ -68,6 +68,19 @@ minshare_cap = 100 * (1024**2)   # (=100MiB)
 allowed_subnets = ['128.232.0.0/16', '129.169.0.0/16', '131.111.0.0/16', '193.60.80.0/20',
 '172.16.0.0/13', '172.24.0.0/14', '172.28.0.0/15', '172.30.0.0/16']
 
+# If you want to redirect bugs to your own email address, you may use this.
+# An empty value defaults to bugs@dtella.org
+bugs_email = "cabal@camdc.pcriot.com"
+
+#''' BEGIN NEWITEMS MOD #
+# Limits for !newitems storage. Individual users can override the limits for
+# display by using the commands !newitems daylim [days] | numlim [count]
+# but data for items will always be stored up to the smallest of these limits.
+newitems_daylim = 14
+newitems_numlim = 64
+# newitems_numlim should be <= 32, since UDP packets have a limited size
+# END NEWITEMS MOD '''#
+
 # Here we configure an object which pulls 'Dynamic Config' from some source
 # at a known fixed location on the Internet.  This config contains a small
 # encrypted IP cache, version information, minimum share, and a hash of the
@@ -87,15 +100,6 @@ dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(
 ##dconfig_puller = dtella.modules.pull_gdata.GDataPuller(
 ##    sheet_key = "..."
 ##    )
-
-#''' BEGIN NEWITEMS MOD #
-# Limits for !newitems storage. Individual users can override the limits for
-# display by using the commands !newitems daylim [days] | numlim [count]
-# but data for items will always be stored up to the smallest of these limits.
-newitems_daylim = 14
-newitems_numlim = 64
-# newitems_numlim should be <= 32, since UDP packets have a limited size
-# END NEWITEMS MOD '''#
 
 # Enable this if you can devise a meaningful mapping from a user's hostname
 # to their location.  Locations are displayed in the "Connection / Speed"

@@ -1714,20 +1714,27 @@ class PeerHandler(DatagramProtocol):
         (kind, src_ipp,
          ) = self.decodePacket('!2s6s', data)
 
+        osm = self.main.osm
+        if not (osm and osm.syncd):
+            raise BadTimingError("Not ready to handle a syncitems request")
+
+        # Hidden nodes shouldn't be getting sync requests.
+        if self.main.hide_node:
+            raise BadTimingError("Hidden node can't handle syncitems requests.")
+
         self.checkSource(src_ipp, ad)
 
-        itm = self.main.osm.itm
-        if len(self.main.osm.nodes) < 3: # small networks need all sync packets to be sent
+        if len(osm.nodes) < 3: # small networks need all sync packets to be sent
             itm.syncComplete()
 
-        elif not (itm and itm.syncd):
+        elif not (osm.itm and osm.itm.syncd):
             raise BadTimingError("Not ready to handle a syncitems request")
 
         # Hidden nodes shouldn't be getting sync requests.
         if self.main.hide_node:
             raise BadTimingError("Hidden node can't handle sync requests.")
 
-        itm.sendSyncItemsReply(src_ipp)
+        osm.itm.sendSyncItemsReply(src_ipp)
 
 
     def handlePacket_JR(self, ad, data):
