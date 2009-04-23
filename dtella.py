@@ -174,10 +174,11 @@ def terminate(dc_port, killkey):
         sock.connect(('127.0.0.1', dc_port))
         import dtella.local_config as local
         from base64 import b32encode
+        # the extra |$KillDtella| is so we can kill old nodes during an upgrade
         if local.adc_mode:
-            sock.sendall("HKILLDTELLA %s\n" % b32encode(killkey))
+            sock.sendall("HKILLDTELLA %s\n|$KillDtella|" % b32encode(killkey))
         else:
-            sock.sendall("$KillDtella %s|" % b32encode(killkey))
+            sock.sendall("$KillDtella %s|$KillDtella|" % b32encode(killkey))
         print "Sent Packet of Death on port %d..." % dc_port
         sock.shutdown(socket.SHUT_RDWR)
         sock.close()

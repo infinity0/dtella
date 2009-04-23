@@ -28,5 +28,5 @@ cd ..
 echo "built tarball in $OUTDIR/$FILEBASE.tar.bz2"
 
 python setup.py "EXT=tar.bz2" "EXT_CMD=tar xjf" "EXT_VRB=tar xvjf" \
-	"SVNR=http://dtella-cambridge.googlecode.com/svn/branches/adc" \
+	"SVNR=http://dtella-cambridge.googlecode.com/svn/trunk" \
 	"DEPS=dtella_deps.tar.bz2"
