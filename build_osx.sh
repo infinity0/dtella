@@ -19,6 +19,7 @@ hdiutil attach $BLDIR/template.sparseimage
 cp -R dist/dtella.app/ /Volumes/Dtella/Dtella.app
 cp docs/readme.txt /Volumes/Dtella/
 cp docs/changelog.txt /Volumes/Dtella/
+cp docs/changelog_adc.txt /Volumes/Dtella/
 cp docs/gpl.txt /Volumes/Dtella/
 
 diskutil rename /Volumes/Dtella/ $FILEBASE
