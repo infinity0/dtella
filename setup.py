@@ -192,10 +192,10 @@ if sys.platform == 'darwin':
     patch_build_type('dmg')
     import py2app
 
-elif True or sys.platform == 'win32':
+elif sys.platform == 'win32':
     patch_build_type('exe')
 
-    #import py2exe
+    import py2exe
     if len(sys.argv) <= 2:
         patch_nsi_template()
     elif sys.argv[2] == 'updater':

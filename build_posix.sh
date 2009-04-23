@@ -2,7 +2,7 @@
 eval $(python makevars.py)
 
 export OUTDIR="dist"
-export BLDDIR="build"
+export BLDDIR="installer_posix"
 
 mkdir -p "$OUTDIR"
 mkdir -p "$BLDDIR"
