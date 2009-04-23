@@ -6,6 +6,7 @@ Copyright (C) 2007-2008  Paul Marks (http://pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://feisley.com/)
 Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
 Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
+Copyright (C) 2009- Andyhhp <andyhhp@hotmail.com>
 
 $Id$
 
@@ -68,7 +69,7 @@ def patch_build_type(type="tar.bz2"):
     file("dtella/local_config.py", "w").writelines(lines)
 
 
-def patch_nsi_template():
+def patch_nsi_template(suffix=''):
     # Generate NSI file from template, replacing name and version
     # with data from local_config.
 
@@ -76,15 +77,42 @@ def patch_nsi_template():
     dt_version = local.version
     dt_simplename = local.build_prefix + local.version
 
-    wfile = file("installer_win/dtella.nsi", "w")
+    if suffix:
+        suffix = '_' + suffix
 
-    for line in file("installer_win/dtella.template.nsi"):
+    wfile = file("installer_win/dtella%s.nsi" % suffix, "w")
+
+    for line in file("installer_win/dtella%s.template.nsi" % suffix):
         if "PATCH_ME" in line:
             if "PRODUCT_NAME" in line:
                 line = line.replace("PATCH_ME", dt_name)
             elif "PRODUCT_VERSION" in line:
                 line = line.replace("PATCH_ME", dt_version)
             elif "PRODUCT_SIMPLENAME" in line:
+                line = line.replace("PATCH_ME", dt_simplename)
+            else:
+                raise Error("Unpatchable NSI line: %s" % line)
+        wfile.write(line)
+    wfile.close()
+
+
+def patch_camdc_nsi_template():
+    # Generate NSI file from template, replacing name and version
+    # with data from local_config.
+
+    dt_name = local.hub_name
+    dt_version = local.version
+    dt_simplename = local.build_prefix + local.version
+
+    wfile = file("installer_win/camdc.nsh", "w")
+
+    for line in file("installer_win/camdc.template.nsh"):
+        if "PATCH_ME" in line:
+            if "DTELLA_NAME" in line:
+                line = line.replace("PATCH_ME", dt_name)
+            elif "DTELLA_VERSION" in line:
+                line = line.replace("PATCH_ME", dt_version)
+            elif "DTELLA_SOURCENAME" in line:
                 line = line.replace("PATCH_ME", dt_simplename)
             else:
                 raise Error("Unpatchable NSI line: %s" % line)
@@ -159,16 +187,30 @@ def build_posix_installer():
     print "installer wrote to %s" %f
 
 
+
 if sys.platform == 'darwin':
     patch_build_type('dmg')
     import py2app
-elif sys.platform == 'win32':
+
+elif True or sys.platform == 'win32':
     patch_build_type('exe')
-    import py2exe
-    patch_nsi_template()
+
+    #import py2exe
+    if len(sys.argv) <= 2:
+        patch_nsi_template()
+    elif sys.argv[2] == 'updater':
+        patch_nsi_template('updater')
+        del sys.argv[2]
+    elif sys.argv[2] == 'camdc':
+        patch_camdc_nsi_template()
+        del sys.argv[2]
+    else:
+        patch_nsi_template()
+
 elif os.name == 'posix':
     patch_build_type()
     sys.exit(build_posix_installer())
+
 else:
     sys.stderr.write("Unsupported build platform: %s\n" % sys.platform)
     sys.exit(-1)

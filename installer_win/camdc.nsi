@@ -21,7 +21,7 @@
 !verbose 4
 
 ;Includes
-!include "common.nsh"
+!include "camdc.nsh"
 !include MUI2.nsh
 
 
