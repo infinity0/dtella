@@ -16,7 +16,7 @@ hdiutil eject /Volumes/$FILEBASE
 hdiutil convert $BLDIR/template.dmg -format UDSP -o $BLDIR/template
 hdiutil attach $BLDIR/template.sparseimage
 
-cp -R dist/dtella.app/ /Volumes/Dtella/Dtella.app
+cp -R dist/Dtella.app/ /Volumes/Dtella/Dtella.app
 cp docs/readme.txt /Volumes/Dtella/
 cp docs/changelog.txt /Volumes/Dtella/
 cp docs/changelog_adc.txt /Volumes/Dtella/
