@@ -6,6 +6,7 @@ Copyright (C) 2007-2008  Paul Marks (http://pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://feisley.com/)
 Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
 Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
+Copyright (C) 2009- Andyhhp <andyhhp@hotmail.com>
 
 $Id$
 
@@ -179,8 +180,8 @@ setup(
     name = 'Dtella',
     version = local.version,
     description = 'Dtella Client',
-    author = 'Dtella Labs',
-    url = 'http://dtella.org',
+    author = 'Dtella-Cambridge',
+    url = 'http://camdc.pcriot.com',
     options = {
         "py2exe": {
             "optimize": 2,

@@ -179,8 +179,8 @@ setup(
     name = 'Dtella',
     version = local.version,
     description = 'Dtella Client',
-    author = 'Dtella Labs',
-    url = 'http://dtella.org',
+    author = 'Dtella-Cambridge',
+    url = 'http://camdc.pcriot.com',
     options = {
         "py2exe": {
             "optimize": 2,
