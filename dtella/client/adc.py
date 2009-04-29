@@ -32,7 +32,7 @@ from dtella.common.util import (validateNick, word_wrap, split_info,
                                 split_tag, dc_escape, dc_unescape,
                                 dcall_discard, format_bytes, dcall_timeleft,
                                 get_version_string, lock2key, CHECK, b32pad,
-                                adc_escape, adc_unescape,
+                                adc_escape, adc_unescape, adc_locdes,
                                 adc_infostring, adc_infodict)
 from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
@@ -70,7 +70,7 @@ from dtella.common.interfaces import IDtellaStateObserver
 class BaseADCProtocol(LineOnlyReceiver):
     '''
     BaseADCProtocol is a subclass of LineOnlyReciever
-    
+
     It is the class responsible for communicating with the DC client
     and implements the basic decoding logic for incoming lines
     '''
@@ -101,25 +101,25 @@ class BaseADCProtocol(LineOnlyReceiver):
         args = {}
         args['con'] = cmd[0][0]
         msg = cmd[0][1:]
-        
+
         if args['con'] == 'E': # If its an echo context, echo it back
             self.sendLine(line)
-        
+
         #print "Context: %s Message: %s" % (args['con'],msg)
-        
+
         # Do a dict lookup to find the parameters for this command
         try:
             contexts, fn = self.dispatch[msg]
         except KeyError:
             print "Error: Unknown command \"%s\"" % line
             return
-        
+
         if contexts is None:
             fn(line)
         elif(args['con'] not in contexts):
             print "Invalid context %s for command %s" % (args['con'], cmd)
             return
-        
+
         try:
             if args['con'] in ('B', 'F'):
                 args['src_sid'], args['rest'] = cmd[1].split(' ',1)
@@ -134,7 +134,7 @@ class BaseADCProtocol(LineOnlyReceiver):
                 raise
         except:
             twisted.python.log.err()
-        
+
 
 
     def addDispatch(self, command, contexts, fn):
@@ -189,18 +189,18 @@ class ADC_AbortTransfer_Out(BaseADCProtocol):
 
         self.sendLine("CSUP ADBASE ADTIGR")
 
-    
+
     def d_SUP(self, con, rest=None):
         pass # We will recieve one but ignore it
-        
+
     def d_INF(self, con, rest=None):
 
         self.addDispatch('GET', ('C'), self.d_GET)
         self.addDispatch('GFI', ('C'), self.d_GFI)
-    
+
         self.sendLine("CINF ID%s TO%s" % (self.cid, self.token))
 
-        
+
     def d_GET(self, con, rest=None):
         self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
         self.transport.loseConnection()
@@ -227,7 +227,7 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
         self.cid = cid
         self.token = token
         self.reason = reason
-        
+
         # Steal connection from the DCHandler
         self.factory = dch.factory
         self.makeConnection(dch.transport)
@@ -236,7 +236,7 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
         # Steal the rest of the data
         self._buffer = dch._buffer
         dch.lineReceived = self.lineReceived
-        
+
 
         # If we're not done in 5 seconds, something's fishy.
         def cb():
@@ -248,12 +248,12 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
 
     def connectionMade(self):
         BaseADCProtocol.connectionMade(self)
-        
+
         self.addDispatch('INF', ('C'), self.d_INF)
         self.addDispatch('STA', ('C'), self.d_STA)
         self.addDispatch('GET', ('C'), self.d_GET)
         self.addDispatch('GFI', ('C'), self.d_GFI)
-        
+
         self.sendLine("CSUP ADBASE ADTIGR")
 
     def d_STA(self, con, rest):
@@ -261,7 +261,7 @@ class ADC_AbortTransfer_In(BaseADCProtocol):
 
     def d_INF(self, con, rest):
         self.sendLine("CINF ID%s" % self.cid)
-        
+
     def d_GET(self, con, rest):
         self.sendLine("CSTA 151 %s" % adc_escape(self.reason))
         self.transport.loseConnection()
@@ -297,7 +297,7 @@ class ADCHandler(BaseADCProtocol):
 
         if data[0] == '$':
             from dtella.client.dc import AbortConnection
-            AbortConnection(self, data, "ADC", "adc://localhost:%s" % 
+            AbortConnection(self, data, "ADC", "adc://localhost:%s" %
                 self.main.state.clientport)
         else:
             # Passed all tests, let it through
@@ -319,7 +319,7 @@ class ADCHandler(BaseADCProtocol):
         self.addDispatch('KILLDTELLA',     ('H'), self.d_KillDtella)
         self.addDispatch('SUP',             ('H','C'),self.d_SUP)
         self.addDispatch('INF',             ('B'),self.d_INF)
-        
+
         # Chat messages waiting to be sent
         self.chatq = []
         self.chat_counter = 99999
@@ -327,12 +327,12 @@ class ADCHandler(BaseADCProtocol):
 
         # ['PROTOCOL', 'IDENTIFY', 'queued', 'ready', 'invisible']
         self.state = 'PROTOCOL'
-        
+
         self.queued_dcall = None
         self.autoRejoin_dcall = None
 
         self.scheduleChatRateControl()
-        
+
         # Set up the protocol trap
         self._dataReceived = self.dataReceived
         self.dataReceived = self.initDataReceived
@@ -347,7 +347,7 @@ class ADCHandler(BaseADCProtocol):
                 self.transport.writeSequence(("$HubName %s" % local.hub_name, '|'))
 
         self.init_dcall = reactor.callLater(1.0, cb)
-        
+
 
 
     def isOnline(self):
@@ -391,7 +391,7 @@ class ADCHandler(BaseADCProtocol):
             print "Client doesn't support ADC/1.0"
             self.transport.loseConnection()
             return
-        
+
         if con == 'C':  # Fake RCM reply
             ADC_AbortTransfer_In(ADCHandler.fake_cid, ADCHandler.fake_token, self, ADCHandler.fake_reason)
 
@@ -406,9 +406,9 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_INF(self, con, src_sid=None, rest=None):
-    
+
         inf = adc_infodict(rest)
-        
+
         if self.state == 'IDENTIFY':
             inf['PD'] = b32pad(inf['PD'])
             inf['ID'] = b32pad(inf['ID'])
@@ -418,7 +418,7 @@ class ADCHandler(BaseADCProtocol):
                 self.transport.loseConnection()
                 return
             del inf['PD']
-            
+
             # Let Dtella logon so we can send messages to the user
             self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.dcinfo))
 
@@ -436,7 +436,7 @@ class ADCHandler(BaseADCProtocol):
 
             # update MeNode
             self.infdict.update(inf)
-            self.infstr = self.formatMyInfo()
+            self.infstr = self.formatMyInfo(True)
             if self.main.osm:
                 self.main.osm.me.info = self.infdict
                 self.main.osm.me.dcinfo = self.infstr
@@ -550,13 +550,13 @@ class ADCHandler(BaseADCProtocol):
                     "Dtella is busy with other DC connections from your "
                     "computer.  Goodbye.")
                 self.transport.loseConnection()
-                
+
             self.state = 'ready'
 
         elif self.state == 'ready':
             # update MeNode
             self.infdict.update(inf)
-            self.infstr = self.formatMyInfo()
+            self.infstr = self.formatMyInfo(True)
             if self.main.osm:
                 self.main.osm.me.info = self.infdict
                 self.main.osm.me.dcinfo = self.infstr
@@ -564,20 +564,20 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_MSG(self, con, src_sid=None, dst_sid=None, rest=None):
-        
+
         if not rest:
             return
-        
+
         params = rest.split(' ')
         text = adc_unescape(params[0])
-        
+
         inf = {}
         if len(params)>1:
             for i in params[1:]:
                 inf[i[:2]] = i[2:]
 
         if con == 'E':  # Private Message
-        
+
             if dst_sid == self.bot.sid:
 
                 # No ! is needed for commands in the private message context
@@ -587,7 +587,7 @@ class ADCHandler(BaseADCProtocol):
                 def out(text):
                     if text is not None:
                         self.bot.say(text)
-                
+
                 self.bot.commandInput(out, text)
                 return
 
@@ -613,7 +613,7 @@ class ADCHandler(BaseADCProtocol):
                 return
 
             n.event_PrivateMessage(self.main, text, fail_cb )
-            
+
         else:           # Public message
 
             # Route commands to the bot
@@ -629,7 +629,7 @@ class ADCHandler(BaseADCProtocol):
 
                     if out_text is not None:
                         self.pushChatMessageBySID(self.bot.sid, out_text)
-                
+
                 if self.bot.commandInput(out, text[1:], '!'):
                     return
 
@@ -662,7 +662,7 @@ class ADCHandler(BaseADCProtocol):
                         flags |= core.SLASHME_BIT
                 except KeyError:
                     pass
-                
+
                 # Check for /me incase the client misses it
                 if len(line) > 4 and line[:4].lower() in ('/me ','+me ','!me '):
                     line = line[4:]
@@ -687,6 +687,7 @@ class ADCHandler(BaseADCProtocol):
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
         show_errors = True
+        node = None
 
         try:
             protocol_str, port_str, token = rest.split(' ')
@@ -750,14 +751,14 @@ class ADCHandler(BaseADCProtocol):
     def d_RCM(self, con, src_sid, dst_sid, rest):
         show_errors = True
         cancel = True
-        
+
         # Older clients dont send a token as part of RCM
         # This is caused by a bug in the v0.698 DC core
         try:
             protocol_str, token = rest.split(' ')
         except Exception:
             return
-            
+
         def fail_cb(reason, bot = False):
             if show_errors:
                 if node:
@@ -823,7 +824,7 @@ class ADCHandler(BaseADCProtocol):
 
         packet = osm.mrm.broadcastHeader('AQ', osm.me.ipp)
         packet.append(struct.pack('!I', osm.mrm.getPacketNumber_search()))
-        
+
         if con == 'B':  # Active mode search
             flags = 0x00
         else:           # Passive search
@@ -853,21 +854,21 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_RES(self, con, src_sid, dst_sid, rest):
-    
+
         if not self.isOnline():
             return
-        
+
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
             return
-            
+
         if node.protocol != self.protocol:
             return
-            
+
         def fail_cb(reason):
             pass
-        
+
         osm = self.main.osm
 
         ack_key = node.getPMAckKey()
@@ -877,30 +878,30 @@ class ADCHandler(BaseADCProtocol):
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
         packet.append(node.nickHash())
-        
+
         packet.append(struct.pack('!H', len(rest)))
         packet.append(rest)
         packet = ''.join(packet)
-        
+
         node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
 
 
     def d_STA(self, con, src_sid, dst_sid, rest):
-    
+
         if not self.isOnline():
             return
-        
+
         try:
             node = self.main.osm.nkm.lookupNodeFromSID(dst_sid)
         except KeyError:
             return
-            
+
         if node.protocol != self.protocol:
             return
-            
+
         def fail_cb(reason):
             pass
-        
+
         osm = self.main.osm
 
         ack_key = node.getPMAckKey()
@@ -910,11 +911,11 @@ class ADCHandler(BaseADCProtocol):
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
         packet.append(node.nickHash())
-        
+
         packet.append(struct.pack('!H', len(rest)))
         packet.append(rest)
         packet = ''.join(packet)
-        
+
         node.sendPrivateMessage(self.main.ph, ack_key, packet, fail_cb)
 
 
@@ -943,7 +944,7 @@ class ADCHandler(BaseADCProtocol):
         self.main.addDCHandler(self)
 
 
-    def formatMyInfo(self):
+    def formatMyInfo(self, locdes=False):
 
         self.infdict['CT'] = '0'
 
@@ -959,29 +960,27 @@ class ADCHandler(BaseADCProtocol):
             try:
                 ad = Ad().setRawIPPort(self.main.osm.me.ipp)
                 loc = self.main.location[ad.getTextIP()]
-                # Append location suffix, if it exists
-                suffix = self.main.state.suffix
-                if suffix:
-                    loc = loc + suffix
             except (AttributeError, KeyError):
                 loc = None
 
+            # If I got a location name, splice it into my connection field
             if loc:
-                if 'DE' not in self.infdict:
-                    self.infdict['DE'] = "[%s]" % loc
-                    self.locstr = loc
-                elif not self.locstr:
-                    self.infdict['DE'] = "[%s] %s" % (loc, self.infdict['DE'])
-                    self.locstr = loc
-                elif self.infdict['DE'].index("[%s]" % self.locstr) == 0:
-                    self.infdict['DE'] = ("[%s]" % loc) + self.infdict['DE'][len("[%s]" % self.locstr):]
-                    self.locstr = loc
+                # Append location suffix, if it exists
+                suffix = self.main.state.suffix
+                if suffix:
+                    loc = '%s|%s' % (loc, suffix)
 
-        info = adc_infostring(self.infdict)
+                self.infdict['LO'] = loc
+
+        if locdes:
+            info = adc_infostring(adc_locdes(self.infdict))
+        else:
+            info = adc_infostring(self.infdict)
+
         if len(info) > 65535:
             self.pushStatus("*** Your info string is too long!")
             info = ''
-        
+
         return info
 
 
@@ -1004,7 +1003,7 @@ class ADCHandler(BaseADCProtocol):
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
             self.pushChatMessageBySID(sid, text, flags)
-        except KeyError: 
+        except KeyError:
             # Pass non-DC users' messages through the hub
             # ie. users such as *, *IRC, ~ChanServ etc
             self.pushStatus("On behalf of %s: %s" % (nick, text))
@@ -1037,7 +1036,7 @@ class ADCHandler(BaseADCProtocol):
         else:
             print "+ Node \"%s\" has no SID" % node.nick
 
-    
+
     def push_NMDC_ConnectToMe(self, ad, use_ssl):
         # We are recieving an NMDC $ConnectToMe so
         # create an NMDC AbortOut to deal with it
@@ -1089,14 +1088,14 @@ class ADCHandler(BaseADCProtocol):
 
 
     def pushPrivMsg(self, nick, text):
-    
+
         sid = self.bot.sid  # Default anything that is not a user to be from Dtella
                             # Users such as *, *IRC, ~ChanServ etc
         try:
             sid = self.main.osm.nkm.lookupSIDFromNick(nick)
-        except KeyError: 
+        except KeyError:
             text = "On behalf of %s: %s" % (nick, text)
-            
+
         self.sendLine("EMSG %s %s %s PM%s" % (sid, self.sid, adc_escape(text), sid))
 
 
@@ -1110,7 +1109,7 @@ class ADCHandler(BaseADCProtocol):
 
         def cb():
             self.chatRate_dcall = reactor.callLater(1.0, cb)
-           
+
             if self.chatq:
                 args = self.chatq.pop(0)
                 self.broadcastChatMessage(*args)
@@ -1176,7 +1175,7 @@ class ADCHandler(BaseADCProtocol):
 
         for line in word_wrap(text):
             self.pushStatus(line)
-    
+
 
     def doRejoin(self):
         if self.state != 'invisible':
@@ -1196,7 +1195,7 @@ class ADCHandler(BaseADCProtocol):
 
     def event_DtellaUp(self):
         CHECK(self.isOnline())
-        
+
         # from GetNickList - addapted to just send BINF for all online users
 
         me = self.main.osm.me
@@ -1209,7 +1208,7 @@ class ADCHandler(BaseADCProtocol):
                 self.pushInfo(node)
 
         self.sendLine("BINF %s %s" % (self.sid, me.dcinfo))
-        
+
         # Grab the current topic from Dtella.
         tm = self.main.osm.tm
         self.pushTopic(tm.topic)
@@ -1261,7 +1260,7 @@ class ADCHandler(BaseADCProtocol):
     def event_AddNick(self, n):
         pass # nothing to do - no $Hello for ADC
              # This is all done with a BINF (equv of $MyINFO $ALL)
-    
+
 
     def event_RemoveNick(self, n, reason):
         if not self.isProtectedNick(n.nick):
@@ -1321,7 +1320,7 @@ class ADC_AbortConnection(ADCHandler):
 
         self.pushStatus("This node uses %s, not ADC. Please connect to %s "
             "instead." % (self.cprtl, self.caddr))
-        
+
         self.timeout_dcall.reset(0)
 
 
@@ -1333,11 +1332,11 @@ class ADC_AbortConnection(ADCHandler):
 
 
 class ADCFactory(ServerFactory):
-    
+
     def __init__(self, main, listen_port):
         self.main = main
         self.listen_port = listen_port # spliced into search results
-        
+
     def buildProtocol(self, addr):
         if addr.host != '127.0.0.1':
             return None

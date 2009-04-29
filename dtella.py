@@ -103,14 +103,21 @@ def runClient(dc_port):
     import dtella.local_config as local
     from dtella.common.util import get_version_string
 
+    bugs_email = "bugs@dtella.org"
+    try:
+        if local.bugs_email:
+            bugs_email = local.bugs_email
+    except AttributeError:
+        pass
+
     def botErrorReporter(text):
         dch = dtMain.dch
         if dch:
             dch.bot.say(
                 "Something bad happened.  You might want to email this to "
-                "bugs@dtella.org so we'll know about it:\n"
+                "%s so we'll know about it:\n"
                 "Version: %s %s\n%s" %
-                (local.hub_name, get_version_string()[3:], text))
+                (bugs_email, local.hub_name, get_version_string()[3:], text))
 
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
@@ -241,7 +248,7 @@ def main():
     import dtella.common.state as state
     from dtella.client.main import STATE_FILE
     sm = state.StateManager(None, STATE_FILE, [state.ClientPort(), state.KillKey()])
-    sm.initLoad()
+    sm.initLoad(False)
 
     if not dc_port:
         dc_port = sm.clientport
