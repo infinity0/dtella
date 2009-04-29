@@ -82,11 +82,13 @@ Section "!Dtella (Required)" INST_DTELLA
   File "msvcr71.dll"
   File "readme.txt"
   File "changelog.txt"
+  File "changelog_adc.txt"
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Dtella (Run in Background).lnk" "$INSTDIR\dtella.exe"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Kill Dtella.lnk" "$INSTDIR\dtella.exe" "--terminate" "$INSTDIR\dtella.exe" 1
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Readme.lnk" "$INSTDIR\readme.txt"
-  CreateShortcut "$SMPROGRAMS\${PRODUCT_NAME}\Changelog.lnk" "$INSTDIR\changelog.txt"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Changelog.lnk" "$INSTDIR\changelog.txt"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Changelog_Adc.lnk" "$INSTDIR\changelog_adc.txt"
 SectionEnd
 
 Section "Run Dtella on Startup (Recommended)" INST_STARTUP
@@ -136,7 +138,8 @@ Section "un.Dtella" UNINST_DTELLA
   Delete "$INSTDIR\changelog.txt"
   Delete "$INSTDIR\msvcr71.dll"
   Delete "$INSTDIR\dtella.exe"
-  Delete "$INSTDIR\${PRODUCT_SIMPLENAME}.tar.bz2"
+  Delete "$INSTDIR\changelog_adc.txt"
+  Delete "$INSTDIR\*.tar.bz2"
   RMDir "$INSTDIR"
 
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk"
@@ -144,6 +147,7 @@ Section "un.Dtella" UNINST_DTELLA
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Kill Dtella.lnk"
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Readme.lnk"
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Changelog.lnk"
+  Delete "$SMPROGRAMS\${PRODUCT_NAME}\Changelog_adc.lnk"
   RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
   
   Delete "$SMSTARTUP\Dtella.lnk"

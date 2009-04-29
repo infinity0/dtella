@@ -45,6 +45,8 @@ Section
     ;Write the new version
     SetOutPath $0
     File "dtella.exe"
+    File "changelog.txt"
+    File "changelog_adc.txt"
 
     ;Update the reg version strings - nothing else is changing
     WriteRegStr HKLM "${PRODUCT_REGKEY}" "Version" "${PRODUCT_VERSION}"

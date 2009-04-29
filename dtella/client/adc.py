@@ -687,6 +687,7 @@ class ADCHandler(BaseADCProtocol):
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
         show_errors = True
+		node = None
 
         try:
             protocol_str, port_str, token = rest.split(' ')

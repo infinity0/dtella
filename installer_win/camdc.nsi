@@ -77,6 +77,7 @@ Section "Dtella (Required)" INST_DTELLA ;Install the main dtella application
     File "msvcr71.dll"
     File "readme.txt"
     File "changelog.txt"
+    File "changelog_adc.txt"
     
     ;Add Start menu links
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
@@ -85,6 +86,7 @@ Section "Dtella (Required)" INST_DTELLA ;Install the main dtella application
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${DTELLA_NAME}\Kill Dtella.lnk" "$INSTDIR\${DTELLA_NAME}\dtella.exe" "--terminate" "$INSTDIR\${DTELLA_NAME}\dtella.exe" 1
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${DTELLA_NAME}\Readme.lnk" "$INSTDIR\${DTELLA_NAME}\readme.txt"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${DTELLA_NAME}\Changelog.lnk" "$INSTDIR\${DTELLA_NAME}\changelog.txt"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${DTELLA_NAME}\Changelog_Adc.lnk" "$INSTDIR\${DTELLA_NAME}\changelog_adc.txt"
 
     ;Create Reg Keys for uninstaller/updater to read
     WriteRegStr HKLM "${DTELLA_DIR_REGKEY}" "Version" "${DTELLA_VERSION}"
@@ -252,7 +254,7 @@ Section -un.Post
     SetShellVarContext all
     Delete "$INSTDIR\uninst.exe"
     RMDir "$INSTDIR"
-    DeleteRegKey HKLM "${PRODUCT_REG_BASE}"
+    DeleteRegKey /ifempty HKLM "${PRODUCT_REG_BASE}" #importent here - by default, reg_base is 'Software\'
     RMDir /r /rebootok "$SMPROGRAMS\${PRODUCT_NAME}"
     UN_Done:
 
