@@ -3089,7 +3089,7 @@ class OnlineStateManager(object):
             inf = adc_infodict(self.me.info_out)
             # everything in inf{} is plaintext, so escape everything that comes out
 
-            if len(inf) == 1 and 'VE' in inf: # offline nodes have this info
+            if 'VE' in inf and inf['VE'].startswith('Dt'): # offline nodes have this info
                 info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
 
             else:
