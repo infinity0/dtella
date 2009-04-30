@@ -48,7 +48,7 @@ from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
                                 parse_incoming_info, get_version_string,
                                 parse_dtella_tag, CHECK, SSLHACK_filter_flags,
                                 adc_infodict, adc_infostring, split_info,
-                                split_tag, dc_escape, dc_unescape)
+                                split_tag, dc_escape, dc_unescape, adc_locdes)
 from dtella.common.ipv4 import Ad, SubnetMatcher
 from dtella.common.log import LOG
 
@@ -181,7 +181,7 @@ class NickManager(object):
     def lookupNodeFromNick(self, nick):
         # Might raise KeyError
         return self.nickmap[nick.lower()]
-        
+
     def lookupSIDFromNick(self, nick):
         # Might raise KeyError
         return self.nickmap[nick.lower()].sid
@@ -189,7 +189,7 @@ class NickManager(object):
     def lookupNodeFromSID(self, sid):
         # Might raise KeyError
         return self.sidmap[sid]
-        
+
     def lookupNickFromSID(self, sid):
         # Might raise KeyError
         return self.sidmap[sid].nick
@@ -205,7 +205,7 @@ class NickManager(object):
         so = self.main.getStateObserver()
         if so:
             so.event_RemoveNick(n, reason)
-            
+
         del self.nickmap[n.nick.lower()]
         del self.sidmap[n.sid]
 
@@ -230,28 +230,28 @@ class NickManager(object):
 
         if not n.nick:
             return
-            
+
         so = self.main.getStateObserver()
         lnick = n.nick.lower()
-        
+
         if isinstance(n, MeNode): # always use this SID for the connecting client
             sid = self.baseSID
         else:
             sid = self.generateNewSID()
             while sid in self.sidmap:
                 sid = self.generateNewSID()
-        
+
         if lnick in self.nickmap:
             raise NickError("collision")
-            
+
         if so:
             # Might raise NickError
             so.event_AddNick(n)
-            
+
         n.sid = sid
         self.nickmap[lnick] = n
         self.sidmap[n.sid] = n
-        
+
         if so:
             # Might raise NickError
             so.event_UpdateInfo(n)
@@ -751,7 +751,7 @@ class PeerHandler(DatagramProtocol):
         Check whether the flag's protocol bits match the protocol of this node.
         Older nodes do not mark this flag, so if nmdc_back_compt is True, just
         do nothing.
-        
+
         @param rest: Rest of the packet to be parsed.
         """
         flags, rest = self.decodePacket('!B+', rest)
@@ -1047,7 +1047,7 @@ class PeerHandler(DatagramProtocol):
             the back-compat mode, old-style packets are *also* sent, which
             contain the minimum subset of information that is needed to
             register that client as a valid user to both NMDC and ADC clients.
-            
+
             YR packets are also affected by this.
             '''
             if adc:
@@ -1062,7 +1062,7 @@ class PeerHandler(DatagramProtocol):
                     raise BadPacketError("This node does not accept NMDC infostrings")
 
             persist = bool(flags & PERSIST_BIT)
-            
+
             if rest:
                 raise BadPacketError("Extra data")
 
@@ -1385,12 +1385,12 @@ class PeerHandler(DatagramProtocol):
 
         def cb(dch, n, rest):
             str, rest = self.decodeString2(rest)
-            
+
             if rest:
                 raise BadPacketError("Extra data")
-            
+
             dch.push_ADC_SearchResponce(n, str)
-        
+
         self.handlePrivMsg(ad, data, cb)
 
 
@@ -1516,7 +1516,7 @@ class PeerHandler(DatagramProtocol):
                 raise BadPacketError("Extra data")
 
             dch.push_ADC_RevConnectToMe(n, protocol_str, token)
-            
+
         self.handlePrivMsg(ad, data, cb)
 
 
@@ -1536,7 +1536,7 @@ class PeerHandler(DatagramProtocol):
 
     def handlePacket_PM(self, ad, data):
         # Direct: Private Message
-        
+
         def cb(dch, n, rest):
 
             flags, rest = self.decodePacket('!B+', rest)
@@ -1648,7 +1648,7 @@ class PeerHandler(DatagramProtocol):
         self.checkSource(src_ipp, ad)
 
         persist = bool(flags & PERSIST_BIT)
-        
+
         if flags & PROTOCOL_MASK == PROTOCOL_ADC:
             adc = True
         else:
@@ -1663,7 +1663,7 @@ class PeerHandler(DatagramProtocol):
         the back-compat mode, old-style packets are *also* sent, which
         contain the minimum subset of information that is needed to
         register that client as a valid user to both NMDC and ADC clients.
-        
+
         NS packets are also affected by this.
         '''
         if adc:
@@ -2306,14 +2306,14 @@ class Node(object):
                 We need to parse the NMDC-formatted infostring into a form
                 required by the ADC protocol. Luckily, everything is in there
                 already, with the exception of the Client ID, and SU string.
-                
+
                 For ADC-Dtella nodes, this has been (somewhat arbitrarily)
                 encoded into the Location/Connection field of the back-compat
                 packet, so here we just extract it. We also mark the node as
                 an ADC node, through the .protocol field.
-                
+
                 For NMDC-Dtella nodes, we only need a CID so that our ADC
-                client recognises the remote client as a valid ADC client 
+                client recognises the remote client as a valid ADC client
                 (so that they appear in our nodelist and we can receive chat
                 messages from them). Apart from this, the CID never leaves our
                 own Dtella node. So, we can just generate any random one.
@@ -2345,10 +2345,11 @@ class Node(object):
                                     raise BadPacketError("Could not decode ADC CID in NMDC infostring from %s: %s" % (self.nick, info))
                             except ValueError:
                                 self.info['ID'] = b32encode(treehash(self.nick))
+                            self.info['LO'] = dc_unescape(location)
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
                             self.info['ID'] = b32encode(treehash(self.nick))
-                        self.info['DE'] = "[%s] %s" % (dc_unescape(location), self.info['DE'])
+                            self.info['LO'] = self.location + '|' + location[len(self.location):]
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients
                     tags = {}
@@ -2377,12 +2378,17 @@ class Node(object):
                         self.info['VE'] = dc_unescape(self.dttag)
                     else:
                         raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
-                        
+
             else:
                 raise BadPacketError("This node does not accept NMDC infostrings")
 
-            self.location = ""
-            self.dcinfo = adc_infostring(self.info)
+            self.dcinfo = adc_infostring(adc_locdes(self.info))
+            if 'LO' in self.info:
+                i = self.info['LO'].find('|')
+                if i >= 0:
+                    self.location = self.info['LO'][:i]
+                else:
+                    self.location = self.info['LO']
 
         else:
             if adc:
@@ -2537,13 +2543,13 @@ class Node(object):
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
         packet.append(self.nickHash())
-        
+
         packet.append(struct.pack('!BB', flags, len(protocol)))
         packet.append(protocol)
         packet.append(struct.pack('!HB', port, len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        
+
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
 
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
@@ -2573,15 +2579,15 @@ class Node(object):
         packet.append(ack_key)
         packet.append(osm.me.nickHash())
         packet.append(self.nickHash())
-        
+
         packet.append(struct.pack('!BB', flags, len(protocol)))
         packet.append(protocol)
         packet.append(struct.pack('!B', len(token)))
         packet.append(token)
         packet = ''.join(packet)
-        
+
         self.sendPrivateMessage(main.ph, ack_key, packet, fail_cb)
-        
+
 
     def nickRemoved(self, main):
 
@@ -2630,19 +2636,19 @@ class MeNode(Node):
     def event_NMDC_ConnectToMe(self, main, port, use_ssl, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
-        
+
     def event_ADC_ConnectToMe(self, main, protocol, port, token, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
-        
+
     def event_NMDC_RevConnectToMe(self, main, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_NMDC)
         fail_cb("can't get files from yourself!")
-        
+
     def event_ADC_RevConnectToMe(self, protocol, main, token, fail_cb):
         CHECK(main.dch.protocol == PROTOCOL_ADC)
         fail_cb("can't get files from yourself!")
-        
+
 verifyClass(IDtellaNickNode, MeNode)
 
 
@@ -3215,7 +3221,7 @@ class OnlineStateManager(object):
             '''
             inf = adc_infodict(self.me.info_out)
             # everything in inf{} is plaintext, so escape everything that comes out
-            
+
             if len(inf) == 1 and 'VE' in inf: # offline nodes have this info
                 info_out = "<%s>$ $%s$$0$" % (dc_escape(inf['VE']), chr(1))
 
@@ -3225,17 +3231,10 @@ class OnlineStateManager(object):
                 dc = dc.split(' ', 1)
                 dcstr, dcver = dc[0], ""
                 if len(dc) > 1: dcver = dc[1]
-                
-                if 'EM' not in inf: inf['EM'] = ""
-                if 'DE' not in inf: inf['DE'] = ""
-                if 'SU' not in inf: inf['SU'] = ""
-                
-                loctag = "[%s]" % self.main.getOnlineDCH().locstr
-                
-                if inf['DE'].startswith(loctag):
-                    inf['DE'] = inf['DE'][len(loctag):]
-                    if inf['DE']:
-                        inf['DE'] = inf['DE'][1:]
+
+                for k in ['EM', 'DE', 'SU', 'LO']:
+                    if k not in inf:
+                        inf[k] = ""
 
                 if 'I4' in inf and inf['I4']:
                     mode = "A"
@@ -3244,7 +3243,7 @@ class OnlineStateManager(object):
 
                 info_out = "%s<%s V:%s,M:%s,H:%s/%s/%s,S:%s,%s>$ $%s__%s__%s__%s$%s$%s$" % (
                     dc_escape(inf['DE']), dcstr, dcver, mode,
-                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt, dc_escape(loctag[1:-1]),
+                    inf['HN'], inf['HR'], inf['HO'], inf['SL'], dt, dc_escape(inf['LO']),
                     inf['ID'], inf['SU'], chr(1), dc_escape(inf['EM']), self.me.shared)
 
             status.append(struct.pack('!B', len(info_out)))
@@ -3366,7 +3365,7 @@ class OnlineStateManager(object):
                     packet.extend(self.getStatus(False))
 
                     self.mrm.newMessage(''.join(packet), tries=8)
- 
+
             else:
                 packet = self.mrm.broadcastHeader('NH', self.me.ipp)
                 packet.append(pkt_id)
@@ -4918,7 +4917,7 @@ class ItemsManager(object):
             while len(stream) > 65536:
                 del self.items[items.pop()[0]]
                 stream = bz2.compress(self.packItems())
-            # this could be more efficient i guess, but it should *almost 
+            # this could be more efficient i guess, but it should *almost
             # never* occur. bite my amortised-cost ass ;)
 
         packet.append(struct.pack('!H', len(stream)))
@@ -5246,7 +5245,7 @@ class DtellaMain_Base(object):
 
         # Set to True to prevent this node from broadcasting.
         self.hide_node = False
-        
+
         self.nmdc_bc_expire_dcall = None
 
 

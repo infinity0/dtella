@@ -47,7 +47,7 @@ def cmpify_version(ver):
     ver_re = re.compile("([0-9]*)(.*)")
 
     ver_parts = []
-    
+
     for part in ver.split('.'):
         m = ver_re.match(part)
         spart = m.group(2)
@@ -105,7 +105,7 @@ def lock2key(lock):
 
 
 class RandSet(object):
-    
+
     def __init__(self, init=()):
         self.map = {}
         self.set = set()
@@ -206,12 +206,29 @@ def dc_unescape(text):
 
 def adc_escape(text):
     return text.replace('\\', '\\\\').replace('\n','\\n').replace(' ', '\\s')
-    
+
 def adc_unescape(text):
     return text.replace('\\s',' ').replace('\\n','\n').replace('\\\\', '\\')
 
 def adc_infostring(infdict):
     return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in infdict.iteritems()])
+
+def adc_locdes(infdict):
+    if 'LO' not in infdict:
+        return infdict
+
+    loc = infdict['LO']
+    i = loc.find('|')
+    if i >= 0:
+        loc = loc[:i] + loc[i+1:]
+
+    infd = dict(infdict)
+    if 'DE' in infd:
+        infd['DE'] = "[%s] %s" % (loc, infd['DE'])
+    else:
+        infd['DE'] = "[%s]" % (loc)
+
+    return infd
 
 def adc_infodict(infstring):
     inf = {}
@@ -331,14 +348,14 @@ def SSLHACK_filter_flags(info_str):
         flags ^= 0x10
         info[2] = info[2][:-1] + struct.pack('!B', flags)
         return '$'.join(info)
-    
+
     return info_str
 
 def b32pad(n):
     _, leftover = divmod(len(n)-1, 8)
     n += (7-leftover)*'='
     return n
-    
+
 def format_bytes(n):
     # Convert an integer into a Bytes representation
     n = float(n)
@@ -356,7 +373,7 @@ def format_bytes(n):
 
 def parse_bytes(s):
     # Might raise ValueError
-    
+
     mult = 1
     if s:
         i = 'KMGT'.find(s[-1].upper())

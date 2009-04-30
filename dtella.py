@@ -248,7 +248,7 @@ def main():
     import dtella.common.state as state
     from dtella.client.main import STATE_FILE
     sm = state.StateManager(None, STATE_FILE, [state.ClientPort(), state.KillKey()])
-    sm.initLoad()
+    sm.initLoad(False)
 
     if not dc_port:
         dc_port = sm.clientport
