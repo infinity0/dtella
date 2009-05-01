@@ -459,9 +459,11 @@ class ADCHandler(BaseADCProtocol):
                     "(1) Set a TLS port:",
                     "    - Set a port between 10000 and 65336, or blank/0 for "
                     "random.",
+                    "    - This port needs to be *different* from the normal "
+                    "TCP port setting. (TLS is just encrypted TCP.)",
                     "    - If you have a firewall/router, you may need to "
                     "allow incoming connections to your DC client, or the "
-                    "specified ports. (TLS uses a TCP port.)",
+                    "specified ports.",
                     "(2) TLS settings:",
                     "    - Enable \"Use TLS connections to clients without "
                     "trusted certificates\"",
