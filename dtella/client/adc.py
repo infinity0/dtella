@@ -459,9 +459,11 @@ class ADCHandler(BaseADCProtocol):
                     "(1) Set a TLS port:",
                     "    - Set a port between 10000 and 65336, or blank/0 for "
                     "random.",
+                    "    - This port needs to be *different* from the normal "
+                    "TCP port setting. (TLS is just encrypted TCP.)",
                     "    - If you have a firewall/router, you may need to "
                     "allow incoming connections to your DC client, or the "
-                    "specified ports. (TLS uses a TCP port.)",
+                    "specified ports.",
                     "(2) TLS settings:",
                     "    - Enable \"Use TLS connections to clients without "
                     "trusted certificates\"",
@@ -550,8 +552,6 @@ class ADCHandler(BaseADCProtocol):
                     "Dtella is busy with other DC connections from your "
                     "computer.  Goodbye.")
                 self.transport.loseConnection()
-
-            self.state = 'ready'
 
         elif self.state == 'ready':
             # update MeNode
@@ -739,7 +739,7 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("Remote user is not using the ADC Protocol")
-        elif self.checkForceCrypto(protocol_str):
+        elif node.is_peer and self.checkForceCrypto(protocol_str):
             if self.crypto:
                 fail_cb("Remote user is not using encrypted connections")
             else:
@@ -800,7 +800,7 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("Remote user is not using the ADC Protocol")
-        elif self.checkForceCrypto(protocol_str):
+        elif node.is_peer and self.checkForceCrypto(protocol_str):
             if self.crypto:
                 fail_cb("Remote user is not using encrypted connections")
             else:
