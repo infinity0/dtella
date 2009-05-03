@@ -741,7 +741,7 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("Remote user is not using the ADC Protocol")
-        elif self.checkForceCrypto(protocol_str):
+        elif node.is_peer and self.checkForceCrypto(protocol_str):
             if self.crypto:
                 fail_cb("Remote user is not using encrypted connections")
             else:
@@ -802,7 +802,7 @@ class ADCHandler(BaseADCProtocol):
 
         if node.protocol != self.protocol:
             fail_cb("Remote user is not using the ADC Protocol")
-        elif self.checkForceCrypto(protocol_str):
+        elif node.is_peer and self.checkForceCrypto(protocol_str):
             if self.crypto:
                 fail_cb("Remote user is not using encrypted connections")
             else:

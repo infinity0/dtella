@@ -2084,6 +2084,7 @@ class Node(object):
 
         # General Info
         self.nick = ''
+        self.sid = None
         self.dcinfo = ''
         self.info = {}
         self.location = ''
