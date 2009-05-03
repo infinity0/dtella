@@ -553,8 +553,6 @@ class ADCHandler(BaseADCProtocol):
                     "computer.  Goodbye.")
                 self.transport.loseConnection()
 
-            self.state = 'ready'
-
         elif self.state == 'ready':
             # update MeNode
             self.infdict.update(inf)
