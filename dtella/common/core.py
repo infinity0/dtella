@@ -85,6 +85,9 @@ class Reject(Exception):
 class NickError(Exception):
     pass
 
+class CIDError(Exception):
+    pass
+
 class MessageCollisionError(Exception):
     pass
 
@@ -167,6 +170,7 @@ class NickManager(object):
         self.main = main
         self.nickmap = {}   # {nick.lower() -> Node}
         self.sidmap = {}    # {sid -> Node}
+        self.cidmap = {}    # {cid -> Node}
 
     def getNickList(self):
         return [n.nick for n in self.nickmap.itervalues()]
@@ -201,6 +205,8 @@ class NickManager(object):
 
         del self.nickmap[n.nick.lower()]
         del self.sidmap[n.sid]
+        if 'ID' in n.info:
+            del self.cidmap[n.info['ID']]
 
         # Clean up nick-specific stuff
         if n.is_peer:
@@ -236,6 +242,8 @@ class NickManager(object):
 
         if lnick in self.nickmap:
             raise NickError("collision")
+        if 'ID' in n.info and n.info['ID'] in self.cidmap:
+            raise CIDError("collision")
 
         if so:
             # Might raise NickError
@@ -244,6 +252,8 @@ class NickManager(object):
         n.sid = sid
         self.nickmap[lnick] = n
         self.sidmap[n.sid] = n
+        if 'ID' in n.info:
+            self.cidmap[n.info['ID']] = n
 
         if so:
             # Might raise NickError
@@ -2965,7 +2975,7 @@ class OnlineStateManager(object):
                 # Try to add the new nick (no-op if the nick is empty)
                 try:
                     self.nkm.addNode(n)
-                except NickError:
+                except (NickError, CIDError):
                     n.setNoUser()
 
         # If n isn't in nodes list, then add it
@@ -3182,6 +3192,19 @@ class OnlineStateManager(object):
                 lines = [
                     "The nick <%s> is already in use on this network." % nick,
                     "Please change your nick, or type !REJOIN to try again."
+                ]
+                self.main.kickObserver(lines=lines, rejoin_time=None)
+                return
+            except CIDError:
+                # CID collision.  Force the DC client to go invisible.
+                # This will recursively call updateMyInfo with an empty nick.
+                lines = [
+                    "The CID for your client is already in use on this network.",
+                    "Please reset your CID, or type !REJOIN to try again.",
+                    " ",
+                    "For clients based on DC++ (including StrongDC++ and LinuxDC++), you can do this ",
+                    "by removing all text betwwen <CID type=\"string\"> and </CID> (inclusive) from ",
+                    "DCPlusPlus.xml (found in your settings folder) when the client is *NOT running*."
                 ]
                 self.main.kickObserver(lines=lines, rejoin_time=None)
                 return

@@ -36,7 +36,7 @@ build_prefix = "dtella-cambridge-"
 build_type = "tar.bz2"
 
 # Dtella version number.
-version = "1.2.4.3"
+version = "1.2.4.4"
 
 # This is an arbitrary string which is used for encrypting packets.
 # It essentially defines the uniqueness of a Dtella network, so every
@@ -130,4 +130,4 @@ def hostnameToLocation(hostname):
             except KeyError:
                 pass
 
-    return "Unknown Location"
+    return "???"
