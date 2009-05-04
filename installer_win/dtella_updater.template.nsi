@@ -19,15 +19,18 @@
 !define PRODUCT_VERSION "PATCH_ME"
 !define PRODUCT_SIMPLENAME "PATCH_ME"
 
-!define PRODUCT_REGKEY "SOFTWARE\Dtella"
-!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Dtella"
+!define PRODUCT_REGKEY "Software\${PRODUCT_NAME}"
+!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
 SetCompressor lzma
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "${PRODUCT_SIMPLENAME}.updater.exe"
 SilentInstall silent
-Icon "${NSISDIR}\Contrib\Graphics\Icons\modern-install-colorful.ico"    
+Icon "${NSISDIR}\Contrib\Graphics\Icons\modern-install-colorful.ico"
+CRCCheck on
+XPStyle on
+RequestExecutionLevel admin ;for vista UAC
 
 Section
     # Give dtella enough time to warn the user to reconnect

@@ -252,10 +252,10 @@ Section -un.Post
     IntCmp $0 0 0 UN_Done UN_Done
     
     SetShellVarContext all
-    Delete "$INSTDIR\uninst.exe"
-    RMDir "$INSTDIR"
+    Delete /rebootok "$INSTDIR\uninst.exe"
+    RMDir /rebootok "$INSTDIR"
     DeleteRegKey /ifempty HKLM "${PRODUCT_REG_BASE}" #importent here - by default, reg_base is 'Software\'
-    RMDir /r /rebootok "$SMPROGRAMS\${PRODUCT_NAME}"
+    RMDir /r  "$SMPROGRAMS\${PRODUCT_NAME}"
     UN_Done:
 
 SectionEnd

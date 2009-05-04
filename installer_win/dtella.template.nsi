@@ -22,9 +22,9 @@
 !define PRODUCT_NAME "PATCH_ME"
 !define PRODUCT_VERSION "PATCH_ME"
 !define PRODUCT_SIMPLENAME "PATCH_ME"
-!define PRODUCT_PUBLISHER "Dtella Labs"
-!define PRODUCT_WEB_SITE "http://dtella.org/"
-!define PRODUCT_DIR_REGKEY "SOFTWARE\Dtella"
+!define PRODUCT_PUBLISHER "infinity0 & Andyhhp"
+!define PRODUCT_WEB_SITE "http://camdc.pcriot.com/"
+!define PRODUCT_DIR_REGKEY "SOFTWARE\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_ROOT_KEY "HKLM"
 

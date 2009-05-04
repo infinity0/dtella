@@ -18,7 +18,7 @@
 
 ;Product defines
 !define PRODUCT_NAME "CamDC"
-!define PRODUCT_VERSION "2.5"
+!define PRODUCT_VERSION "2.6"
 !define PRODUCT_PUBLISHER "infinity0 & Andyhhp"
 !define PRODUCT_WEB_SITE "http://camdc.pcriot.com/"
 
