@@ -4701,6 +4701,8 @@ class DtellaMain_Base(object):
             t = int(t)
             t2 = int(time.time())
             if (t <= t2):
+                global nmdc_back_compat
+                nmdc_back_compat = False
                 return
         except ValueError:
             return
