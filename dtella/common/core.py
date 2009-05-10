@@ -1735,7 +1735,7 @@ class PeerHandler(DatagramProtocol):
         self.checkSource(src_ipp, ad)
 
         if len(osm.nodes) < 3: # small networks need all sync packets to be sent
-            itm.syncComplete()
+            osm.itm.syncComplete()
 
         elif not (osm.itm and osm.itm.syncd):
             raise BadTimingError("Not ready to handle a syncitems request")

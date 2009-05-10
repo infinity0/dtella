@@ -219,7 +219,7 @@ class DynamicConfigPuller(object):
         def cb():
             self.cfgRefresh_dcall = None
             self.getDynamicConfig(None)
-        
+
         self.cfgRefresh_dcall = reactor.callLater(when, cb)
 
 
@@ -239,7 +239,7 @@ class DynamicConfigPuller(object):
         if self.override_vc < min_vc:
 
             self.main.shutdown(reconnect='no')
-            
+
             text = (
                 " ",
                 "Your version of Dtella (%s) is too old to be used on this "
@@ -276,14 +276,14 @@ class DynamicConfigPuller(object):
         new_vc = cmpify_version(new_v)
 
         if self.reported_vc < new_vc:
-            
+
             if self.main.dch:
                 say = self.main.dch.bot.say
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
                     % (local.version, new_v))
                 say("Type !UPGRADE to upgrade, or download it at: %s" % url)
-                
+
                 # prevents update messages from re-appearing
                 self.reported_vc = new_vc
 
