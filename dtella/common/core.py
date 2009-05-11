@@ -803,7 +803,7 @@ class PeerHandler(DatagramProtocol):
         if not nmdc_back_compat:
             flags, rest = self.checkProtocolFlag(rest)
         elif rest:
-                raise BadPacketError("Extra data")
+            raise BadPacketError("Extra data")
 
         if port == 0:
             raise BadPacketError("Zero Port")
@@ -5279,6 +5279,8 @@ class DtellaMain_Base(object):
             t = int(t)
             t2 = int(time.time())
             if (t <= t2):
+                global nmdc_back_compat
+                nmdc_back_compat = False
                 return
         except ValueError:
             return

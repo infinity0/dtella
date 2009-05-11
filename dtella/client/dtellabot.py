@@ -82,7 +82,7 @@ class DtellaBot(object):
         if not local.use_locations:
             if cmd[0] in self.location_cmds:
                 return False
-            
+
         if cmd[0] in self.freeform_cmds:
             try:
                 text = line.split(' ', 1)[1]
@@ -90,7 +90,7 @@ class DtellaBot(object):
                 text = None
 
             f(out, text, prefix)
-            
+
         else:
             def wrapped_out(line):
                 for l in word_wrap(line):
@@ -98,7 +98,7 @@ class DtellaBot(object):
                         out(l)
                     else:
                         out(" ")
-           
+
             f(wrapped_out, cmd[1:], prefix)
 
         return True
@@ -251,20 +251,20 @@ class DtellaBot(object):
             "This will list all the known locations, and show how many "
             "bytes of data are being shared from each."
             ),
-        
+
         "DENSE":(
             "",
             "This will list all the known locations, and show the calculated "
             "share density (bytes-per-user) for each."
             ),
-        
+
         "RANK":(
             "<nick>",
             "Compare your share size with everyone else in the network, and "
             "show which place you're currently in.  If <nick> is provided, "
             "this will instead display the ranking of the user with that nick."
             ),
-        
+
         "UDP":(
             "<port>",
             "Specify a port number between 1-65536 to change the UDP port "
@@ -280,7 +280,7 @@ class DtellaBot(object):
             "can use this command to manually add the address of an existing "
             "node that you know about."
             ),
-            
+
         "INVITE":(
             "",
             "If you wish to invite another user to join the network using the "
@@ -324,7 +324,7 @@ class DtellaBot(object):
                 if not local.use_locations:
                     if command in self.location_cmds:
                         continue
-                
+
                 if command == "--":
                     out("")
                     out("  --%s--" % description)
@@ -347,9 +347,9 @@ class DtellaBot(object):
                 if not local.use_locations:
                     if key in self.location_cmds:
                         raise KeyError
-                    
+
                 (head, body) = self.bighelp[key]
-                
+
             except KeyError:
                 out("Sorry, no help available for '%s'." % key)
 
@@ -386,7 +386,7 @@ class DtellaBot(object):
                 out("Changing UDP port to: %d" % port)
                 self.main.changeUDPPort(port)
                 return
-            
+
         self.syntaxHelp(out, 'UDP', prefix)
 
 
@@ -400,7 +400,7 @@ class DtellaBot(object):
             else:
                 if not ad.port:
                     out("Port number must be nonzero.")
-                    
+
                 elif ad.auth('sx', self.main):
                     self.main.state.refreshPeer(ad, 0)
                     out("Added to peer cache: %s" % ad.getTextIPPort())
@@ -413,10 +413,10 @@ class DtellaBot(object):
                 return
 
         self.syntaxHelp(out, 'ADDPEER', prefix)
-        
-    
+
+
     def handleCmd_INVITE(self, out, args, prefix):
-        
+
         if len(args) == 0:
             osm = self.main.osm
             if osm:
@@ -430,9 +430,9 @@ class DtellaBot(object):
                 out("You cannot invite someone until you are connected to the "
                     "network yourself.")
             return
-        
+
         self.syntaxHelp(out, 'INVITE', prefix)
-        
+
 
     def handleCmd_PERSISTENT(self, out, args, prefix):
         if len(args) == 0:
@@ -501,7 +501,7 @@ class DtellaBot(object):
             out("Rejoining...")
             self.dch.doRejoin()
             return
-        
+
         self.syntaxHelp(out, 'REJOIN', prefix)
 
 
@@ -510,7 +510,7 @@ class DtellaBot(object):
         if not self.dch.isOnline():
             out("You must be online to use %sUSERS." % prefix)
             return
-        
+
         self.showStats(
             out,
             "User Counts",
@@ -525,7 +525,7 @@ class DtellaBot(object):
         if not self.dch.isOnline():
             out("You must be online to use %sSHARED." % prefix)
             return
-        
+
         self.showStats(
             out,
             "Bytes Shared",
@@ -546,7 +546,7 @@ class DtellaBot(object):
                 return (b/u, u)
             except ZeroDivisionError:
                 return (0, u)
-        
+
         self.showStats(
             out,
             "Share Density",
@@ -580,7 +580,7 @@ class DtellaBot(object):
         else:
             self.syntaxHelp(out, 'RANK', prefix)
             return
-        
+
         if target is osm.me:
             who = "You are"
         else:
@@ -610,9 +610,9 @@ class DtellaBot(object):
         out("%s %s %d%s place, with a share size of %s." %
             (who, tie, rank, suffix, format_bytes(target.shared))
             )
-        
+
     def handleCmd_TOPIC(self, out, topic, prefix):
-        
+
         if not self.dch.isOnline():
             out("You must be online to use %sTOPIC." % prefix)
             return
@@ -636,7 +636,7 @@ class DtellaBot(object):
 
         self.main.state.suffix = text
         self.main.state.saveState()
-        
+
         out("Set location suffix to \"%s\"" % text)
 
         osm = self.main.osm
@@ -907,7 +907,7 @@ class DtellaBot(object):
 
             if peers_only and not n.is_peer:
                 continue
-            
+
             try:
                 ucount[n.location] += 1
                 bcount[n.location] += n.shared
@@ -1325,9 +1325,11 @@ exit 0
 
 
                 elif type == 'dmg':
+                    import sys
+
                     vpath = "/Volumes/%s" % new_p
                     cp_src = os.path.join(vpath, "Dtella.app")
-                    
+
                     if sys.path[0].find('.app') != -1:
                         ipath = sys.path[0][:sys.path[0].find('.app')+4]
                     else:
@@ -1338,12 +1340,12 @@ exit 0
                                 os.path.split(ipath)[0],
                                 ('.%s.' % cur_v).join(os.path.split(ipath)[1].split('.'))
                             )
-                    
+
                     out("- Attaching disk image")
                     if os.system(r'hdiutil attach "%s"' % fpath):
                         out("Error: Could not attach disk image")
                         return
-                    
+
                     out("- Installing new Dtella.app to %s" % ipath)
                     out("- and creating temporary backup at %s" % tpath)
                     shscript = 'mv ' + ipath  + ' ' + tpath +\
@@ -1352,7 +1354,7 @@ exit 0
 
                     if os.system(r'osascript -e "do shell script \"%s\" with administrator privileges"' % shscript):
                         out("Error: Could not copy files")
-                    
+
                     out("- Detaching disk image")
                     if os.system(r'hdiutil detach %s' % vpath):
                         out("Warning: Could not detach disk image")
@@ -1407,7 +1409,7 @@ exit 0
     def handleCmd_DEBUG(self, out, text, prefix):
 
         out(None)
-        
+
         if not text:
             return
 
