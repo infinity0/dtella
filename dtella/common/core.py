@@ -796,7 +796,7 @@ class PeerHandler(DatagramProtocol):
         if not nmdc_back_compat:
             flags, rest = self.checkProtocolFlag(rest)
         elif rest:
-                raise BadPacketError("Extra data")
+            raise BadPacketError("Extra data")
 
         if port == 0:
             raise BadPacketError("Zero Port")
