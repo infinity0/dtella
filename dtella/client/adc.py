@@ -598,7 +598,7 @@ class ADCHandler(BaseADCProtocol):
 
             def fail_cb(detail):
                 self.pushPrivMsg(
-                    nick,
+                    self.nick,
                     "*** Your message \"%s\" could not be sent: %s"
                     % (shorttext, detail))
 
