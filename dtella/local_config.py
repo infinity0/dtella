@@ -73,12 +73,12 @@ allowed_subnets = ['128.232.0.0/16', '129.169.0.0/16', '131.111.0.0/16', '193.60
 bugs_email = "cabal@camdc.pcriot.com"
 
 #''' BEGIN NEWITEMS MOD #
-# Limits for !newitems storage. Individual users can override the limits for
-# display by using the commands !newitems daylim [days] | numlim [count]
+# Limits for !stuff storage. Individual users can override the limits for
+# display by using the commands !stuff daylim [days] | numlim [count]
 # but data for items will always be stored up to the smallest of these limits.
+# These limits will be ignored if data sizes go above UDP packet capacity.
 newitems_daylim = 14
 newitems_numlim = 64
-# newitems_numlim should be <= 32, since UDP packets have a limited size
 # END NEWITEMS MOD '''#
 
 # Here we configure an object which pulls 'Dynamic Config' from some source
