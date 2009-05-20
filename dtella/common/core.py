@@ -4896,7 +4896,7 @@ class ItemsManager(object):
             (ts, cat, item, src) = i
 
             tdiff = ntime - ts
-            if tdiff < 0: raise Reject # time newer than the present? no way mate
+            if tdiff < 0: raise BadPacketError("Items: Invalid timestamp")
 
             if not src:
                 src = []
@@ -4996,12 +4996,12 @@ class ItemsManager(object):
             srcstr = self.serialiseSources(self.items[(cat, item)][0].union(src))
             # check if this will make the set too big
             if len(srcstr) > 255:
-                raise Reject
+                raise BadPacketError("Items: Too many sources")
 
             # add src to the set
             self.items[(cat, item)][0].update(src)
 
-            if new and newsrc:
+            if new and src:
                 self.notifyDC("New %s: %s -- %s" % (catstr, item, srcstr), override)
 
         else:
@@ -5010,7 +5010,7 @@ class ItemsManager(object):
             srcstr = self.serialiseSources(src)
             # check if this will make the set too big
             if len(srcstr) > 255:
-                raise Reject
+                raise BadPacketError("Items: Too many sources")
 
             # new item
             self.items[(cat, item)] = (src, int(time.time()))
