@@ -1740,10 +1740,6 @@ class PeerHandler(DatagramProtocol):
         elif not (osm.itm and osm.itm.syncd):
             raise BadTimingError("Not ready to handle a syncitems request")
 
-        # Hidden nodes shouldn't be getting sync requests.
-        if self.main.hide_node:
-            raise BadTimingError("Hidden node can't handle sync requests.")
-
         osm.itm.sendSyncItemsReply(src_ipp)
 
 
