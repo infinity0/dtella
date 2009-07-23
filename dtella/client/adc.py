@@ -1200,7 +1200,7 @@ class ADCHandler(BaseADCProtocol):
 
         me = self.main.osm.me
         me.info = self.infdict
-        me.dcinfo = adc_infostring(self.infdict)
+        me.dcinfo = self.infstr = self.formatMyInfo(True)
         # self.main.osm.nkm.lookupNodeFromNick(self.nick).sid = self.sid
 
         for node in self.main.osm.nkm.nickmap.itervalues():
