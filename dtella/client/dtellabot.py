@@ -744,7 +744,7 @@ class DtellaBot(object):
             # to be able to reverse the effects of !i want [magnet link]
             if (cat, desc) in itm.items and itm.items[(cat, desc)][0].difference(src):
                 # other people have that item
-                out("WANTNOT has no effect on the list when other people have the item")
+                out("WANTNOT has no effect on the list when people HAVE the item")
                 return
         elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
             remove = True
@@ -753,6 +753,11 @@ class DtellaBot(object):
         else:
             self.syntaxHelp(out, 'I', prefix)
             return
+
+        if remove:
+            out("Trying to remove sources %s from %s \"%s\"" % (src, itm.getCategory(cat, "Item"), desc))
+        else:
+            out("Trying to add sources %s to %s \"%s\"" % (src, itm.getCategory(cat, "Item"), desc))
 
         itm.broadcastSrcForItem(remove, cat, desc, src)
 
