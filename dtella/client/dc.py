@@ -182,7 +182,7 @@ class AbortTransfer_In(BaseDCProtocol):
     def __init__(self, nick, dch):
 
         self.nick = nick
-        
+
         # Steal connection from the DCHandler
         self.factory = dch.factory
         self.makeConnection(dch.transport)
@@ -267,7 +267,7 @@ class DCHandler(BaseDCProtocol):
         self.addDispatch('$KillDtella',     1, self.d_KillDtella)
 
         self.addDispatch('$MyNick',         1, self.d_MyNick)
-        
+
         # Chat messages waiting to be sent
         self.chatq = []
         self.chat_counter = 99999
@@ -332,7 +332,7 @@ class DCHandler(BaseDCProtocol):
 
     def d_MyNick(self, nick):
         # This is a fake RevConnect that we should terminate.
-        
+
         if self.state != 'login_1':
             self.fatalError("$MyNick not expected.")
             return
@@ -385,7 +385,7 @@ class DCHandler(BaseDCProtocol):
 
         if n.dcinfo:
             self.pushInfo(n.nick, n.dcinfo)
-        
+
 
     def d_GetNickList(self):
 
@@ -565,7 +565,7 @@ class DCHandler(BaseDCProtocol):
                 suffix = self.main.state.suffix
                 if suffix:
                     loc = '%s|%s' % (loc, suffix)
-                
+
                 info[2] = loc + info[2][-1:]
 
         info = '$'.join(info)
@@ -595,7 +595,7 @@ class DCHandler(BaseDCProtocol):
 
         packet.append(struct.pack('!B', len(search_string)))
         packet.append(search_string)
-        
+
         osm.mrm.newMessage(''.join(packet), tries=4)
 
         # If local searching is enabled, send the search to myself
@@ -606,18 +606,20 @@ class DCHandler(BaseDCProtocol):
     def d_PrivateMsg(self, nick, _1, _2, _3, text):
 
         text = dc_unescape(text)
-        
+
         if nick == self.bot.nick:
 
             # No ! is needed for commands in the private message context
             if text[:1] == '!':
                 text = text[1:]
 
+            produced_output = [False]
             def out(text):
                 if text is not None:
+                    produced_output[0] = True
                     self.bot.say(text)
-            
-            self.bot.commandInput(out, text)
+
+            self.bot.commandInput(out, produced_output, text)
             return
 
         if len(text) > 10:
@@ -768,18 +770,13 @@ class DCHandler(BaseDCProtocol):
         # Route commands to the bot
         if text[:1] == '!':
 
-            def out(out_text, flag=[True]):
-
-                # If the bot produces output, inject our text input before
-                # the first line.
-                if flag[0]:
-                    self.pushStatus("You commanded: %s" % text)
-                    flag[0] = False
-
+            produced_output = [False]
+            def out(out_text):
                 if out_text is not None:
+                    produced_output[0] = True
                     self.pushStatus(out_text)
-            
-            if self.bot.commandInput(out, text[1:], '!'):
+
+            if self.bot.commandInput(out, produced_output, text[1:], '!'):
                 return
 
         if not self.isOnline():
@@ -863,7 +860,7 @@ class DCHandler(BaseDCProtocol):
 
 
     def push_NMDC_RevConnectToMe(self, nick):
-        self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))        
+        self.sendLine("$RevConnectToMe %s %s" % (nick, self.nick))
 
 
     def push_NMDC_SearchRequest(self, ipp, search_string):
@@ -889,7 +886,7 @@ class DCHandler(BaseDCProtocol):
 
         def cb():
             self.chatRate_dcall = reactor.callLater(1.0, cb)
-           
+
             if self.chatq:
                 args = self.chatq.pop(0)
                 self.broadcastChatMessage(*args)
@@ -1036,7 +1033,7 @@ class DCHandler(BaseDCProtocol):
     def event_AddNick(self, n):
         if not self.isProtectedNick(n.nick):
             self.pushHello(n.nick)
-    
+
 
     def event_RemoveNick(self, n, reason):
         if not self.isProtectedNick(n.nick):
@@ -1101,7 +1098,7 @@ class AbortConnection(DCHandler):
 
         self.pushStatus("This node uses %s, not NMDC. Please connect to %s "
             "instead." % (self.cprtl, self.caddr))
-        
+
         self.timeout_dcall.reset(0)
 
 
@@ -1113,12 +1110,12 @@ class AbortConnection(DCHandler):
 
 
 class DCFactory(ServerFactory):
-    
+
     def __init__(self, main, listen_port):
         self.main = main
 
         self.listen_port = listen_port # spliced into search results
-        
+
     def buildProtocol(self, addr):
         if addr.host != '127.0.0.1':
             return None

@@ -58,7 +58,7 @@ class DtellaBot(object):
         self.dch.pushBotMsg(txt)
 
 
-    def commandInput(self, out, line, prefix=''):
+    def commandInput(self, out, produced_output, line, prefix=''):
 
         # Sanitize
         line = line.replace('\r', ' ').replace('\n', ' ')
@@ -100,6 +100,9 @@ class DtellaBot(object):
                         out(" ")
 
             f(wrapped_out, cmd[1:], prefix)
+
+        if not produced_output[0]:
+            out("-- no output from command: %s%s" % (prefix, line))
 
         return True
 

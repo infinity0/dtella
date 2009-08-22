@@ -576,7 +576,8 @@ class ADCHandler(BaseADCProtocol):
             for i in params[1:]:
                 inf[i[:2]] = i[2:]
 
-        if con == 'E':  # Private Message
+        if con == 'E':
+            # Private Message
 
             if dst_sid == self.bot.sid:
 
@@ -584,11 +585,13 @@ class ADCHandler(BaseADCProtocol):
                 if text[:1] == '!':
                     text = text[1:]
 
+                produced_output = [False]
                 def out(text):
                     if text is not None:
+                        produced_output[0] = True
                         self.bot.say(text)
 
-                self.bot.commandInput(out, text)
+                self.bot.commandInput(out, produced_output, text)
                 return
 
             if len(text) > 10:
@@ -614,23 +617,19 @@ class ADCHandler(BaseADCProtocol):
 
             n.event_PrivateMessage(self.main, text, fail_cb )
 
-        else:           # Public message
+        else:
+            # Public message
 
             # Route commands to the bot
             if text[:1] == '!':
 
-                def out(out_text, flag=[True]):
-
-                    # If the bot produces output, inject our text input before
-                    # the first line.
-                    if flag[0]:
-                        self.pushChatMessageBySID(self.bot.sid, "You commanded: %s" % text)
-                        flag[0] = False
-
+                produced_output = [False]
+                def out(out_text):
                     if out_text is not None:
+                        produced_output[0] = True
                         self.pushChatMessageBySID(self.bot.sid, out_text)
 
-                if self.bot.commandInput(out, text[1:], '!'):
+                if self.bot.commandInput(out, produced_output, text[1:], '!'):
                     return
 
             if not self.isOnline():
@@ -686,7 +685,6 @@ class ADCHandler(BaseADCProtocol):
 
 
     def d_CTM(self, con, src_sid, dst_sid, rest):
-        show_errors = True
         node = None
 
         try:
@@ -701,20 +699,28 @@ class ADCHandler(BaseADCProtocol):
                 raise ValueError
         except ValueError:
             port = None
-
-        def fail_cb(reason, bot = False):
+        def fail_cb(reason, node=None, show_errors=True, bot=False):
             if show_errors:
                 if node:
                     self.pushStatus("*** Connection to <%s> failed: %s" % (node.nick, reason))
                 else:
                     self.pushStatus("*** Connection failed: %s" % reason)
-            if port:
-                if bot:
-                    reactor.connectTCP('127.0.0.1', port,
-                        ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
-                else:
-                    reactor.connectTCP('127.0.0.1', port,
-                        ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
+
+            if not port:
+                return
+
+            if bot:
+                reactor.connectTCP('127.0.0.1', port,
+                    ADC_AbortTransfer_Factory(self.bot.cid, token, reason))
+            elif node:
+                reactor.connectTCP('127.0.0.1', port,
+                    ADC_AbortTransfer_Factory(node.info['ID'], token, reason))
+            else:
+                # this can be caused by the client getting confused when you
+                # eg. try to connect to *Dtella on a remote dtella node, log
+                # onto a different dtella node, then disconnect from the
+                # original. just ignore it
+                pass
 
         if not self.isOnline():
             fail_cb("You are not online.")
@@ -723,8 +729,7 @@ class ADCHandler(BaseADCProtocol):
             fail_cb("Invalid port: <%s>" % port_str)
             return
         elif self.isLeech():
-            show_errors = False
-            fail_cb(None)
+            fail_cb(None, show_errors=False)
             return
 
         try:
@@ -732,18 +737,18 @@ class ADCHandler(BaseADCProtocol):
         except KeyError:
             node = None
             if dst_sid == self.bot.sid:
-                fail_cb("<%s> has no files" % self.bot.nick,True)
+                fail_cb("<%s> has no files" % self.bot.nick, bot=True)
             else:
                 fail_cb("User doesnt seem to exist")
             return
 
         if node.protocol != self.protocol:
-            fail_cb("Remote user is not using the ADC Protocol")
+            fail_cb("Remote user is not using the ADC Protocol", node)
         elif node.is_peer and self.checkForceCrypto(protocol_str):
             if self.crypto:
-                fail_cb("Remote user is not using encrypted connections")
+                fail_cb("Remote user is not using encrypted connections", node)
             else:
-                fail_cb("You are not using encrypted connections")
+                fail_cb("You are not using encrypted connections", node)
         else:
             node.event_ADC_ConnectToMe(self.main, protocol_str, port, token, fail_cb)
 
