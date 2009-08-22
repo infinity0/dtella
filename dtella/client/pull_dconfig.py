@@ -175,7 +175,8 @@ class DynamicConfigPuller(object):
                 if (len(data)-4) % 6 != 0:
                     continue
 
-                state.setDNSIPCache(data)
+                count = state.setDNSIPCache(data)
+                self.main.showLoginStatus("-- Got %s seeds from the IPP cache" % count)
 
             elif name == 'nmdc_back_compat':
                 try:
