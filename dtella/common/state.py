@@ -207,6 +207,8 @@ class StateManager(object):
             ad = Ad().setRawIPPort(ipp)
             self.addExemptIP(ad)
 
+        return len(ipps)
+
 
 ##############################################################################
 
