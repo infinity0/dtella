@@ -719,13 +719,16 @@ class DtellaBot(object):
             # retrieve magnet links
             if desc.find("magnet:?xt=urn:tree:tiger:") >= 0:
                 desc = desc.split(' ')
-                for (i, word) in enumerate(desc):
+                descnew = []
+                for word in desc:
                     if len(word) > 25 and word[0:26] == "magnet:?xt=urn:tree:tiger:":
                         src.append(word)
-                        del desc[i]
-                desc = ' '.join(desc)
+                    else:
+                        descnew.append(word)
+                desc = ' '.join(descnew)
 
         remove = False
+        desc = desc[:255]
 
         if type == 'HAVE':
             src.append(self.main.osm.me.nick)
@@ -739,18 +742,18 @@ class DtellaBot(object):
             remove = True
             # we don't just test for emptylist, since we want !i wantnot [magnet link]
             # to be able to reverse the effects of !i want [magnet link]
-            if (cat, desc[:255]) in itm.items and itm.items[(cat, desc[:255])][0].difference(src):
+            if (cat, desc) in itm.items and itm.items[(cat, desc)][0].difference(src):
                 # other people have that item
+                out("WANTNOT has no effect on the list when other people have the item")
                 return
         elif type == 'B4CKD00RNUKE': # it's either this or a web of trust. i have no time to code the latter.
             remove = True
             # force a remove, remove all sources
-            src = itm.items[(cat, desc[:255])][0]
+            src = itm.items[(cat, desc)][0]
         else:
             self.syntaxHelp(out, 'I', prefix)
             return
 
-        out("") # force "you commanded" to be said
         itm.broadcastSrcForItem(remove, cat, desc, src)
 
 
