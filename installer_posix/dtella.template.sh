@@ -206,7 +206,7 @@ cd
 if [ "$REPLY" = "U" ]; then
 	cat > dtella <<- 'EOF'
 	#!/bin/sh
-	export PYTHONPATH="$(echo ~/.dtella/pytiger)" # posix does not expand ~ on export
+	export PYTHONPATH="$HOME/.dtella/pytiger"
 	python -O ~/.dtella/dtella.py "$@" &
 	EOF
 else
