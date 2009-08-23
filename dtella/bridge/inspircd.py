@@ -30,12 +30,14 @@ import array
 import os
 import struct 
 import random
-from hashlib import md5, sha256
+from hashlib import sha256
 
 import dtella.common.core as core
 import dtella.local_config as local
 from dtella.common.log import LOG
-from dtella.common.util import CHECK, Ad
+from dtella.common.util import CHECK
+from dtella.common.util import Ad
+from dtella.common.util import md5
 import dtella.bridge_config as cfg
 from dtella.bridge.bridge_server import ChannelUserModes
 from dtella.bridge.bridge_server import IRCStateManager
@@ -73,7 +75,7 @@ class InspIRCdConfig(object):
         self.network_name = network_name  # string
 
         # IRC Server Link parameters. The my_host parameter must match
-        # the link block in your unrealircd.conf file. 
+        # the link block in your InspIRCd links.conf file. 
         self.my_host = my_host
         self.my_name = my_name
         self.sid = sid                    # 3-char string (or None)

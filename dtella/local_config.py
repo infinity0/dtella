@@ -23,20 +23,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-# These settings are specific to the Purdue network.  They should be
-# customized for each new network you create.
-
-# Use this prefix for filenames when building executables and installers.
-# It will be concatenated with the version number below.
-build_prefix = "dtella-cambridge-"
-
-# Set this type when building executables and installers. This allows
-# Dtelle to select an appropriate upgrade method.
-# Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
-build_type = "tar.bz2"
-
-# Dtella version number.
-version = "1.2.4.4"
+# These settings should be customized for each new network you create.
 
 # This is an arbitrary string which is used for encrypting packets.
 # It essentially defines the uniqueness of a Dtella network, so every

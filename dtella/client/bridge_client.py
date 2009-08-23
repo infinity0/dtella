@@ -41,7 +41,6 @@ from dtella.common.ipv4 import Ad
 
 from Crypto.Util.number import long_to_bytes, bytes_to_long
 from Crypto.PublicKey import RSA
-from hashlib import md5
 import struct
 import random
 
@@ -109,10 +108,10 @@ class BridgeClientProtocol(core.PeerHandler):
              ) = self.decodePacket('!QH4sIB+', rest)
 
             persist = bool(flags & core.PERSIST_BIT)
-            
+
             (hashes, rest
              ) = self.decodeString1(rest, 16)
-            
+
             hashes = [h for h, in self.decodeChunkList('!16s', hashes)]
 
             (pubkey, signature
@@ -174,10 +173,10 @@ class BridgeClientProtocol(core.PeerHandler):
         self.checkSource(src_ipp, ad, exempt_ip=True)
 
         persist = bool(flags & core.PERSIST_BIT)
-        
+
         (hashes, rest
          ) = self.decodeString1(rest, 16)
-        
+
         hashes = [h for h, in self.decodeChunkList('!16s', hashes)]
 
         (pubkey, rest
@@ -293,7 +292,7 @@ class BridgeClientProtocol(core.PeerHandler):
             if not self.verifySignature(
                 bdata.rsa_obj, data, signature, broadcast=True):
                 return
-            
+
             # Keep track of the timestamp
             osm.bcm.updateBridgeTime(pktnum)
 
@@ -327,7 +326,7 @@ class BridgeClientProtocol(core.PeerHandler):
                 return None
 
             bdata = src_n.bridge_data
-            
+
             # Verify signature
             if not self.verifySignature(
                 bdata.rsa_obj, data, signature, broadcast=True):
@@ -340,7 +339,7 @@ class BridgeClientProtocol(core.PeerHandler):
             osm.nodeExited(src_n, "Bridge Exit")
 
         self.handleBroadcast(ad, data, check_cb, bridgey=True)
-        
+
 
     def handlePacket_bC(self, ad, data):
 
@@ -411,17 +410,17 @@ class NickNode(object):
     __le__ = lambda self,other: self.nick <= other.nick
 
     is_peer = False
-    
+
     def __init__(self, parent_n, nick, info, mode, pktnum):
         self.parent_n = parent_n
         self.nick = nick
-        
+
         self.dcinfo = ""
         self.info = {}
         self.location = ""
         self.shared = 0
         self.setInfo(info)
-        
+
         self.pktnum = pktnum
         self.mode = mode
 
@@ -441,14 +440,14 @@ class NickNode(object):
                 self.info['I4'] = '0.0.0.0'
                 self.info['VE'] = get_version_string()
                 self.info['HN'] = '1'
-                
+
                 optype = infs[0][1]
-                
+
                 if optype in ('~','&','@'): # user is an op
                     self.info['HR'], self.info['HO'] = '1','1'
                 else:
                     self.info['HR'], self.info['HO'] = '0','0'
-                    
+
                 if optype == '~':
                     self.info['CT'] = '30'
                 elif optype == '&':
@@ -457,7 +456,7 @@ class NickNode(object):
                     self.info['CT'] = '6'
                 else:
                     self.info['CT'] = '2'
-                    
+
                 self.dcinfo = adc_infostring(self.info)
             except ValueError:
                 raise BadPacketError("Could not construct ADC info from NMDC infostring from %s: %s" % (self.nick, info))
@@ -537,7 +536,7 @@ class BridgeNodeData(object):
         self.status_pktnum = None
 
         self.topic_flag = False
-        
+
         self.moderated = False
 
         self.last_assembled_pktnum = None
@@ -555,9 +554,9 @@ class BridgeNodeData(object):
 
 
     def setHashList(self, hashlist, do_request):
-       
+
         self.hashlist = hashlist
-        
+
         self.blocks = dict.fromkeys(self.hashlist, None)
 
         bcm = self.main.osm.bcm
@@ -632,7 +631,7 @@ class BridgeNodeData(object):
 
         # If we're requesting blocks, then mark this one off
         # and possibly ask for more.
-        
+
         if bhash in self.req_blocks:
             self.req_blocks.discard(bhash)
             self.scheduleRequestBlocks()
@@ -660,7 +659,7 @@ class BridgeNodeData(object):
         # Check if all the blocks exist yet
         if None in self.blocks.itervalues():
             return
-        
+
         data = ''.join([self.blocks[bhash] for bhash in self.hashlist])
 
         self.hashlist = []
@@ -721,7 +720,7 @@ class BridgeNodeData(object):
         while ptr < len(data):
             if data[ptr] == 'N':
                 ptr += 1
-                
+
                 try:
                     (mode, nick_len
                      ) = struct.unpack("!BB", data[ptr:ptr+2])
@@ -732,7 +731,7 @@ class BridgeNodeData(object):
 
                 except struct.error:
                     raise ChunkError("N: struct error")
-                
+
                 if len(nick) != nick_len:
                     raise ChunkError("N: Nick Length Mismatch")
 
@@ -868,7 +867,7 @@ class BridgeNodeData(object):
 
                     info = data[ptr:ptr+info_len]
                     ptr += info_len
-                    
+
                 except struct.error:
                     raise ChunkError("I: struct error")
 
@@ -963,7 +962,7 @@ class BridgeNodeData(object):
             info = self.infostrings[mode]
         except IndexError:
             info = ''
-        
+
         try:
             n = self.nicks[nick]
         except KeyError:
@@ -993,7 +992,7 @@ class BridgeNodeData(object):
                 if n.mode != 0xFF:
                     # Change mode of existing nick
                     osm.nkm.setInfoInList(n, info)
-                    
+
                 else:
                     # Dead nick coming back online
                     n.setInfo(info)
@@ -1035,7 +1034,7 @@ class BridgeNodeData(object):
 
 
     def handlePrivateMessage(self, flags, nick, text):
-        
+
         dch = self.main.getOnlineDCH()
         if dch:
             if flags & core.NOTICE_BIT:
@@ -1070,7 +1069,7 @@ class BridgeNodeData(object):
         dch = self.main.getOnlineDCH()
 
         if n is me:
-            
+
             # Make sure I'm online, and this kick isn't old somehow
             if dch and not outdated:
 
@@ -1135,7 +1134,7 @@ class BridgeNodeData(object):
 
     def myNodeExited(self):
         osm = self.main.osm
-        
+
         for n in self.nicks.itervalues():
             osm.nkm.removeNode(n, "Bridge Exited")
 
@@ -1154,7 +1153,7 @@ class BridgeNodeData(object):
         topic = topic[:255]
 
         ack_key = self.parent_n.getPMAckKey()
-        
+
         packet = ['bT']
         packet.append(osm.me.ipp)
         packet.append(ack_key)
@@ -1180,7 +1179,7 @@ class BridgeNodeData(object):
 
 
 ###############################################################################
-    
+
 
 class BridgeClientManager(object):
 
@@ -1193,7 +1192,7 @@ class BridgeClientManager(object):
 
         def scheduleExpire(self, blocks, key):
             # Expire this block if it's not claimed in 15 seconds
-            
+
             if self.expire_dcall:
                 self.expire_dcall.reset(15.0)
                 return
@@ -1238,7 +1237,7 @@ class BridgeClientManager(object):
 
         if time > self.bridge_time:
             self.bridge_time = time
-        
+
 
     def refreshBridgeNodeStatus(self, n, pktnum, rsa_obj, hashes, do_request):
 
@@ -1274,7 +1273,7 @@ class BridgeClientManager(object):
     def addUnclaimedDataBlock(self, key, data):
         # Add a data block to the unclaimed_blocks list, and let it sit
         # there either until it's claimed, or it expires.
-        
+
         try:
             bk = self.unclaimed_blocks[key]
         except KeyError:

@@ -44,7 +44,7 @@ import twisted.internet.error
 import dtella.local_config as local
 import dtella.common.crypto
 from dtella.common.util import (RandSet, dcall_discard, dcall_timeleft,
-                                randbytes, validateNick, word_wrap,
+                                randbytes, validateNick, word_wrap, md5,
                                 parse_incoming_info, get_version_string,
                                 parse_dtella_tag, CHECK, SSLHACK_filter_flags,
                                 adc_infodict, adc_infostring, split_info,

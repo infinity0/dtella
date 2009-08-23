@@ -22,7 +22,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import dtella.local_config as local
+import dtella.build_config as build
 
 import struct
 import random
@@ -35,6 +35,12 @@ import os.path
 
 from twisted.python.runtime import seconds
 import twisted.python.log
+
+# Import md5 for everyone, Python 2.4+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
 
 
 def randbytes(n):
@@ -178,7 +184,7 @@ def get_os():
 
 
 def get_version_string():
-    return "Dt:%s/%s" % (local.version, get_os())
+    return "Dt:%s/%s" % (build.version, get_os())
 
 
 def get_user_path(filename):
