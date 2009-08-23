@@ -30,7 +30,7 @@ from distutils.dist import Distribution
 import sys, os
 import dtella.local_config as local
 
-extra_setup_args = {
+properties = {
     'name': 'dtella-cambridge',
     'version': '1.2.4.4',
     'description': 'Client for the Dtella network at Cambridge',
@@ -76,14 +76,14 @@ def get_excludes():
 def make_build_config(type):
     # Patch the local_config with the correct build_type
     lines = []
-    extra_setup_args['type'] = type
+    properties['type'] = type
     for line in file("dtella/build_config.py.in").readlines():
         if line.find('BUILD_') >= 0:
-            for k, v in extra_setup_args.items():
+            for k, v in properties.items():
                 key = 'BUILD_' + k.upper()
                 line = line.replace(key, str(v))
         lines.append(line)
-    del extra_setup_args['type']
+    del properties['type']
 
     file("dtella/build_config.py", "w").writelines(lines)
     print "wrote build config to dtella/build_config.py"
@@ -94,8 +94,8 @@ def patch_nsi_template(suffix=''):
     # with data from local_config.
 
     dt_name = local.hub_name
-    dt_version = extra_setup_args['version']
-    dt_simplename = extra_setup_args['name'] + '-' + extra_setup_args['version']
+    dt_version = properties['version']
+    dt_simplename = properties['name'] + '-' + properties['version']
 
     if suffix:
         suffix = '_' + suffix
@@ -121,8 +121,8 @@ def patch_camdc_nsi_template():
     # with data from local_config.
 
     dt_name = local.hub_name
-    dt_version = extra_setup_args['version']
-    dt_simplename = extra_setup_args['name'] + '-' + extra_setup_args['version']
+    dt_version = properties['version']
+    dt_simplename = properties['name'] + '-' + properties['version']
 
     wfile = file("installer_win/camdc.nsh", "w")
 
@@ -138,35 +138,6 @@ def patch_camdc_nsi_template():
                 raise Error("Unpatchable NSI line: %s" % line)
         wfile.write(line)
     wfile.close()
-
-
-if sys.platform == 'darwin':
-    build_type = 'dmg'
-    import py2app
-    extra_setup_args['app'] = ["dtella.py"]
-
-elif sys.platform == 'win32':
-    build_type = 'exe'
-
-    import py2exe
-    if len(sys.argv) <= 2:
-        patch_nsi_template()
-    elif sys.argv[2] == 'updater':
-        patch_nsi_template('updater')
-        del sys.argv[2]
-    elif sys.argv[2] == 'camdc':
-        patch_camdc_nsi_template()
-        del sys.argv[2]
-    else:
-        patch_nsi_template()
-
-    extra_setup_args['zipfile'] = None,
-    extra_setup_args['windows'] = [{
-        "script": "dtella.py",
-        "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
-    }]
-
-excludes = get_excludes()
 
 
 class MyDist(Distribution):
@@ -238,7 +209,7 @@ class bdist_shinst(Command):
 
         import dtella.local_config as local
         try:
-            self.PROD = extra_setup_args['name'] + '-' + extra_setup_args['version']
+            self.PROD = properties['name'] + '-' + properties['version']
         except AttributeError:
             sys.stderr.write("Could not extract product name from local config; abort.\n")
             return 1
@@ -284,29 +255,59 @@ class bdist_shinst(Command):
         print "installer wrote to %s" %f
 
 
-setup(
-    distclass = MyDist,
-    cmdclass = {'bdist_shinst': bdist_shinst},
-    options = {
-        "py2exe": {
-            "optimize": 2,
-            "bundle_files": 1,
-            "ascii": True,
-            "dll_excludes": ["libeay32.dll"],
-            "excludes": excludes,
+if __name__ == '__main__':
+
+    if sys.platform == 'darwin':
+        build_type = 'dmg'
+        import py2app
+        properties['app'] = ["dtella.py"]
+
+    elif sys.platform == 'win32':
+        build_type = 'exe'
+
+        import py2exe
+        if len(sys.argv) <= 2:
+            patch_nsi_template()
+        elif sys.argv[2] == 'updater':
+            patch_nsi_template('updater')
+            del sys.argv[2]
+        elif sys.argv[2] == 'camdc':
+            patch_camdc_nsi_template()
+            del sys.argv[2]
+        else:
+            patch_nsi_template()
+
+        properties['zipfile'] = None,
+        properties['windows'] = [{
+            "script": "dtella.py",
+            "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
+        }]
+
+    excludes = get_excludes()
+
+    setup(
+        distclass = MyDist,
+        cmdclass = {'bdist_shinst': bdist_shinst},
+        options = {
+            "py2exe": {
+                "optimize": 2,
+                "bundle_files": 1,
+                "ascii": True,
+                "dll_excludes": ["libeay32.dll"],
+                "excludes": excludes,
+            },
+
+            "py2app": {
+                "optimize": 2,
+                "argv_emulation": True,
+                "iconfile": "icons/dtella.icns",
+                "plist": {'LSBackgroundOnly':True},
+                "excludes": excludes,
+            }
         },
 
-        "py2app": {
-            "optimize": 2,
-            "argv_emulation": True,
-            "iconfile": "icons/dtella.icns",
-            "plist": {'LSBackgroundOnly':True},
-            "excludes": excludes,
-        }
-    },
+        packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
+        scripts = ['bin/dtella'],
 
-    packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
-    scripts = ['bin/dtella'],
-
-    **extra_setup_args
-)
+        **properties
+    )

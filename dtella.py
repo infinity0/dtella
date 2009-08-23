@@ -101,6 +101,7 @@ def runClient(dc_port):
     dtMain = DtellaMain_Client()
 
     import dtella.local_config as local
+    import dtella.build_config as build
     from dtella.common.util import get_version_string
 
     bugs_email = "bugs@dtella.org"
@@ -129,7 +130,7 @@ def runClient(dc_port):
         from dtella.client.dc import DCFactory
         dfactory = DCFactory(dtMain, dc_port)
 
-    LOG.info("%s %s" % (local.hub_name, local.version))
+    LOG.info("%s %s" % (local.hub_name, build.version))
 
     global exit_code
     exit_code = 0
