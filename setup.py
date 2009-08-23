@@ -6,6 +6,7 @@ Copyright (C) 2007-2008  Paul Marks (http://pmarks.net/)
 Copyright (C) 2007-2008  Jacob Feisley (http://feisley.com/)
 Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
 Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
+Copyright (C) 2009- Andyhhp <andyhhp@hotmail.com>
 
 $Id$
 
@@ -24,7 +25,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-from distutils.core import setup
+from distutils.core import setup, Command
+from distutils.dist import Distribution
 import sys, os
 import dtella.local_config as local
 
@@ -57,6 +59,7 @@ def get_excludes():
     return ex
 
 
+# TODO find a better way of doing this...
 def patch_build_type(type="tar.bz2"):
     # Patch the local_config with the correct build_type
     lines = []
@@ -68,7 +71,7 @@ def patch_build_type(type="tar.bz2"):
     file("dtella/local_config.py", "w").writelines(lines)
 
 
-def patch_nsi_template():
+def patch_nsi_template(suffix=''):
     # Generate NSI file from template, replacing name and version
     # with data from local_config.
 
@@ -76,9 +79,12 @@ def patch_nsi_template():
     dt_version = local.version
     dt_simplename = local.build_prefix + local.version
 
-    wfile = file("installer_win/dtella.nsi", "w")
+    if suffix:
+        suffix = '_' + suffix
 
-    for line in file("installer_win/dtella.template.nsi"):
+    wfile = file("installer_win/dtella%s.nsi" % suffix, "w")
+
+    for line in file("installer_win/dtella%s.template.nsi" % suffix):
         if "PATCH_ME" in line:
             if "PRODUCT_NAME" in line:
                 line = line.replace("PATCH_ME", dt_name)
@@ -92,95 +98,189 @@ def patch_nsi_template():
     wfile.close()
 
 
-def build_posix_installer():
-    # Patch the dtella_install with the correct variables
-    vars = { }
-    
-    try:
-        import dtella.bridge.bridge_config as bcfg
-        vars['REPO'] = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
-        i = vars['REPO'].find('#')
-        if i >= 0:
-            vars['REPO'] = vars['REPO'][:i] + vars['REPO'][i+1:]
-    except ImportError:
-        sys.stderr.write("Could not find bridge config; abort.\n")
-        return 1
-    except ValueError:
-        sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
-        return 1
+def patch_camdc_nsi_template():
+    # Generate NSI file from template, replacing name and version
+    # with data from local_config.
 
-    import dtella.local_config as local
-    try:
-        vars['PROD'] = local.build_prefix + local.version
-    except AttributeError:
-        sys.stderr.write("Could not extract product name from local config; abort.\n")
-        return 1
+    dt_name = local.hub_name
+    dt_version = local.version
+    dt_simplename = local.build_prefix + local.version
 
-    argv = sys.argv[1:]
-    for i in argv:
-        try:
-            k, v = i.split('=', 1)
-            vars[k] = v
-        except ValueError:
-            sys.stderr.write("Ignoring malformed k=v pair: %s\n" % i)
-            pass
+    wfile = file("installer_win/camdc.nsh", "w")
 
-    if 'DEPS' not in vars:
-        sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
-        return 1
-
-    lines = file("installer_posix/dtella.template.sh").readlines()
-    for k, v in vars.iteritems():
-        for i, line in enumerate(lines):
-
-            if line[:len(k)+3] != k + '=""':
-                continue
-
-            kl, vl = len(k), len(v)
-            e = line.find('#')
-            
-            if e < 0:
-                lines[i] = '%s="%s"' % (k, v)
-            elif kl+3+vl < e:
-                lines[i] = '%s="%s"' % (k, v) + line[kl+3+vl:]
+    for line in file("installer_win/camdc.template.nsh"):
+        if "PATCH_ME" in line:
+            if "DTELLA_NAME" in line:
+                line = line.replace("PATCH_ME", dt_name)
+            elif "DTELLA_VERSION" in line:
+                line = line.replace("PATCH_ME", dt_version)
+            elif "DTELLA_SOURCENAME" in line:
+                line = line.replace("PATCH_ME", dt_simplename)
             else:
-                lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
-
-    outdir = "dist"
-    if 'OUTDIR' in os.environ:
-        outdir = os.environ["OUTDIR"]
-
-    f = "%s/%s.sh" % (outdir, vars['PROD'])
-    wfile = file(f, "w")
-    for line in lines:
+                raise Error("Unpatchable NSI line: %s" % line)
         wfile.write(line)
     wfile.close()
-    os.chmod(f, 0755)
-    print "installer wrote to %s" %f
 
+
+extra_setup_args = {}
 
 if sys.platform == 'darwin':
     patch_build_type('dmg')
     import py2app
+    extra_setup_args = {
+        "app": ["dtella.py"],
+    }
+
 elif sys.platform == 'win32':
     patch_build_type('exe')
+
     import py2exe
-    patch_nsi_template()
-elif os.name == 'posix':
-    patch_build_type()
-    sys.exit(build_posix_installer())
-else:
-    sys.stderr.write("Unsupported build platform: %s\n" % sys.platform)
-    sys.exit(-1)
+    if len(sys.argv) <= 2:
+        patch_nsi_template()
+    elif sys.argv[2] == 'updater':
+        patch_nsi_template('updater')
+        del sys.argv[2]
+    elif sys.argv[2] == 'camdc':
+        patch_camdc_nsi_template()
+        del sys.argv[2]
+    else:
+        patch_nsi_template()
+
+    extra_setup_args = {
+        "zipfile": None,
+        "windows": [{
+            "script": "dtella.py",
+            "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
+        }]
+    }
 
 excludes = get_excludes()
 
+
+class MyDist(Distribution):
+
+    def __init__(self, attrs=None):
+        Distribution.__init__(self, attrs)
+        self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
+
+    def run_commands(self):
+        try:
+            getattr(self, "bridge")
+            self.packages.append('dtella.bridge')
+        except AttributeError:
+            pass
+        Distribution.run_commands(self)
+
+
+class bdist_shinst(Command):
+
+    description = "Create a shell-installer for posix systems"
+
+    user_options = [
+        ('WGET=', None,
+         "default custom URL retrieval program"),
+        ('REPO=', None,
+         "repository URL"),
+        ('PROD=', None,
+         "product name (no .ext)"),
+        ('DEPS=', None,
+         "dependency archive (w/ .ext)"),
+        ('EXT=', None,
+         "archive extension"),
+        ('EXT-CMD=', None,
+         "archive extract command"),
+        ('EXT-VRB=', None,
+         "archive extract command (verbose)"),
+        ('SVNR=', None,
+         "svn repository address"),
+        ]
+
+    def initialize_options(self):
+        self.WGET = ''
+        self.REPO = ''
+        self.PROD = ''
+        self.DEPS = ''
+        self.EXT = ''
+        self.EXT_CMD = ''
+        self.EXT_VRB = ''
+        self.SVNR = ''
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        patch_build_type()
+
+        try:
+            import dtella.bridge.bridge_config as bcfg
+            self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
+            i = self.REPO.find('#')
+            if i >= 0:
+                self.REPO = self.REPO[:i] + self.REPO[i+1:]
+        except ImportError:
+            sys.stderr.write("Could not find bridge config; abort.\n")
+            return 1
+        except ValueError:
+            sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
+            return 1
+
+        import dtella.local_config as local
+        try:
+            self.PROD = local.build_prefix + local.version
+        except AttributeError:
+            sys.stderr.write("Could not extract product name from local config; abort.\n")
+            return 1
+
+        if not self.DEPS:
+            sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
+            return 1
+
+        from distutils.fancy_getopt import longopt_xlate
+        import string
+        lines = file("installer_posix/dtella.template.sh").readlines()
+        for (k, _, _) in self.user_options:
+            k = string.translate(k, longopt_xlate)
+            if k[-1] == "=":
+                k = k[:-1]
+            v = getattr(self, k)
+
+            for i, line in enumerate(lines):
+
+                if line[:len(k)+3] != k + '=""':
+                    continue
+
+                kl, vl = len(k), len(v)
+                e = line.find('#')
+
+                if e < 0:
+                    lines[i] = '%s="%s"' % (k, v)
+                elif kl+3+vl < e:
+                    lines[i] = '%s="%s"' % (k, v) + line[kl+3+vl:]
+                else:
+                    lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
+
+        outdir = "dist"
+        if 'OUTDIR' in os.environ:
+            outdir = os.environ["OUTDIR"]
+
+        f = "%s/%s.sh" % (outdir, self.PROD)
+        wfile = file(f, "w")
+        for line in lines:
+            wfile.write(line)
+        wfile.close()
+        os.chmod(f, 0755)
+        print "installer wrote to %s" %f
+
+
 setup(
-    name = 'Dtella',
+    distclass = MyDist,
+    cmdclass = {'bdist_shinst': bdist_shinst},
+    name = 'dtella-cambridge',
     version = local.version,
-    description = 'Dtella Client',
-    author = 'Dtella Labs',
-    url = 'http://dtella.org',
+    description = 'Client for the Dtella network at Cambridge',
+    author = 'Dtella-Cambridge',
+    author_email = 'cabal@camdc.pcriot.com',
+    url = 'http://camdc.pcriot.com',
     options = {
         "py2exe": {
             "optimize": 2,
@@ -198,14 +298,13 @@ setup(
             "excludes": excludes,
         }
     },
+    license = 'GPL v3',
+    platforms = ['posix', 'win32', 'darwin'],
 
-    app = ["dtella.py"],
+    packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
+    scripts = ['bin/dtella'],
 
-    zipfile = None,
-    windows = [{
-        "script": "dtella.py",
-        "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
-    }]
+    **extra_setup_args
 )
 
 patch_build_type()
