@@ -30,6 +30,19 @@ from distutils.dist import Distribution
 import sys, os
 import dtella.local_config as local
 
+extra_setup_args = {
+    'name': 'dtella-cambridge',
+    'version': '1.2.4.4',
+    'description': 'Client for the Dtella network at Cambridge',
+    'author': 'Dtella-Cambridge',
+    'author_email': 'cabal@camdc.pcriot.com',
+    'url': 'http://camdc.pcriot.com',
+    'license': 'GPL v3',
+    'platforms': ['posix', 'win32', 'darwin'],
+}
+## FIXME have this empty by default and set only if --format= is set
+build_type = "tar.bz2"
+
 class Error(Exception):
     pass
 
@@ -60,15 +73,20 @@ def get_excludes():
 
 
 # TODO find a better way of doing this...
-def patch_build_type(type="tar.bz2"):
+def make_build_config(type):
     # Patch the local_config with the correct build_type
     lines = []
-    for line in file("dtella/local_config.py").readlines():
-        if line.find('build_type = "') == 0:
-            line = 'build_type = "%s"\n' % type
+    extra_setup_args['type'] = type
+    for line in file("dtella/build_config.py.in").readlines():
+        if line.find('BUILD_') >= 0:
+            for k, v in extra_setup_args.items():
+                key = 'BUILD_' + k.upper()
+                line = line.replace(key, str(v))
         lines.append(line)
+    del extra_setup_args['type']
 
-    file("dtella/local_config.py", "w").writelines(lines)
+    file("dtella/build_config.py", "w").writelines(lines)
+    print "wrote build config to dtella/build_config.py"
 
 
 def patch_nsi_template(suffix=''):
@@ -122,17 +140,13 @@ def patch_camdc_nsi_template():
     wfile.close()
 
 
-extra_setup_args = {}
-
 if sys.platform == 'darwin':
-    patch_build_type('dmg')
+    build_type = 'dmg'
     import py2app
-    extra_setup_args = {
-        "app": ["dtella.py"],
-    }
+    extra_setup_args['app'] = ["dtella.py"]
 
 elif sys.platform == 'win32':
-    patch_build_type('exe')
+    build_type = 'exe'
 
     import py2exe
     if len(sys.argv) <= 2:
@@ -146,13 +160,11 @@ elif sys.platform == 'win32':
     else:
         patch_nsi_template()
 
-    extra_setup_args = {
-        "zipfile": None,
-        "windows": [{
-            "script": "dtella.py",
-            "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
-        }]
-    }
+    extra_setup_args['zipfile'] = None,
+    extra_setup_args['windows'] = [{
+        "script": "dtella.py",
+        "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
+    }]
 
 excludes = get_excludes()
 
@@ -164,6 +176,8 @@ class MyDist(Distribution):
         self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
 
     def run_commands(self):
+        global build_type
+        make_build_config(build_type)
         try:
             getattr(self, "bridge")
             self.packages.append('dtella.bridge')
@@ -209,8 +223,6 @@ class bdist_shinst(Command):
         pass
 
     def run(self):
-        patch_build_type()
-
         try:
             import dtella.bridge.bridge_config as bcfg
             self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
@@ -275,12 +287,6 @@ class bdist_shinst(Command):
 setup(
     distclass = MyDist,
     cmdclass = {'bdist_shinst': bdist_shinst},
-    name = 'dtella-cambridge',
-    version = local.version,
-    description = 'Client for the Dtella network at Cambridge',
-    author = 'Dtella-Cambridge',
-    author_email = 'cabal@camdc.pcriot.com',
-    url = 'http://camdc.pcriot.com',
     options = {
         "py2exe": {
             "optimize": 2,
@@ -298,13 +304,9 @@ setup(
             "excludes": excludes,
         }
     },
-    license = 'GPL v3',
-    platforms = ['posix', 'win32', 'darwin'],
 
     packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
     scripts = ['bin/dtella'],
 
     **extra_setup_args
 )
-
-patch_build_type()

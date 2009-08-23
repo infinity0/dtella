@@ -33,6 +33,7 @@ from dtella.common.util import (validateNick, word_wrap, split_info,
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
 import dtella.local_config as local
+import dtella.build_config as build
 import struct
 import random
 import re
@@ -660,7 +661,7 @@ class DtellaBot(object):
 
     def handleCmd_VERSION(self, out, args, prefix):
         if len(args) == 0:
-            out("You have Dtella version %s." % local.version)
+            out("You have Dtella version %s." % build.version)
 
             if self.main.dcfg.version:
                 min_v, new_v, url, repo = self.main.dcfg.version
@@ -722,7 +723,7 @@ class DtellaBot(object):
 
     def handleCmd_UPGRADE(self, out, args, prefix):
         min_v, new_v, url, repo = self.main.dcfg.version
-        name, cur_v, type = local.build_prefix, local.version, local.build_type
+        name, cur_v, type = build.prefix, build.version, build.type
 
         if cmpify_version(new_v) <= cmpify_version(cur_v) and \
         (not args or args[0] != "FORCE"):

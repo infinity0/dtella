@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
 import dtella.local_config as local
+import dtella.build_config as build
 from dtella.common.util import (cmpify_version, word_wrap, parse_bytes,
                                 dcall_discard)
 from dtella.common.ipv4 import Ad
@@ -43,7 +44,7 @@ class DynamicConfigPuller(object):
     def __init__(self, main):
         self.main = main
 
-        self.override_vc = cmpify_version(local.version)
+        self.override_vc = cmpify_version(build.version)
         self.resetReportedVersion()
 
         self.cfg_lastUpdate = None
@@ -60,7 +61,7 @@ class DynamicConfigPuller(object):
 
 
     def resetReportedVersion(self):
-        self.reported_vc = cmpify_version(local.version)
+        self.reported_vc = cmpify_version(build.version)
 
 
     def getDynamicConfig(self, cb):
@@ -245,7 +246,7 @@ class DynamicConfigPuller(object):
                 " ",
                 "Your version of Dtella (%s) is too old to be used on this "
                 "network.  Please upgrade to the latest version (%s)."
-                % (local.version, new_v),
+                % (build.version, new_v),
                 " ",
                 "[If unusual circumstances prevent you from upgrading, "
                 "type !VERSION_OVERRIDE to attempt to connect using this "
@@ -263,7 +264,7 @@ class DynamicConfigPuller(object):
 
         # can only override once; next time the client gets the DNS
         # the user will have to override again
-        self.override_vc = cmpify_version(local.version)
+        self.override_vc = cmpify_version(build.version)
 
         return False
 
@@ -282,7 +283,7 @@ class DynamicConfigPuller(object):
                 say = self.main.dch.bot.say
                 say("You have Dtella version %s.  "
                     "A newer version (%s) is available."
-                    % (local.version, new_v))
+                    % (build.version, new_v))
                 say("Type !UPGRADE to upgrade, or download it at: %s" % url)
 
                 # prevents update messages from re-appearing
