@@ -78,10 +78,11 @@ def make_build_config(type):
     lines = []
     properties['type'] = type
     for line in file("dtella/build_config.py.in").readlines():
-        if line.find('BUILD_') >= 0:
-            for k, v in properties.items():
-                key = 'BUILD_' + k.upper()
-                line = line.replace(key, str(v))
+        i = line.find(' = ')
+        if i >= 0:
+            key = line[:i]
+            if key in properties:
+                line = line.replace('PATCH_ME', str(properties[key]))
         lines.append(line)
     del properties['type']
 

@@ -29,12 +29,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 # Use this prefix for filenames when building executables and installers.
 # It will be concatenated with the version number below.
-prefix = "BUILD_NAME-"
+name = "PATCH_ME"
 
 # Set this type when building executables and installers. This allows
 # Dtelle to select an appropriate upgrade method.
 # Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
-type = "BUILD_TYPE"
+type = "PATCH_ME"
 
 # Dtella version number.
-version = "BUILD_VERSION"
+version = "PATCH_ME"

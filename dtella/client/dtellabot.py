@@ -723,7 +723,7 @@ class DtellaBot(object):
 
     def handleCmd_UPGRADE(self, out, args, prefix):
         min_v, new_v, url, repo = self.main.dcfg.version
-        name, cur_v, type = build.prefix, build.version, build.type
+        name, cur_v, type = build.name, build.version, build.type
 
         if cmpify_version(new_v) <= cmpify_version(cur_v) and \
         (not args or args[0] != "FORCE"):
@@ -736,7 +736,7 @@ class DtellaBot(object):
 
         import os, urllib, sys, subprocess
 
-        new_p = name + new_v
+        new_p = name + '-' + new_v
         if not url.endswith('/'): url += '/'
         if not repo.endswith('/'): repo += '/'
         binurl = url + repo + new_p
@@ -761,7 +761,7 @@ class DtellaBot(object):
 
                     bk_sep = '-'
                     basep = sys.path[0] + os.sep
-                    bkup = name + cur_v + bk_sep + \
+                    bkup = name + '-' + cur_v + bk_sep + \
                         str(int(time.time())) + os.sep
                     blist = os.listdir(basep)
 
@@ -969,10 +969,10 @@ exit 0
                     try:
                         # TODO: the following only works in python 2.6:
                         # shutil.copytree(basep, basep + bkup, True,
-                        #    basep + name + cur_v + "-*")
+                        #    basep + name + '-' + cur_v + "-*")
                         os.mkdir(bkup)
                         for d in blist:
-                            if name + cur_v + bk_sep in d:
+                            if name + '-' + cur_v + bk_sep in d:
                                 continue
                             src = basep + d
                             dst = bkup + d
