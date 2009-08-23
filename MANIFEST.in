@@ -1,2 +1,3 @@
 graft docs
 include dtella.py
+include dtella/build_config.py.in

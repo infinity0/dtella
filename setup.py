@@ -94,8 +94,8 @@ def patch_nsi_template(suffix=''):
     # with data from local_config.
 
     dt_name = local.hub_name
-    dt_version = local.version
-    dt_simplename = local.build_prefix + local.version
+    dt_version = extra_setup_args['version']
+    dt_simplename = extra_setup_args['name'] + '-' + extra_setup_args['version']
 
     if suffix:
         suffix = '_' + suffix
@@ -121,8 +121,8 @@ def patch_camdc_nsi_template():
     # with data from local_config.
 
     dt_name = local.hub_name
-    dt_version = local.version
-    dt_simplename = local.build_prefix + local.version
+    dt_version = extra_setup_args['version']
+    dt_simplename = extra_setup_args['name'] + '-' + extra_setup_args['version']
 
     wfile = file("installer_win/camdc.nsh", "w")
 
@@ -238,7 +238,7 @@ class bdist_shinst(Command):
 
         import dtella.local_config as local
         try:
-            self.PROD = local.build_prefix + local.version
+            self.PROD = extra_setup_args['name'] + '-' + extra_setup_args['version']
         except AttributeError:
             sys.stderr.write("Could not extract product name from local config; abort.\n")
             return 1
