@@ -28,12 +28,12 @@ from twisted.internet import reactor, defer
 import time
 import binascii
 import array
-from hashlib import md5
 
 import dtella.common.core as core
 import dtella.local_config as local
 from dtella.common.log import LOG
 from dtella.common.util import CHECK
+from dtella.common.util import md5
 import dtella.bridge_config as cfg
 from zope.interface import implements
 from zope.interface.verify import verifyClass
@@ -60,14 +60,14 @@ class UnrealConfig(object):
 
     use_rdns = True
 
-    def __init__(self, host, port, ssl, password,
+    def __init__(self, host, port, ssl, sendpass,
                  network_name, my_host, my_name, channel,
                  hostmask_prefix, hostmask_keys):
         # Connection parameters for remote IRC server
         self.host = host                  # ip/hostname
         self.port = port                  # integer
         self.ssl = ssl                    # True/False
-        self.password = password          # string
+        self.sendpass = sendpass          # string
         self.network_name = network_name  # string
 
         # IRC Server Link parameters. The my_host parameter must match
@@ -119,7 +119,7 @@ class UnrealIRCServer(LineOnlyReceiver):
     def connectionMade(self):
         scfg = getServiceConfig()
         LOG.info("Connected to IRC server.")
-        self.sendLine("PASS :%s" % (scfg.password,))
+        self.sendLine("PASS :%s" % (scfg.sendpass,))
         self.sendLine(
             "SERVER %s 1 :%s" % (scfg.my_host, scfg.my_name))
 
