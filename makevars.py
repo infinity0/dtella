@@ -10,4 +10,4 @@ if sys.platform.startswith("win"):
 else:
     export = "export"
 
-print '%s FILEBASE="%s"' % (export, name + '-' + version)
+print '%s FILEBASE="%s"' % (export, name +'-'+ version)
