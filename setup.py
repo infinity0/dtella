@@ -25,8 +25,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-from distutils.core import setup, Command
+from distutils.core import setup
 from distutils.dist import Distribution
+from distutils.command.bdist import bdist
 import sys, os
 import dtella.local_config as local
 
@@ -158,7 +159,7 @@ class MyDist(Distribution):
         Distribution.run_commands(self)
 
 
-class bdist_shinst(Command):
+class bdist_shinst(bdist):
 
     description = "Create a shell-installer for posix systems"
 
@@ -182,6 +183,7 @@ class bdist_shinst(Command):
         ]
 
     def initialize_options(self):
+        bdist.initialize_options(self)
         self.WGET = ''
         self.REPO = ''
         self.PROD = ''
@@ -192,7 +194,7 @@ class bdist_shinst(Command):
         self.SVNR = ''
 
     def finalize_options(self):
-        pass
+        bdist.finalize_options(self)
 
     def run(self):
         try:
@@ -243,11 +245,7 @@ class bdist_shinst(Command):
                 else:
                     lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
 
-        outdir = "dist"
-        if 'OUTDIR' in os.environ:
-            outdir = os.environ["OUTDIR"]
-
-        f = "%s/%s.sh" % (outdir, self.PROD)
+        f = "%s/%s.sh" % (self.dist_dir, self.PROD)
         wfile = file(f, "w")
         for line in lines:
             wfile.write(line)
