@@ -306,6 +306,7 @@ if __name__ == '__main__':
         },
 
         packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
+        package_data={'dtella': ['default_network.cfg']},
         scripts = ['bin/dtella'],
 
         **properties

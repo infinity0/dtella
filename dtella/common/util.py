@@ -67,7 +67,7 @@ def cmpify_version(ver):
     return tuple(ver_parts)
 
 
-def hostnameToLocation(hostname, regexes):
+def hostnameMatch(hostname, regexes):
     # Convert a hostname into a human-readable location name.
     if hostname:
         for (r, vals) in regexes:
