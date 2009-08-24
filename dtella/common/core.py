@@ -94,7 +94,6 @@ class MessageCollisionError(Exception):
 
 # ADC flags
 adc_mode = local.adc_mode
-adc_fcrypto = local.adc_fcrypto
 nmdc_back_compat = False # dynamic config pull can set this to True
 
 # Protocol Flags

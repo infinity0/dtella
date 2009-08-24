@@ -22,12 +22,15 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-import ConfigParser, re, ast, os.path, sys
-import dtella.common.util as util
+import ConfigParser, re, ast, os.path, shutil, sys
+from dtella.common.util import (parse_bytes, hostnameMatch, get_user_path)
 
-# TODO possibly see if the user has a network_config override in the homedir
 config = ConfigParser.RawConfigParser()
-config.read(os.path.join(os.path.dirname(__file__), "default_network.cfg"))
+cfgfile = get_user_path("network.cfg")
+if not os.path.exists(cfgfile):
+    # copy default network config if user doesn't have an override
+    shutil.copy2(os.path.join(os.path.dirname(__file__), "network.cfg"), cfgfile)
+config.read(cfgfile)
 
 # Set the fields
 
@@ -41,20 +44,48 @@ for i in config.sections():
         #print "%s = %s %s" % (k, value.__class__, value)
         setattr(local, k, value)
 
-# Correct the fields to the correct types, etc, whatever
+# Verify required fields are all there
 
-minshare_cap = util.parse_bytes(minshare_cap)
+try:
+    network_key; hub_name; allowed_subnets; dconfig_type; use_locations;
+except NameError, e:
+    print "Broken network config file (%s); exiting" % e
+    print "If you recently upgraded Dtella, you may also need to upgrade your network config file."
+    print "Default network: %s" % os.path.join(os.path.dirname(__file__), "network.cfg")
+    print "Currently using: %s" % cfgfile
+    sys.exit(3)
 
-if dconfig_type == "dns":
-    import dtella.modules.pull_dns
-    dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(**dconfig_options)
-elif dconfig_type == "gdata":
-    import dtella.modules.pull_gdata
-    dconfig_puller = dtella.modules.pull_gdata.GDataPuller(**dconfig_options)
+# Postprocess some fields to the correct types, etc, whatever
 
-if rdns_servers:
-    def hostnameToLocation(hostname):
-        # Convert a hostname into a human-readable location name.
-        return util.hostnameMatch(hostname, host_regex)
-else:
-    print "TODO implement IP range support"
+try:
+    adc_mode
+except NameError:
+    adc_mode = False
+
+try:
+    minshare_cap = parse_bytes(minshare_cap)
+except NameError:
+    minshare_cap = 1024 ** 4 # 1GiB
+
+try:
+    if dconfig_type == "dns":
+        import dtella.modules.pull_dns
+        dconfig_puller = dtella.modules.pull_dns.DnsTxtPuller(**dconfig_options)
+    elif dconfig_type == "gdata":
+        import dtella.modules.pull_gdata
+        dconfig_puller = dtella.modules.pull_gdata.GDataPuller(**dconfig_options)
+except NameError, e:
+    print "No options supplied to the dconfig puller (%s); exiting" % e
+    sys.exit(3)
+except TypeError, e:
+    print "Bad options supplied to the dconfig puller (%s); exiting" % e
+    sys.exit(3)
+
+if use_locations:
+    if rdns_servers:
+        def hostnameToLocation(hostname):
+            # Convert a hostname into a human-readable location name.
+            return hostnameMatch(hostname, host_regex)
+    else:
+        def hostnameToLocation(hostname):
+            return "TODO implement IP locator"

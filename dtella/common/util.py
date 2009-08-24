@@ -212,7 +212,7 @@ def get_user_path(filename):
         except OSError:
             twisted.python.log.err()
 
-        return "%s/%s" % (path, filename)
+        return os.path.join(path, filename)
 
 def stdlines(text):
     return text.replace('\r\n', '\n').replace('\r','\n')

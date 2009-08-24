@@ -130,7 +130,7 @@ def runClient(dc_port):
         from dtella.client.dc import DCFactory
         dfactory = DCFactory(dtMain, dc_port)
 
-    LOG.info("%s %s" % (local.hub_name, build.version))
+    LOG.info("%s-%s on %s" % (build.name, build.version, local.hub_name))
 
     global exit_code
     exit_code = 0
