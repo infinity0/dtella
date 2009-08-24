@@ -29,6 +29,8 @@ import dtella.common.util as util
 config = ConfigParser.RawConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), "default_network.cfg"))
 
+# Set the fields
+
 local = sys.modules[__name__]
 for i in config.sections():
     for k, v in config.items(i):
@@ -38,6 +40,10 @@ for i in config.sections():
             value = v
         #print "%s = %s %s" % (k, value.__class__, value)
         setattr(local, k, value)
+
+# Correct the fields to the correct types, etc, whatever
+
+minshare_cap = util.format_bytes(minshare_cap)
 
 if dconfig_type == "dns":
     import dtella.modules.pull_dns
