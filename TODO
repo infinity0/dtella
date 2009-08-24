@@ -1,4 +1,3 @@
-- fix pyCrypto dependency on .sh
 - twisted.seconds
 - windows upgrade from source bug
 - windows restart
