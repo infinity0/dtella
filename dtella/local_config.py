@@ -32,7 +32,13 @@ if not os.path.exists(cfgfile):
     shutil.copy2(os.path.join(os.path.dirname(__file__), "network.cfg"), cfgfile)
 config.read(cfgfile)
 
-# Set the fields
+# Set defaults
+
+adc_mode = False
+adc_fcrypto = False
+minshare_cap = str(1024 ** 3) # 1GiB
+
+# Set fields from the config
 
 local = sys.modules[__name__]
 for i in config.sections():
@@ -49,7 +55,7 @@ for i in config.sections():
 try:
     network_key; hub_name; allowed_subnets; dconfig_type; use_locations;
 except NameError, e:
-    print "Broken network config file (%s); exiting" % e
+    print "Network config: missing value (%s); exiting" % e
     print "If you recently upgraded Dtella, you may also need to upgrade your network config file."
     print "Default network: %s" % os.path.join(os.path.dirname(__file__), "network.cfg")
     print "Currently using: %s" % cfgfile
@@ -58,14 +64,10 @@ except NameError, e:
 # Postprocess some fields to the correct types, etc, whatever
 
 try:
-    adc_mode
-except NameError:
-    adc_mode = False
-
-try:
     minshare_cap = parse_bytes(minshare_cap)
-except NameError:
-    minshare_cap = 1024 ** 4 # 1GiB
+except ValueError, e:
+    print "Network config: bad value for minshare_cap (%s); exiting" % e
+    sys.exit(3)
 
 try:
     if dconfig_type == "dns":
@@ -75,10 +77,10 @@ try:
         import dtella.modules.pull_gdata
         dconfig_puller = dtella.modules.pull_gdata.GDataPuller(**dconfig_options)
 except NameError, e:
-    print "No options supplied to the dconfig puller (%s); exiting" % e
+    print "Network config: no options supplied to the dconfig puller (%s); exiting" % e
     sys.exit(3)
 except TypeError, e:
-    print "Bad options supplied to the dconfig puller (%s); exiting" % e
+    print "Network config: bad options supplied to the dconfig puller (%s); exiting" % e
     sys.exit(3)
 
 if use_locations:
