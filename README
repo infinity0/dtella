@@ -1,0 +1,23 @@
+README for developers and network ops
+
+(readme for end users is in docs/readme.txt)
+
+If you are starting a new network, you need to edit dtella/network.cfg
+before you do the build.
+
+== Windows / Mac OS X ==
+
+Instructions in docs/requirements.txt
+
+== setup.py ==
+
+This accepts the standard python install targets; see setup.py --help for more
+details.
+
+Extra stuff:
+
+Specifying --bridge as a general (as opposed to target) option will include the
+bridge modules in the build
+
+Additionally, there is a bdist_shinst target which will build a shell script to
+install dtella and its dependencies from a remote source build.

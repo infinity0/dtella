@@ -1,0 +1,12 @@
+- fix pyCrypto dependency on .sh
+- twisted.seconds
+- windows upgrade from source bug
+- windows restart
+
+
+
+- get rid of references to local_config in setup.py
+
+
+
+
