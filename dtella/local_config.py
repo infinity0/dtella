@@ -43,7 +43,7 @@ for i in config.sections():
 
 # Correct the fields to the correct types, etc, whatever
 
-minshare_cap = util.format_bytes(minshare_cap)
+minshare_cap = util.parse_bytes(minshare_cap)
 
 if dconfig_type == "dns":
     import dtella.modules.pull_dns

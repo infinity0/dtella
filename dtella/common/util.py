@@ -395,6 +395,11 @@ def parse_bytes(s):
 
     mult = 1
     if s:
+        if s[-2:].upper() == 'IB':
+            s = s[:-2]
+        elif s[-1:].upper() == 'B':
+            s = s[:-1]
+
         i = 'KMGT'.find(s[-1].upper())
         if i > -1:
             s = s[:-1]
