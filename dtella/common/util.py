@@ -67,6 +67,19 @@ def cmpify_version(ver):
     return tuple(ver_parts)
 
 
+def hostnameToLocation(hostname, regexes):
+    # Convert a hostname into a human-readable location name.
+    if hostname:
+        for (r, vals) in regexes:
+            s = re.compile(r).match(hostname)
+            if s:
+                try:
+                    return vals[s.group(1)]
+                except KeyError:
+                    pass
+    return "???"
+
+
 def validateNick(nick):
     if len(nick) < 2:
         return "too short"

@@ -39,11 +39,8 @@ class DtellaMain_Bridge(core.DtellaMain_Base):
         core.DtellaMain_Base.__init__(self)
 
         # State Manager
-        self.state = dtella.common.state.StateManager(
-            self, cfg.file_base + '.state',
-            dtella.common.state.bridge_loadsavers)
-        self.state.initLoad()
-        
+        self.state = dtella.common.state.StateManager(self, cfg.file_base + '.db')
+
         self.state.persistent = True
         self.state.udp_port = cfg.udp_port
 
@@ -80,7 +77,6 @@ class DtellaMain_Bridge(core.DtellaMain_Base):
         LOG.info("Reactor is shutting down.  Doing cleanup.")
 
         self.shutdown(reconnect='no')
-        self.state.saveState()
 
         # Cleanly close the IRC connection before terminating
         if self.ism:
@@ -97,7 +93,7 @@ class DtellaMain_Bridge(core.DtellaMain_Base):
                 raise SystemExit
         elif udp_state == 'dying':
             return
-        
+
         CHECK(self.ph.getSocketState() == 'alive')
         self.startInitialContact()
 

@@ -21,119 +21,74 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-
-
-import struct
-import random
-import time
-import socket
-import heapq
-from twisted.internet import reactor
-import twisted.python.log
+import shelve, random, time, socket, struct
 
 from dtella.common.util import dcall_discard, get_user_path, CHECK
 from dtella.common.ipv4 import Ad
 
+class State():
+    """
+    Persistent state class. This class uses shelve to store data; see its
+    documentation for details. In particular, note that mutating attributes
+    *will not work*; you must read the attribute into a separate object, mutate
+    that object, then re-assign that object to the attribute.
 
-class StateManager(object):
+    To quote the documentation, "To append an item to d[key] in a way that will
+    affect the persistent mapping, use:
 
-    def __init__(self, main, filename, loadsavers):
+        data = d[key]
+        data.append(anitem)
+        d[key] = data
+    """
+    def __init__(self, filename, defs={}, def_cb={}, **args):
+        # __setattr__ takes precedence, can't use self.db = val
+        self.__dict__["db"] = shelve.open(filename, **args)
+        self.__dict__["defs"] = defs
+        self.__dict__["def_cb"] = def_cb
 
-        self.filename = get_user_path(filename)
+    def __getattr__(self, name):
+        if name in self.db:
+            return self.db[name]
+        elif name in self.defs:
+            return self.defs[name]
+        elif name in self.def_cb:
+            # only call the function once, since it might generate different results
+            value = self.def_cb[name]()
+            self.__setattr__(name, value)
+            return value
+        else:
+            return None
 
-        self.main = main
-        self.peers = {}   # {ipp -> time}
-        self.exempt_ips = set()
+    def __setattr__(self, name, value):
+        self.db[name] = value
+        self.db.sync()
 
-        self.loadsavers = set(loadsavers)
-
-
-    def initLoad(self, save=True):
-        self.loadState()
-        self.saveState_dcall = None
-        if save:
-            self.saveState()
-
-
-    def loadState(self):
-        # Call this once to load the state file
-
-        try:
-            f = file(self.filename, "rb")
-
-            d = {}
-
-            header, nkeys = struct.unpack("!6sI", f.read(10))
-
-            if header != "DTELLA":
-                raise ValueError
-
-            for i in range(nkeys):
-                klen, = struct.unpack("!I", f.read(4))
-
-                k = f.read(klen)
-                if len(k) != klen:
-                    raise ValueError
-
-                vlen, = struct.unpack("!I", f.read(4))
-
-                v = f.read(vlen)
-                if len(v) != vlen:
-                    raise ValueError
-
-                if k in d:
-                    raise ValueError
-
-                d[k] = v
-
-            if f.read(1):
-                raise ValueError
-
-        except:
-            d = {}
-
-        # Process all the state data
-        for ls in self.loadsavers:
-            ls.load(self, d)
+    def __delattr__(self, name):
+        if name in self.db:
+            del self.db[name]
 
 
-    def saveState(self):
-        # Save the state file every few minutes
 
-        def cb():
-            when = random.uniform(5*60, 6*60)
-            self.saveState_dcall = reactor.callLater(when, cb)
+class StateManager(State):
 
-            d = {}
-
-            # Store all state data to dictionary
-            for ls in self.loadsavers:
-                ls.save(self, d)
-
-            # Write to file
-            try:
-                f = file(self.filename, "wb")
-
-                keys = d.keys()
-                keys.sort()
-
-                f.write(struct.pack("!6sI", "DTELLA", len(keys)))
-
-                for k in keys:
-                    v = d[k]
-                    f.write(struct.pack("!I", len(k)))
-                    f.write(k)
-                    f.write(struct.pack("!I", len(v)))
-                    f.write(v)
-
-                f.close()
-
-            except:
-                twisted.python.log.err()
-
-        dcall_discard(self, 'saveState_dcall')
-
-        cb()
+    def __init__(self, main, filename, **args):
+        defaults = {
+        'clientport': 7314,
+        'killkey': '',
+        'persistent': False,
+        'localsearch': True,
+        'ipcache': '',
+        'suffix': '',
+        'dns_ipcache': '\0\0\0\0',
+        'dns_pkhashes': set(),
+        }
+        default_callbacks = {
+        'udp_port': random_udp,
+        }
+        self.__dict__["main"] = main
+        self.__dict__["peers"] = {}   # {ipp -> time}
+        self.__dict__["exempt_ips"] = set()
+        State.__init__(self, get_user_path(filename), defaults, default_callbacks, **args)
 
 
     def addExemptIP(self, ad):
@@ -210,251 +165,18 @@ class StateManager(object):
         return len(ipps)
 
 
+def random_udp():
+    for i in range(8):
+        port = random.randint(1024, 65535)
+
+        try:
+            # See if the randomly-selected port is available
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.bind(('', port))
+            s.close()
+            return port
+        except socket.error:
+            pass
+
+
 ##############################################################################
-
-
-class StateError(Exception):
-    pass
-
-
-class LoadSaver(object):
-
-    def getKey(self, d):
-        try:
-            return d[self.key]
-        except KeyError:
-            raise StateError("Not Found")
-
-
-    def setKey(self, d, value):
-        d[self.key] = value
-
-
-    def unpackValue(self, d, format):
-        try:
-            v, = struct.unpack('!'+format, self.getKey(d))
-            return v
-        except (struct.error, ValueError):
-            raise StateError("Can't get value")
-
-
-    def packValue(self, d, format, data):
-        self.setKey(d, struct.pack('!'+format, data))
-
-
-    def unpackStrs(self, d):
-        strs = []
-        i = 0
-
-        data = self.getKey(d)
-
-        while i < len(data):
-            slen, = struct.unpack("!I", data[i:i+4])
-            i += 4
-            s = data[i:i+slen]
-            i += slen
-            if len(s) != slen:
-                return []
-            strs.append(s)
-
-        return strs
-
-
-    def packStrs(self, d, strs):
-        data = []
-        for s in strs:
-            data.append(struct.pack("!I", len(s)))
-            data.append(s)
-
-        self.setKey(d, ''.join(data))
-
-
-
-class ClientPort(LoadSaver):
-
-    key = 'clientport'
-
-    def load(self, state, d):
-        try:
-            state.clientport = self.unpackValue(d, 'H')
-        except StateError:
-            state.clientport = 7314
-
-
-    def save(self, state, d):
-        self.packValue(d, 'H', state.clientport)
-
-
-
-class KillKey(LoadSaver):
-
-    key = 'killkey'
-
-    def load(self, state, d):
-        try:
-            state.killkey = self.unpackValue(d, '32s')
-        except StateError:
-            state.killkey = ''
-
-
-    def save(self, state, d):
-        self.packValue(d, '32s', state.killkey)
-
-
-
-class Persistent(LoadSaver):
-
-    key = 'persistent'
-
-    def load(self, state, d):
-        try:
-            state.persistent = bool(self.unpackValue(d, 'B'))
-        except StateError:
-            state.persistent = False
-
-
-    def save(self, state, d):
-        self.packValue(d, 'B', bool(state.persistent))
-
-
-
-class LocalSearch(LoadSaver):
-
-    key = 'localsearch'
-
-    def load(self, state, d):
-        try:
-            state.localsearch = bool(self.unpackValue(d, 'B'))
-        except StateError:
-            state.localsearch = True
-
-
-    def save(self, state, d):
-        self.packValue(d, 'B', bool(state.localsearch))
-
-
-
-class UDPPort(LoadSaver):
-
-    key = 'udp_port'
-
-    def load(self, state, d):
-
-        try:
-            state.udp_port = self.unpackValue(d, 'H')
-
-        except StateError:
-            # Pick a random UDP port to use.  Try a few times.
-            for i in range(8):
-                state.udp_port = random.randint(1024, 65535)
-
-                try:
-                    # See if the randomly-selected port is available
-                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    s.bind(('', state.udp_port))
-                    s.close()
-                    break
-                except socket.error:
-                    pass
-
-
-    def save(self, state, d):
-        self.packValue(d, 'H', state.udp_port)
-
-
-
-class IPCache(LoadSaver):
-
-    key = 'ipcache'
-
-    def load(self, state, d):
-        # Get IP cache
-        try:
-            ipcache = self.getKey(d)
-            if len(ipcache) % 10 != 0:
-                raise StateError
-        except StateError:
-            ipcache = ''
-
-        now = time.time()
-
-        for i in range(0, len(ipcache), 10):
-            ipp, when = struct.unpack('!6sI', ipcache[i:i+10])
-            state.refreshPeer(Ad().setRawIPPort(ipp), now-when)
-
-
-    def save(self, state, d):
-        ipcache = [struct.pack('!6sI', ipp, int(when))
-                   for when, ipp in state.getYoungestPeers(128)]
-
-        self.setKey(d, ''.join(ipcache))
-
-
-
-class Suffix(LoadSaver):
-
-    key = 'suffix'
-
-    def load(self, state, d):
-        try:
-            state.suffix = self.getKey(d)[:8]
-        except StateError:
-            state.suffix = ""
-
-
-    def save(self, state, d):
-        self.setKey(d, state.suffix)
-
-
-
-class DNSIPCache(LoadSaver):
-
-    key = 'dns_ipcache'
-
-    def load(self, state, d):
-
-        # Get saved DNS ipcache
-        try:
-            dns_ipcache = self.getKey(d)
-            if len(dns_ipcache) % 6 != 4:
-                raise StateError
-        except StateError:
-            state.setDNSIPCache('\0\0\0\0')
-        else:
-            state.setDNSIPCache(dns_ipcache)
-
-
-    def save(self, state, d):
-        when, ipps = state.dns_ipcache
-        d['dns_ipcache'] = struct.pack('!I', when) + ''.join(ipps)
-
-
-
-class DNSPkHashes(LoadSaver):
-
-    key = 'dns_pkhashes'
-
-    def load(self, state, d):
-
-        # Get saved DNS pkhashes
-        try:
-            state.dns_pkhashes = set(self.unpackStrs(d))
-        except StateError:
-            state.dns_pkhashes = set()
-
-
-    def save(self, state, d):
-        self.packStrs(d, state.dns_pkhashes)
-
-
-client_loadsavers = [ClientPort(),
-                     KillKey(),
-                     Persistent(),
-                     LocalSearch(),
-                     UDPPort(),
-                     IPCache(),
-                     Suffix(),
-                     DNSIPCache(),
-                     DNSPkHashes()]
-
-bridge_loadsavers = [IPCache()]

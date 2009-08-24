@@ -44,11 +44,8 @@ class DtellaMain_DconfigPusher(core.DtellaMain_Base):
         self.hide_node = True
 
         # State Manager
-        self.state = dtella.common.state.StateManager(
-            self, cfg.file_base + '.state',
-            dtella.common.state.bridge_loadsavers)
-        self.state.initLoad()
-        
+        self.state = dtella.common.state.StateManager(self, cfg.file_base + '.db')
+
         self.state.persistent = True
         self.state.udp_port = cfg.udp_port
 
@@ -77,7 +74,6 @@ class DtellaMain_DconfigPusher(core.DtellaMain_Base):
     def cleanupOnExit(self):
         LOG.info("Reactor is shutting down.  Doing cleanup.")
         self.shutdown(reconnect='no')
-        self.state.saveState()
 
     def startConnecting(self):
         udp_state = self.ph.getSocketState()
@@ -89,7 +85,7 @@ class DtellaMain_DconfigPusher(core.DtellaMain_Base):
                 raise SystemExit
         elif udp_state == 'dying':
             return
-        
+
         CHECK(self.ph.getSocketState() == 'alive')
         self.startInitialContact()
 

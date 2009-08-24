@@ -43,7 +43,7 @@ from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
 from dtella.common.log import LOG
 from dtella.common.ipv4 import Ad
 
-STATE_FILE = "dtella.state"
+STATE_FILE = "dtella.db"
 
 class DtellaMain_Client(core.DtellaMain_Base):
 
@@ -76,9 +76,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
             self.ph = bridge_client.BridgeClientProtocol(self)
 
         # State Manager
-        self.state = dtella.common.state.StateManager(
-            self, STATE_FILE, dtella.common.state.client_loadsavers)
-        self.state.initLoad()
+        self.state = dtella.common.state.StateManager(self, STATE_FILE)
 
         # DNS Handler
         self.dcfg = dtella.client.pull_dconfig.DynamicConfigPuller(self)
@@ -93,7 +91,6 @@ class DtellaMain_Client(core.DtellaMain_Base):
         if self.dch:
             self.dch.state = 'shutdown'
         self.shutdown(reconnect='no')
-        self.state.saveState()
 
 
     def changeUDPPort(self, udp_port):
@@ -101,7 +98,6 @@ class DtellaMain_Client(core.DtellaMain_Base):
 
         # Set a new UDP port, which will be used on the next bind.
         self.state.udp_port = udp_port
-        self.state.saveState()
 
         udp_state = self.ph.getSocketState()
 
@@ -295,7 +291,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
 
             # Remember this for new DC clients
             self.login_text = text
-        
+
         LOG.debug(text)
         dch = self.dch
         if dch:
