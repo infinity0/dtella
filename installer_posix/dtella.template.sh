@@ -148,8 +148,8 @@ else
 	exit 6
 fi
 
-python_has_mod() { false; }; # for testing
-#python_has_mod() { python -c "import $@" 2>/dev/null; }
+#python_has_mod() { false; }; # for testing
+python_has_mod() { python -c "import $@" 2>/dev/null; }
 LONGMSG="Yes, I know what I am doing."
 
 if python_has_mod twisted;
