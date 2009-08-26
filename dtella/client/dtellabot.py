@@ -122,7 +122,7 @@ class DtellaBot(object):
 #''' BEGIN NEWITEMS MOD #
     freeform_cmds = frozenset(['TOPIC','SUFFIX','DEBUG','I','STUFF'])
 
-    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE','I','STUFF'])
+    location_cmds = frozenset(['SUFFIX','USERS','SHARED','DENSE'])
 # END NEWITEMS MOD '''#
 
 
