@@ -395,6 +395,7 @@ def parse_bytes(s):
 
     mult = 1
     if s:
+        s = s.strip()
         if s[-2:].upper() == 'IB':
             s = s[:-2]
         elif s[-1:].upper() == 'B':

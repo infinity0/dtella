@@ -22,8 +22,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-import ConfigParser, re, ast, os.path, shutil, sys
+import ConfigParser, re, os.path, shutil, sys
 from dtella.common.util import (parse_bytes, hostnameMatch, get_user_path)
+from dtella.common.ast import literal_eval
 
 config = ConfigParser.RawConfigParser()
 cfgfile = get_user_path("network.cfg")
@@ -44,7 +45,7 @@ local = sys.modules[__name__]
 for i in config.sections():
     for k, v in config.items(i):
         try:
-            value = ast.literal_eval(v)
+            value = literal_eval(v)
         except (ValueError, SyntaxError):
             value = v
         #print "%s = %s %s" % (k, value.__class__, value)
