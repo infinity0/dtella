@@ -457,7 +457,6 @@ class DtellaBot(object):
             if args[0] == 'ON':
                 out("Set persistent mode to ON.")
                 self.main.state.persistent = True
-                self.main.state.saveState()
 
                 if self.main.osm:
                     self.main.osm.updateMyInfo()
@@ -468,7 +467,6 @@ class DtellaBot(object):
             elif args[0] == 'OFF':
                 out("Set persistent mode to OFF.")
                 self.main.state.persistent = False
-                self.main.state.saveState()
 
                 if self.main.osm:
                     self.main.osm.updateMyInfo()
@@ -489,13 +487,11 @@ class DtellaBot(object):
             if args[0] == 'ON':
                 out("Set local searching to ON.")
                 self.main.state.localsearch = True
-                self.main.state.saveState()
                 return
 
             elif args[0] == 'OFF':
                 out("Set local searching to OFF.")
                 self.main.state.localsearch = False
-                self.main.state.saveState()
                 return
 
         self.syntaxHelp(out, 'LOCALSEARCH', prefix)
@@ -646,7 +642,6 @@ class DtellaBot(object):
         text = text[:8].rstrip().replace('$','')
 
         self.main.state.suffix = text
-        self.main.state.saveState()
 
         out("Set location suffix to \"%s\"" % text)
 

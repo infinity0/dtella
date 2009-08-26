@@ -178,6 +178,8 @@ class bdist_shinst(bdist):
          "archive extract command"),
         ('EXT-VRB=', None,
          "archive extract command (verbose)"),
+        ('EXT-LST=', None,
+         "archive list command"),
         ('SVNR=', None,
          "svn repository address"),
         ]
@@ -191,6 +193,7 @@ class bdist_shinst(bdist):
         self.EXT = ''
         self.EXT_CMD = ''
         self.EXT_VRB = ''
+        self.EXT_LST = ''
         self.SVNR = ''
 
     def finalize_options(self):
@@ -306,6 +309,7 @@ if __name__ == '__main__':
         },
 
         packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
+        package_data={'dtella': ['network.cfg']},
         scripts = ['bin/dtella'],
 
         **properties

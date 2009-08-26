@@ -1,0 +1,123 @@
+- twisted.seconds
+- windows upgrade from source bug
+- windows restart
+
+
+- get rid of references to local_config in setup.py
+
+
+new packet:
+FF (forward to)
+4 bytes - pktnum
+6 bytes - ipp of true_src
+6 bytes - ipp of true_dst
+(packet)
+
+
+sendSwitcher(pkt, dst):
+	assert(pkt not FF)
+
+	case me is active:
+		case dst is passive:
+			case dst is neighbour: A (to H)
+				TCP_send(pkt, dst)
+			case dst not neighbour: B (to J, K, L, M)
+				UDP_send(FF(me, dst, pkt), dst.neighbours)
+		case dst is active: C (to U)
+			UDP_send(pkt, dst)
+
+	case me is passive:
+		case dst is neighbour: D (to F)
+			TCP_send(pkt, dst)
+		case dst not neighbour: E (to F)
+			TCP_send(FF(me, dst, pkt), self.neighbours)
+
+
+TCP_recv(pkt, src):
+
+	case me is active: F (to J, K, L, M, U)
+		call UDP_recv(pkt, src)
+
+	case me is passive:
+		case FF packet: G (to U)
+			assert(pkt.true_dst is me && pkt.true_src is not neighbour)
+			filter out duplicates
+			UDP_recv(pkt.data, pkt.true_src)
+		otherwise: H (to U)
+			UDP_recv(pkt, src)
+
+
+UDP_recv(pkt, src):
+
+	handlePacket_*: U
+		end
+
+	handlePacket_FF(pkt, src):
+		dst = pkt.true_dst
+
+		case dst is self: J (to U)
+			UDP_recv(pkt.data, src)
+
+		case dst is passive:
+			dst is neighbour: K (to G)
+				TCP_send(pkt, dst)
+			dst not neighbour: L (to J, K, L, M)
+				UDP_send(pkt, dst.neighbours)
+
+		case dst is active: M (to J, K, L, M)
+			UDP_send(pkt, dst)
+
+
+        T
+        |
+   P -- Q -- R -- S
+
+passive: P, T, S
+active: Q, R
+
+P -> Q -- P.D, Q.F, Q.U
+P -> R -- P.E, Q.F, Q.M, R.J, R.U
+P -> T -- P.E, Q.F, Q.K, T.G, T.U
+P -> S -- P.E, Q.F, Q.L, R.K, S.G, S.U
+
+Q -> P -- Q.A, P.H, P.U
+Q -> R -- Q.C, R.U
+Q -> S -- Q.B, R.K, S.G, S.U
+
+
+
+when passive->active connection, active broadcasts a packet "i am now neighbour for this node"
+
+NB
+4 bytes - timestamp?
+6 bytes - ipp of self
+6 bytes - ipp of passive neighbour
+
+and insert this node into pgm.pbns
+
+
+
+(00:41:05) infinity0: now, corner cases
+(00:41:20) infinity0: if an active node drops, we need to unregister it from its passive nodes' neighoubr list
+(00:41:28) andyhhp: thats not too hard
+(00:41:30) infinity0: nope
+(00:41:35) andyhhp: brute force through the map
+(00:41:54) infinity0: if a passive node drops, we need to do the same, but that's just removing a simple key-value entry, even simpler
+(00:42:21) andyhhp: if a passive node drops then the normal node dropped packet should be sent
+(00:42:30) andyhhp: so thats irrelevent
+(00:42:37) infinity0: ah, right yes
+
+
+
+- a node is removed from pnbs only in cancelActiveLink
+- cancelActiveLink is called if neither node wants the connection, or for bans/drops
+  - so have passive nodes ALWAYS set the "I want you" flag in PG packets
+- only other case left is removeOutboundLink
+  - scheduleChopExcessLinks is the only place that uses removeOutboundLink to remove an online node
+  - need to make sure this is not a passive neighbour
+  - osm.nodes is sorted by node "distance"
+
+
+
+
+

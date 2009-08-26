@@ -67,6 +67,19 @@ def cmpify_version(ver):
     return tuple(ver_parts)
 
 
+def hostnameMatch(hostname, regexes):
+    # Convert a hostname into a human-readable location name.
+    if hostname:
+        for (r, vals) in regexes:
+            s = re.compile(r).match(hostname)
+            if s:
+                try:
+                    return vals[s.group(1)]
+                except KeyError:
+                    pass
+    return "???"
+
+
 def validateNick(nick):
     if len(nick) < 2:
         return "too short"
@@ -199,7 +212,7 @@ def get_user_path(filename):
         except OSError:
             twisted.python.log.err()
 
-        return "%s/%s" % (path, filename)
+        return os.path.join(path, filename)
 
 def stdlines(text):
     return text.replace('\r\n', '\n').replace('\r','\n')
@@ -382,6 +395,12 @@ def parse_bytes(s):
 
     mult = 1
     if s:
+        s = s.strip()
+        if s[-2:].upper() == 'IB':
+            s = s[:-2]
+        elif s[-1:].upper() == 'B':
+            s = s[:-1]
+
         i = 'KMGT'.find(s[-1].upper())
         if i > -1:
             s = s[:-1]

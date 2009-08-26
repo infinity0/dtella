@@ -130,7 +130,7 @@ def runClient(dc_port):
         from dtella.client.dc import DCFactory
         dfactory = DCFactory(dtMain, dc_port)
 
-    LOG.info("%s %s" % (local.hub_name, build.version))
+    LOG.info("%s-%s on %s" % (build.name, build.version, local.hub_name))
 
     global exit_code
     exit_code = 0
@@ -165,7 +165,6 @@ def runClient(dc_port):
                 str(random.random())[2:] + str(random.random())[2:] + \
                 str(random.random())[2:]).digest()
             dtMain.state.clientport = dc_port
-            dtMain.state.saveState()
 
             LOG.info("Listening on 127.0.0.1:%d" % dc_port)
             dtMain.startConnecting()
@@ -248,8 +247,10 @@ def main():
 
     import dtella.common.state as state
     from dtella.client.main import STATE_FILE
-    sm = state.StateManager(None, STATE_FILE, [state.ClientPort(), state.KillKey()])
-    sm.initLoad(False)
+    try:
+        sm = state.StateManager(None, STATE_FILE, flag='r')
+    except Exception:
+        sm = state.StateManager(None, STATE_FILE, flag='n')
 
     if not dc_port:
         dc_port = sm.clientport
