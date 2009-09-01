@@ -26,6 +26,8 @@ import ConfigParser, re, os.path, shutil, sys
 from dtella.common.util import (parse_bytes, hostnameMatch, get_user_path)
 from dtella.common.ast import literal_eval
 
+# TODO use build.data_dir, or something
+
 config = ConfigParser.RawConfigParser()
 cfgfile = get_user_path("network.cfg")
 if not os.path.exists(cfgfile):

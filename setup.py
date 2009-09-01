@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
 import sys, os
-import dtella.local_config as local
 
 properties = {
     'name': 'dtella-cambridge',
@@ -49,19 +48,6 @@ class Error(Exception):
 
 def get_excludes():
     ex = []
-
-    # Ignore XML and SSL, unless the puller needs them.
-    def check_attr(o, a):
-        try:
-            return getattr(o, a)
-        except AttributeError:
-            return False
-
-    if not check_attr(local.dconfig_puller, 'needs_xml'):
-        ex.append("xml")
-
-    if not check_attr(local.dconfig_puller, 'needs_ssl'):
-        ex.append("_ssl")
 
     # No client should need this
     ex.append("OpenSSL")
@@ -91,28 +77,29 @@ def get_includes():
 
 
 # TODO find a better way of doing this...
-def make_build_config(type):
-    # Patch the local_config with the correct build_type
+def make_build_config(type, data_dir=None):
+    # Patch the build_config with the correct variables
+    global properties
+    props = properties.copy()
+    props.update({'type': type, 'data_dir': data_dir})
+
     lines = []
-    properties['type'] = type
     for line in file("dtella/build_config.py.in").readlines():
         i = line.find(' = ')
         if i >= 0:
             key = line[:i]
-            if key in properties:
-                line = line.replace('PATCH_ME', str(properties[key]))
+            if key in props:
+                line = line.replace('PATCH_ME', str(props[key]))
         lines.append(line)
-    del properties['type']
 
     file("dtella/build_config.py", "w").writelines(lines)
     print "wrote build config to dtella/build_config.py"
 
 
 def patch_nsi_template(suffix=''):
-    # Generate NSI file from template, replacing name and version
-    # with data from local_config.
+    # Generate NSI file from template
 
-    dt_name = local.hub_name
+    dt_name = properties['name']
     dt_version = properties['version']
     dt_simplename = properties['name'] + '-' + properties['version']
 
@@ -136,10 +123,9 @@ def patch_nsi_template(suffix=''):
 
 
 def patch_camdc_nsi_template():
-    # Generate NSI file from template, replacing name and version
-    # with data from local_config.
+    # Generate NSI file from template
 
-    dt_name = local.hub_name
+    dt_name = properties['name']
     dt_version = properties['version']
     dt_simplename = properties['name'] + '-' + properties['version']
 
@@ -289,12 +275,7 @@ if __name__ == '__main__':
                 sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
                 return 1
 
-            import dtella.local_config as local
-            try:
-                self.PROD = properties['name'] + '-' + properties['version']
-            except AttributeError:
-                sys.stderr.write("Could not extract product name from local config; abort.\n")
-                return 1
+            self.PROD = properties['name'] + '-' + properties['version']
 
             if not self.DEPS:
                 sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")

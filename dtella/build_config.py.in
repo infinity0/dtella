@@ -38,3 +38,7 @@ type = "PATCH_ME"
 
 # Dtella version number.
 version = "PATCH_ME"
+
+# This is the directory where default data files (eg. default network config)
+# are kept. TODO actually use this...
+data_dir = "PATCH_ME"
