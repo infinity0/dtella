@@ -22,8 +22,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import dtella.build_config as build
-
 import struct
 import random
 import sys
@@ -197,6 +195,7 @@ def get_os():
 
 
 def get_version_string():
+    import dtella.build_config as build
     return "Dt:%s/%s" % (build.version, get_os())
 
 

@@ -142,6 +142,8 @@ elif which wget > /dev/null; then
 	get_latest() { if ! wget -N "$@"; then echo "could not download $@; abort"; exit 2; fi }
 elif which curl > /dev/null; then
 	get_latest() { if ! curl -O "$@"; then echo "could not download $@; abort"; exit 2; fi }
+elif which fetch > /dev/null; then
+	get_latest() { if ! fetch -m "$@"; then echo "could not download $@; abort"; exit 2; fi }
 else
 	echo "could not find a suitable URL-retrieval program. try setting the WGET variable "
 	echo "near the top of this file."
