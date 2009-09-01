@@ -122,7 +122,7 @@ def patch_camdc_nsi_template():
     # Generate NSI file from template, replacing name and version
     # with data from local_config.
 
-    dt_name = local.hub_name
+    dt_name = properties['name']
     dt_version = properties['version']
     dt_simplename = properties['name'] + '-' + properties['version']
 
@@ -270,11 +270,11 @@ if __name__ == '__main__':
         import py2exe
         if len(sys.argv) <= 2:
             patch_nsi_template()
-        elif sys.argv[2] == 'updater':
-            patch_nsi_template('updater')
-            del sys.argv[2]
         elif sys.argv[2] == 'camdc':
             patch_camdc_nsi_template()
+            del sys.argv[2]
+        elif sys.argv[2] == 'updater':
+            patch_nsi_template('updater')
             del sys.argv[2]
         else:
             patch_nsi_template()
