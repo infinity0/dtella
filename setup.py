@@ -151,6 +151,8 @@ if __name__ == '__main__':
     from distutils.core import setup
     from distutils.command.bdist import bdist
 
+    my_commands = {}
+
     if sys.platform == 'darwin':
         build_type = 'dmg'
         import py2app
@@ -173,7 +175,7 @@ if __name__ == '__main__':
         try:
             from py2exe import Distribution
         except ImportError:
-            print "warning: could not import py2exe Distribution class; continuing anyway"
+            print "Error: could not import py2exe Distribution class; trying to continue anyway"
 
         if len(sys.argv) <= 2:
             patch_nsi_template()
@@ -199,6 +201,27 @@ if __name__ == '__main__':
             "excludes": get_excludes(),
             "includes": get_includes(),
         }
+
+        # py2exe is shit and ignores package_data so we need to hack this up ourselves
+        from py2exe.build_exe import py2exe as build_exe
+        class py2exe_pkg(build_exe):
+
+            def copy_extensions(self, extensions):
+                build_exe.copy_extensions(self, extensions)
+
+                for pkg, data in self.distribution.package_data.iteritems():
+                    for file in data:
+                        path = os.path.join(pkg, file)
+                        full = os.path.join(self.collect_dir, path)
+
+                        if os.path.isdir(path):
+                            raise Error("Not implemented yet")
+                        else:
+                            self.copy_file(path, full)
+                            self.compiled_files.append(path)
+
+        my_commands['py2exe']: py2exe_pkg
+
 
     # The class definitions have to be here because py2exe fucks with python's
     # standard Distribution class; we need to extend whichever class is newest
@@ -313,10 +336,11 @@ if __name__ == '__main__':
             os.chmod(f, 0755)
             print "installer wrote to %s" %f
 
+    my_commands['bdist_shinst'] = bdist_shinst
 
     setup(
         distclass = MyDist,
-        cmdclass = {'bdist_shinst': bdist_shinst},
+        cmdclass = my_commands,
         packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
         package_data = {'dtella': ['network.cfg']},
         scripts = ['bin/dtella'],

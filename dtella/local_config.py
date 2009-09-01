@@ -24,15 +24,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 import ConfigParser, re, os.path, shutil, sys
 from dtella.common.util import (parse_bytes, hostnameMatch, get_user_path)
-from dtella.common.ast import literal_eval
 
-# TODO use build.data_dir, or something
+# These are python 2.6 modules, we can remove them from the dtella source tree
+# when python 2.5 is obsolete, and delete "dtella.common." from these lines
+from dtella.common.ast import literal_eval
+from dtella.common.pkgutil import get_data
 
 config = ConfigParser.RawConfigParser()
 cfgfile = get_user_path("network.cfg")
 if not os.path.exists(cfgfile):
     # copy default network config if user doesn't have an override
-    shutil.copy2(os.path.join(os.path.dirname(__file__), "network.cfg"), cfgfile)
+    fp = open(cfgfile, 'w+')
+    for i in get_data(__name__, "network.cfg"):
+        fp.write(i)
+    fp.close()
 config.read(cfgfile)
 
 # Set defaults
