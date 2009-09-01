@@ -25,9 +25,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-from distutils.core import setup
-from distutils.dist import Distribution
-from distutils.command.bdist import bdist
 import sys, os
 import dtella.local_config as local
 
@@ -142,122 +139,11 @@ def patch_camdc_nsi_template():
     wfile.close()
 
 
-class MyDist(Distribution):
-
-    def __init__(self, attrs=None):
-        Distribution.__init__(self, attrs)
-        self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
-
-    def run_commands(self):
-        global build_type
-        make_build_config(build_type)
-        try:
-            getattr(self, "bridge")
-            self.packages.append('dtella.bridge')
-        except AttributeError:
-            pass
-        Distribution.run_commands(self)
-
-
-class bdist_shinst(bdist):
-
-    description = "Create a shell-installer for posix systems"
-
-    user_options = [
-        ('WGET=', None,
-         "default custom URL retrieval program"),
-        ('REPO=', None,
-         "repository URL"),
-        ('PROD=', None,
-         "product name (no .ext)"),
-        ('DEPS=', None,
-         "dependency archive (w/ .ext)"),
-        ('EXT=', None,
-         "archive extension"),
-        ('EXT-CMD=', None,
-         "archive extract command"),
-        ('EXT-VRB=', None,
-         "archive extract command (verbose)"),
-        ('EXT-LST=', None,
-         "archive list command"),
-        ('SVNR=', None,
-         "svn repository address"),
-        ]
-
-    def initialize_options(self):
-        bdist.initialize_options(self)
-        self.WGET = ''
-        self.REPO = ''
-        self.PROD = ''
-        self.DEPS = ''
-        self.EXT = ''
-        self.EXT_CMD = ''
-        self.EXT_VRB = ''
-        self.EXT_LST = ''
-        self.SVNR = ''
-
-    def finalize_options(self):
-        bdist.finalize_options(self)
-
-    def run(self):
-        try:
-            import dtella.bridge.bridge_config as bcfg
-            self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
-            i = self.REPO.find('#')
-            if i >= 0:
-                self.REPO = self.REPO[:i] + self.REPO[i+1:]
-        except ImportError:
-            sys.stderr.write("Could not find bridge config; abort.\n")
-            return 1
-        except ValueError:
-            sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
-            return 1
-
-        import dtella.local_config as local
-        try:
-            self.PROD = properties['name'] + '-' + properties['version']
-        except AttributeError:
-            sys.stderr.write("Could not extract product name from local config; abort.\n")
-            return 1
-
-        if not self.DEPS:
-            sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
-            return 1
-
-        from distutils.fancy_getopt import longopt_xlate
-        import string
-        lines = file("installer_posix/dtella.template.sh").readlines()
-        for (k, _, _) in self.user_options:
-            k = string.translate(k, longopt_xlate)
-            if k[-1] == "=":
-                k = k[:-1]
-            v = getattr(self, k)
-
-            for i, line in enumerate(lines):
-
-                if line[:len(k)+3] != k + '=""':
-                    continue
-
-                kl, vl = len(k), len(v)
-                e = line.find('#')
-
-                if e < 0:
-                    lines[i] = '%s="%s"' % (k, v)
-                elif kl+3+vl < e:
-                    lines[i] = '%s="%s"' % (k, v) + line[kl+3+vl:]
-                else:
-                    lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
-
-        f = "%s/%s.sh" % (self.dist_dir, self.PROD)
-        wfile = file(f, "w")
-        for line in lines:
-            wfile.write(line)
-        wfile.close()
-        os.chmod(f, 0755)
-        print "installer wrote to %s" %f
-
-
 if __name__ == '__main__':
+
+    from distutils.dist import Distribution
+    from distutils.core import setup
+    from distutils.command.bdist import bdist
 
     if sys.platform == 'darwin':
         build_type = 'dmg'
@@ -268,6 +154,13 @@ if __name__ == '__main__':
         build_type = 'exe'
 
         import py2exe
+        # py2exe is supposed to overwrite distutils.dist.Distribution but this seems
+        # not to work, even if we import dist.Distribution after importing py2exe
+        try:
+            from py2exe import Distribution
+        except ImportError:
+            print "Warning: could not import py2exe Distribution class; continuing anyway"
+
         if len(sys.argv) <= 2:
             patch_nsi_template()
         elif sys.argv[2] == 'updater':
@@ -284,6 +177,122 @@ if __name__ == '__main__':
             "script": "dtella.py",
             "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
         }]
+
+    # The class definitions have to be here because py2exe fucks with standard python's
+    # Distribution class; we need to extend whichever class is newest
+
+    class MyDist(Distribution):
+
+        def __init__(self, attrs=None):
+            Distribution.__init__(self, attrs)
+            self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
+
+        def run_commands(self):
+            global build_type
+            make_build_config(build_type)
+            try:
+                getattr(self, "bridge")
+                self.packages.append('dtella.bridge')
+            except AttributeError:
+                pass
+            Distribution.run_commands(self)
+
+    class bdist_shinst(bdist):
+
+        description = "Create a shell-installer for posix systems"
+
+        user_options = [
+            ('WGET=', None,
+             "default custom URL retrieval program"),
+            ('REPO=', None,
+             "repository URL"),
+            ('PROD=', None,
+             "product name (no .ext)"),
+            ('DEPS=', None,
+             "dependency archive (w/ .ext)"),
+            ('EXT=', None,
+             "archive extension"),
+            ('EXT-CMD=', None,
+             "archive extract command"),
+            ('EXT-VRB=', None,
+             "archive extract command (verbose)"),
+            ('EXT-LST=', None,
+             "archive list command"),
+            ('SVNR=', None,
+             "svn repository address"),
+            ]
+
+        def initialize_options(self):
+            bdist.initialize_options(self)
+            self.WGET = ''
+            self.REPO = ''
+            self.PROD = ''
+            self.DEPS = ''
+            self.EXT = ''
+            self.EXT_CMD = ''
+            self.EXT_VRB = ''
+            self.EXT_LST = ''
+            self.SVNR = ''
+
+        def finalize_options(self):
+            bdist.finalize_options(self)
+
+        def run(self):
+            try:
+                import dtella.bridge.bridge_config as bcfg
+                self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
+                i = self.REPO.find('#')
+                if i >= 0:
+                    self.REPO = self.REPO[:i] + self.REPO[i+1:]
+            except ImportError:
+                sys.stderr.write("Could not find bridge config; abort.\n")
+                return 1
+            except ValueError:
+                sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
+                return 1
+
+            import dtella.local_config as local
+            try:
+                self.PROD = properties['name'] + '-' + properties['version']
+            except AttributeError:
+                sys.stderr.write("Could not extract product name from local config; abort.\n")
+                return 1
+
+            if not self.DEPS:
+                sys.stderr.write("DEPS not specified. (You can specify key=value pairs as arguments to this command.)\n")
+                return 1
+
+            from distutils.fancy_getopt import longopt_xlate
+            import string
+            lines = file("installer_posix/dtella.template.sh").readlines()
+            for (k, _, _) in self.user_options:
+                k = string.translate(k, longopt_xlate)
+                if k[-1] == "=":
+                    k = k[:-1]
+                v = getattr(self, k)
+
+                for i, line in enumerate(lines):
+
+                    if line[:len(k)+3] != k + '=""':
+                        continue
+
+                    kl, vl = len(k), len(v)
+                    e = line.find('#')
+
+                    if e < 0:
+                        lines[i] = '%s="%s"' % (k, v)
+                    elif kl+3+vl < e:
+                        lines[i] = '%s="%s"' % (k, v) + line[kl+3+vl:]
+                    else:
+                        lines[i] = '%s="%s"\n%s%s' % (k, v, ' '*e, line[e:])
+
+            f = "%s/%s.sh" % (self.dist_dir, self.PROD)
+            wfile = file(f, "w")
+            for line in lines:
+                wfile.write(line)
+            wfile.close()
+            os.chmod(f, 0755)
+            print "installer wrote to %s" %f
 
     excludes = get_excludes()
 
