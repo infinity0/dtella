@@ -220,7 +220,7 @@ if __name__ == '__main__':
                             self.copy_file(path, full)
                             self.compiled_files.append(path)
 
-        my_commands['py2exe']: py2exe_pkg
+        my_commands['py2exe'] = py2exe_pkg
 
 
     # The class definitions have to be here because py2exe fucks with python's
