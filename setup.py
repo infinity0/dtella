@@ -122,29 +122,6 @@ def patch_nsi_template(suffix=''):
     wfile.close()
 
 
-def patch_camdc_nsi_template():
-    # Generate NSI file from template
-
-    dt_name = properties['name']
-    dt_version = properties['version']
-    dt_simplename = properties['name'] + '-' + properties['version']
-
-    wfile = file("installer_win/camdc.nsh", "w")
-
-    for line in file("installer_win/camdc.template.nsh"):
-        if "PATCH_ME" in line:
-            if "DTELLA_NAME" in line:
-                line = line.replace("PATCH_ME", dt_name)
-            elif "DTELLA_VERSION" in line:
-                line = line.replace("PATCH_ME", dt_version)
-            elif "DTELLA_SOURCENAME" in line:
-                line = line.replace("PATCH_ME", dt_simplename)
-            else:
-                raise Error("Unpatchable NSI line: %s" % line)
-        wfile.write(line)
-    wfile.close()
-
-
 if __name__ == '__main__':
 
     from distutils.dist import Distribution
@@ -181,9 +158,6 @@ if __name__ == '__main__':
             patch_nsi_template()
         elif sys.argv[2] == 'updater':
             patch_nsi_template('updater')
-            del sys.argv[2]
-        elif sys.argv[2] == 'camdc':
-            patch_camdc_nsi_template()
             del sys.argv[2]
         else:
             patch_nsi_template()
