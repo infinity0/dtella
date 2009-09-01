@@ -37,12 +37,15 @@ properties = {
     'url': 'http://camdc.pcriot.com',
     'license': 'GPL v3',
     'platforms': ['posix', 'win32', 'darwin'],
+    'options': {},
 }
 ## FIXME have this empty by default and set only if --format= is set
 build_type = "tar.bz2"
 
+
 class Error(Exception):
     pass
+
 
 def get_excludes():
     ex = []
@@ -68,6 +71,23 @@ def get_excludes():
     ex.append("dtella.bridge")
 
     return ex
+
+
+def get_includes():
+    inc = []
+
+    # this is required for py2exe/py2app to work with shelve
+    for db in ['dbhash', 'gdbm', 'dbm', 'dumbdbm']:
+        try:
+            __import__(db)
+            inc.append(db)
+        except ImportError:
+            pass
+
+    if not inc:
+        raise Error("Could not find a suitable dbm. Check your python installation.")
+
+    return inc
 
 
 # TODO find a better way of doing this...
@@ -149,6 +169,14 @@ if __name__ == '__main__':
         build_type = 'dmg'
         import py2app
         properties['app'] = ["dtella.py"]
+        properties['options']['py2app'] = {
+            "optimize": 2,
+            "argv_emulation": True,
+            "iconfile": "icons/dtella.icns",
+            "plist": {'LSBackgroundOnly':True},
+            "excludes": get_excludes(),
+            "includes": get_includes(),
+        }
 
     elif sys.platform == 'win32':
         build_type = 'exe'
@@ -159,7 +187,7 @@ if __name__ == '__main__':
         try:
             from py2exe import Distribution
         except ImportError:
-            print "Warning: could not import py2exe Distribution class; continuing anyway"
+            print "warning: could not import py2exe Distribution class; continuing anyway"
 
         if len(sys.argv) <= 2:
             patch_nsi_template()
@@ -172,14 +200,23 @@ if __name__ == '__main__':
         else:
             patch_nsi_template()
 
-        properties['zipfile'] = None,
+        properties['zipfile'] = None
         properties['windows'] = [{
             "script": "dtella.py",
             "icon_resources": [(1, "icons/dtella.ico"), (10, "icons/kill.ico")],
         }]
+        properties['options']['py2exe'] = {
+            "optimize": 2,
+            "bundle_files": 1,
+            "ascii": True,
+            "dll_excludes": ["libeay32.dll"],
+            "excludes": get_excludes(),
+            "includes": get_includes(),
+        }
 
-    # The class definitions have to be here because py2exe fucks with standard python's
-    # Distribution class; we need to extend whichever class is newest
+    # The class definitions have to be here because py2exe fucks with python's
+    # standard Distribution class; we need to extend whichever class is newest
+
 
     class MyDist(Distribution):
 
@@ -196,6 +233,7 @@ if __name__ == '__main__':
             except AttributeError:
                 pass
             Distribution.run_commands(self)
+
 
     class bdist_shinst(bdist):
 
@@ -294,32 +332,12 @@ if __name__ == '__main__':
             os.chmod(f, 0755)
             print "installer wrote to %s" %f
 
-    excludes = get_excludes()
 
     setup(
         distclass = MyDist,
         cmdclass = {'bdist_shinst': bdist_shinst},
-        options = {
-            "py2exe": {
-                "optimize": 2,
-                "bundle_files": 1,
-                "ascii": True,
-                "dll_excludes": ["libeay32.dll"],
-                "excludes": excludes,
-            },
-
-            "py2app": {
-                "optimize": 2,
-                "argv_emulation": True,
-                "iconfile": "icons/dtella.icns",
-                "plist": {'LSBackgroundOnly':True},
-                "excludes": excludes,
-            }
-        },
-
         packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
-        package_data={'dtella': ['network.cfg']},
+        package_data = {'dtella': ['network.cfg']},
         scripts = ['bin/dtella'],
-
         **properties
     )
