@@ -73,20 +73,20 @@ class StateManager(State):
 
     def __init__(self, main, filename, **args):
         defaults = {
-        'clientport': 7314,
-        'killkey': '',
-        'persistent': False,
-        'localsearch': True,
-        'ipcache': '',
-        'suffix': '',
-        'dns_ipcache': '\0\0\0\0',
-        'dns_pkhashes': set(),
+            'clientport': 7314,
+            'killkey': '',
+            'persistent': False,
+            'localsearch': True,
+            'ipcache': '',
+            'suffix': '',
+            'dns_ipcache': (0, []),
+            'dns_pkhashes': set(),
 #''' BEGIN NEWITEMS MOD #
-        'newitems_notify': True,
+            'newitems_notify': True,
 # END NEWITEMS MOD '''#
         }
         default_callbacks = {
-        'udp_port': random_udp,
+            'udp_port': random_udp,
         }
         self.__dict__["main"] = main
         self.__dict__["peers"] = {}   # {ipp -> time}
@@ -166,6 +166,12 @@ class StateManager(State):
             self.addExemptIP(ad)
 
         return len(ipps)
+
+    def addDNSPKHash(self, hash):
+        # shelve does not persist mutated data; we must assign to it
+        hashes = self.dns_pkhashes
+        hashes.add(hash)
+        self.dns_pkhashes = hashes
 
 
 def random_udp():

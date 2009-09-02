@@ -3,7 +3,7 @@ set ARC="C:\Program Files\7-Zip\7z.exe"
 set ARC64="C:\Program Files (x86)\7-Zip\7z.exe"
 set NSIS="C:\Program Files\NSIS\makensis.exe"
 set NSIS64="C:\Program Files (x86)\NSIS\makensisw.exe"
-set PYTHON="C:\python25\python.exe"
+set PYTHON="C:\python26\python.exe"
 set OUTDIR="dist"
 
 echo Now Checking for Build Utilities...

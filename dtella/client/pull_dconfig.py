@@ -164,7 +164,7 @@ class DynamicConfigPuller(object):
 
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
-                state.dns_pkhashes.add(h)
+                state.addDNSPKHash(h)
 
             elif name == 'ipcache':
                 try:
