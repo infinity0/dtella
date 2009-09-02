@@ -164,7 +164,10 @@ class DynamicConfigPuller(object):
 
             elif name == 'pkhash':
                 h = binascii.a2b_base64(value)
-                state.dns_pkhashes.add(h)
+                # shelve does not persist mutated data; we must assign to it
+                hashes = state.dns_pkhashes
+                hashes.add(h)
+                state.dns_pkhashes = hashes
 
             elif name == 'ipcache':
                 try:
