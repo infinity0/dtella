@@ -190,10 +190,10 @@ if __name__ == '__main__':
         my_commands['py2exe'] = py2exe_pkg
 
 
-    # "from distutils.dist import Distribution" will get the unpatched version
+    # "from distutils.core import Distribution" will get the unpatched version
     # of it; py2app and py2exe both patch it and we need to extend that
-    import distutils.dist
-    _Distribution = distutils.dist.Distribution
+    import distutils.core
+    _Distribution = distutils.core.Distribution
     class MyDist(_Distribution):
 
         def __init__(self, attrs=None):
