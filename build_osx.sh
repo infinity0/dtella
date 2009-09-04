@@ -25,8 +25,6 @@ cp docs/gpl.txt /Volumes/Dtella/
 diskutil rename /Volumes/Dtella/ $FILEBASE
 hdiutil eject /Volumes/$FILEBASE
 
-hdiutil convert $BLDIR/template.sparseimage -format UDBZ -o $FILEBASE.dmg
-
-mv $FILEBASE.dmg $OUTDIR
+hdiutil convert $BLDIR/template.sparseimage -format UDBZ -o $OUTDIR/$FILEBASE.dmg
 
 rm $BLDIR/template.sparseimage
