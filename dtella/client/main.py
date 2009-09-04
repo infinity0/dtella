@@ -178,6 +178,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
         def dns_cb():
             try:
                 when, ipps = self.state.dns_ipcache
+                self.showLoginStatus("-- Got %s seeds from the IPP cache" % len(ipps))
             except ValueError:
                 pass
             else:
