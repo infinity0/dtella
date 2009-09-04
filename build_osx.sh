@@ -4,9 +4,9 @@ eval $(python makevars.py)
 BLDIR="installer_osx"
 OUTDIR="dist"
 
-rm -r build
-rm $BLDIR/template.sparseimage
-rm $OUTDIR/$FILEBASE.dmg
+python setup.py clean -a
+rm -f $BLDIR/template.sparseimage
+rm -f $OUTDIR/$FILEBASE.dmg
 
 python setup.py py2app || exit
 
