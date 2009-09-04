@@ -11,3 +11,4 @@ else:
     export = "export"
 
 print '%s FILEBASE="%s"' % (export, name + '-' + version)
+print '%s FILENAME="%s"' % (export, name)

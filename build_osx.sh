@@ -1,32 +1,32 @@
+#!/bin/sh
+
 # set FILEBASE
 eval $(python makevars.py)
 
 BLDIR="installer_osx"
 OUTDIR="dist"
 
-rm -r build
-rm $BLDIR/template.sparseimage
-rm $OUTDIR/$FILEBASE.dmg
+python setup.py clean -a
+rm -f "$BLDIR/template.sparseimage"
+rm -f "$OUTDIR/$FILEBASE.dmg"
 
 python setup.py py2app || exit
 
 hdiutil eject /Volumes/Dtella
-hdiutil eject /Volumes/$FILEBASE
+hdiutil eject "/Volumes/$FILEBASE"
 
-hdiutil convert $BLDIR/template.dmg -format UDSP -o $BLDIR/template
-hdiutil attach $BLDIR/template.sparseimage
+hdiutil convert "$BLDIR/template.dmg" -format UDSP -o "$BLDIR/template"
+hdiutil attach "$BLDIR/template.sparseimage"
 
-cp -R dist/Dtella.app/ /Volumes/Dtella/Dtella.app
+cp -R "dist/$FILENAME.app/" /Volumes/Dtella/Dtella.app # BSD cp only!
 cp docs/readme.txt /Volumes/Dtella/
 cp docs/changelog.txt /Volumes/Dtella/
 cp docs/changelog_adc.txt /Volumes/Dtella/
 cp docs/gpl.txt /Volumes/Dtella/
 
-diskutil rename /Volumes/Dtella/ $FILEBASE
-hdiutil eject /Volumes/$FILEBASE
+diskutil rename /Volumes/Dtella/ "$FILEBASE"
+hdiutil eject "/Volumes/$FILEBASE"
 
-hdiutil convert $BLDIR/template.sparseimage -format UDBZ -o $FILEBASE.dmg
+hdiutil convert "$BLDIR/template.sparseimage" -format UDBZ -o "$OUTDIR/$FILEBASE.dmg"
 
-mv $FILEBASE.dmg $OUTDIR
-
-rm $BLDIR/template.sparseimage
+rm "$BLDIR/template.sparseimage"

@@ -148,7 +148,6 @@ def patch_camdc_nsi_template():
 
 if __name__ == '__main__':
 
-    from distutils.dist import Distribution
     from distutils.core import setup
     from distutils.command.bdist import bdist
 
@@ -157,6 +156,7 @@ if __name__ == '__main__':
     if sys.platform == 'darwin':
         build_type = 'dmg'
         import py2app
+
         properties['app'] = ["dtella.py"]
         properties['options']['py2app'] = {
             "optimize": 2,
@@ -169,14 +169,7 @@ if __name__ == '__main__':
 
     elif sys.platform == 'win32':
         build_type = 'exe'
-
         import py2exe
-        # py2exe is supposed to overwrite distutils.dist.Distribution but this seems
-        # not to work, even if we import dist.Distribution after importing py2exe
-        try:
-            from py2exe import Distribution
-        except ImportError:
-            print "Error: could not import py2exe Distribution class; trying to continue anyway"
 
         if len(sys.argv) <= 2:
             patch_nsi_template()
@@ -224,14 +217,14 @@ if __name__ == '__main__':
         my_commands['py2exe'] = py2exe_pkg
 
 
-    # The class definitions have to be here because py2exe fucks with python's
-    # standard Distribution class; we need to extend whichever class is newest
-
-
-    class MyDist(Distribution):
+    # "from distutils.core import Distribution" will get the unpatched version
+    # of it; py2app and py2exe both patch it and we need to extend that
+    import distutils.core
+    _Distribution = distutils.core.Distribution
+    class MyDist(_Distribution):
 
         def __init__(self, attrs=None):
-            Distribution.__init__(self, attrs)
+            _Distribution.__init__(self, attrs)
             self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
 
         def run_commands(self):
@@ -242,7 +235,7 @@ if __name__ == '__main__':
                 self.packages.append('dtella.bridge')
             except AttributeError:
                 pass
-            Distribution.run_commands(self)
+            _Distribution.run_commands(self)
 
 
     class bdist_shinst(bdist):
