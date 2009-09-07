@@ -40,6 +40,7 @@ class DtellaMain_Bridge(core.DtellaMain_Base):
 
         # State Manager
         self.state = dtella.common.state.StateManager(self, cfg.file_base + '.db')
+        self.state.initLoad()
 
         self.state.persistent = True
         self.state.udp_port = cfg.udp_port

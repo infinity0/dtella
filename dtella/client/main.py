@@ -77,6 +77,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
 
         # State Manager
         self.state = dtella.common.state.StateManager(self, STATE_FILE)
+        self.state.initLoad()
 
         # DNS Handler
         self.dcfg = dtella.client.pull_dconfig.DynamicConfigPuller(self)

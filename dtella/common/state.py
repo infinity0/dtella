@@ -60,6 +60,7 @@ class State():
 
     def __getattr__(self, name):
         if name in self.db:
+            #print "loading %s = %s" % (name, self.db[name])
             return self.db[name]
         elif name in self.defs:
             return self.defs[name]
@@ -93,7 +94,7 @@ class StateManager(State):
             'killkey': '',
             'persistent': False,
             'localsearch': True,
-            'ipcache': '',
+            'ipcache': {},                   # {time -> ipp}
             'suffix': '',
             'dns_ipcache': (0, []),
             'dns_pkhashes': set(),
@@ -113,10 +114,11 @@ class StateManager(State):
         # init the persistent fields
         State.__init__(self, get_user_path(filename), defaults, default_callbacks, **args)
 
+
+    def initLoad(self):
         # refresh peers from ipcache
-        ipcache = self.ipcache
         now = time.time()
-        for ipp, when in ipcache:
+        for when, ipp in self.ipcache:
             self.refreshPeer(Ad().setRawIPPort(ipp), now - when)
 
 

@@ -238,11 +238,11 @@ def main():
             print "Port must be between 1-65535"
             return 2
 
-    import dtella.common.state as state
+    import anydbm, dtella.common.state as state
     from dtella.client.main import STATE_FILE
     try:
         sm = state.StateManager(None, STATE_FILE, flag='r')
-    except Exception:
+    except anydbm.error:
         sm = state.StateManager(None, STATE_FILE, flag='n')
 
     if not dc_port:
