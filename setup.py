@@ -194,6 +194,9 @@ if __name__ == '__main__':
 
         my_commands['py2exe'] = py2exe_pkg
 
+    else:
+        del properties['options']
+
 
     # "from distutils.core import Distribution" will get the unpatched version
     # of it; py2app and py2exe both patch it and we need to extend that
