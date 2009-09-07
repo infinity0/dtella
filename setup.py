@@ -40,6 +40,7 @@ properties = {
 }
 ## FIXME have this empty by default and set only if --format= is set
 build_type = "tar.bz2"
+bugs_email = "cabal@camdc.pcriot.com"
 
 
 class Error(Exception):
@@ -77,11 +78,15 @@ def get_includes():
 
 
 # TODO find a better way of doing this...
-def make_build_config(type, data_dir=None):
+def make_build_config(type, bugs_email, data_dir=None):
     # Patch the build_config with the correct variables
     global properties
     props = properties.copy()
-    props.update({'type': type, 'data_dir': data_dir})
+    props.update({
+        'type': type,
+        'bugs_email': bugs_email,
+        'data_dir': data_dir,
+    })
 
     lines = []
     for line in file("dtella/build_config.py.in").readlines():
@@ -201,8 +206,8 @@ if __name__ == '__main__':
             self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
 
         def run_commands(self):
-            global build_type
-            make_build_config(build_type)
+            global build_type, bugs_email
+            make_build_config(build_type, bugs_email)
             try:
                 getattr(self, "bridge")
                 self.packages.append('dtella.bridge')
@@ -253,7 +258,7 @@ if __name__ == '__main__':
 
         def run(self):
             try:
-                import dtella.bridge.bridge_config as bcfg
+                import dtella.bridge_config as bcfg
                 self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
                 i = self.REPO.find('#')
                 if i >= 0:

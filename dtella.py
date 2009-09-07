@@ -104,13 +104,6 @@ def runClient(dc_port):
     import dtella.build_config as build
     from dtella.common.util import get_version_string
 
-    bugs_email = "bugs@dtella.org"
-    try:
-        if local.bugs_email:
-            bugs_email = local.bugs_email
-    except AttributeError:
-        pass
-
     def botErrorReporter(text):
         dch = dtMain.dch
         if dch:
@@ -118,7 +111,7 @@ def runClient(dc_port):
                 "Something bad happened.  You might want to email this to "
                 "%s so we'll know about it:\n"
                 "Version: %s %s\n%s" %
-                (bugs_email, local.hub_name, get_version_string()[3:], text))
+                (build.bugs_email, local.hub_name, get_version_string()[3:], text))
 
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
