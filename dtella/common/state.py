@@ -23,8 +23,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 import shelve, random, time, socket, struct, heapq
 
+from twisted.internet import reactor
 from dtella.common.util import dcall_discard, get_user_path, CHECK
 from dtella.common.ipv4 import Ad
+
 
 class State():
     """
@@ -39,12 +41,22 @@ class State():
         data = d[key]
         data.append(anitem)
         d[key] = data
+
+    If you extend this class and want to have non-persistent fields, you must
+    store a placeholder for them in self.__dict__ during object initialisation.
+    These fields will then be treated as non-persistent. For example:
+
+        def __init__(self, **args)
+            State.__init__(self, **args)
+            self.__dict__["filename"] = "state.db"
+
     """
     def __init__(self, filename, defs={}, def_cb={}, **args):
-        # __setattr__ takes precedence, can't use self.db = val
-        self.__dict__["db"] = shelve.open(filename, **args)
-        self.__dict__["defs"] = defs
-        self.__dict__["def_cb"] = def_cb
+        self.__dict__.update({
+            "db": shelve.open(filename, **args), # __setattr__ takes precedence, can't use self.db = val
+            "defs": defs,
+            "def_cb": def_cb,
+        })
 
     def __getattr__(self, name):
         if name in self.db:
@@ -60,13 +72,17 @@ class State():
             return None
 
     def __setattr__(self, name, value):
-        self.db[name] = value
-        self.db.sync()
+        if name in self.__dict__:
+            # keys in self.__dict__ are not persistent
+            self.__dict__[name] = value
+        else:
+            #print "saving %s = %s" % (name, value)
+            self.db[name] = value
+            self.db.sync()
 
     def __delattr__(self, name):
         if name in self.db:
             del self.db[name]
-
 
 
 class StateManager(State):
@@ -85,10 +101,23 @@ class StateManager(State):
         default_callbacks = {
             'udp_port': random_udp,
         }
-        self.__dict__["main"] = main
-        self.__dict__["peers"] = {}   # {ipp -> time}
-        self.__dict__["exempt_ips"] = set()
+
+        # init the non-persistent fields
+        self.__dict__.update({
+            "main": main,
+            "peers": {},                   # {ipp -> time}
+            "exempt_ips": set(),
+            "ipcache_dcall": None,
+        })
+
+        # init the persistent fields
         State.__init__(self, get_user_path(filename), defaults, default_callbacks, **args)
+
+        # refresh peers from ipcache
+        ipcache = self.ipcache
+        now = time.time()
+        for ipp, when in ipcache:
+            self.refreshPeer(Ad().setRawIPPort(ipp), now - when)
 
 
     def addExemptIP(self, ad):
@@ -137,11 +166,19 @@ class StateManager(State):
             target = max(target, len(self.main.osm.nodes))
 
         if len(self.peers) > target * 1.5:
-            keep = set([ipp for when,ipp in self.getYoungestPeers(target)])
+            keep = set([ipp for when, ipp in self.getYoungestPeers(target)])
 
             for ipp in self.peers.keys():
                 if ipp not in keep:
                     del self.peers[ipp]
+
+        # Save the peers, but not more than once every second
+        def cb():
+            self.ipcache_dcall = None
+            self.ipcache = self.getYoungestPeers(128)
+
+        if not self.ipcache_dcall:
+            self.ipcache_dcall = reactor.callLater(1, cb)
 
 
     def setDNSIPCache(self, data):
