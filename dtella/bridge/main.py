@@ -39,7 +39,7 @@ class DtellaMain_Bridge(core.DtellaMain_Base):
         core.DtellaMain_Base.__init__(self)
 
         # State Manager
-        self.state = dtella.common.state.StateManager(self, cfg.file_base + '.db')
+        self.state = dtella.common.state.StateManager(self, cfg.cfgname)
         self.state.initLoad()
 
         self.state.persistent = True

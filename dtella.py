@@ -71,7 +71,7 @@ def runBridge(bridge_cfg):
     set_cfg("dtella.bridge_config", bridge_cfg)
 
     import dtella.bridge_config as bcfg
-    setLogFile(bcfg.file_base + ".log", 4<<20, 4)
+    setLogFile(bcfg.cfgname + ".log", 4<<20, 4)
     LOG.debug("Bridge Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -91,7 +91,7 @@ def runDconfigPusher(bridge_cfg):
     set_cfg("dtella.bridge_config", bridge_cfg)
 
     import dtella.bridge_config as bcfg
-    setLogFile(bcfg.file_base + ".log", 4<<20, 4)
+    setLogFile(bcfg.cfgname + ".log", 4<<20, 4)
     LOG.debug("Dconfig Pusher Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -235,7 +235,11 @@ def main():
     from optparse import OptionParser, OptionGroup
     parser = OptionParser(
         usage = "Usage: %prog [OPTIONS] [CONFIG]",
-        version = "%s %s" % (build.name, build.version),
+        description = "Run Dtella with the given CONFIG. If none is given, the "
+                      "user's default one will be used. If the CONFIG to be used "
+                      "does not exist, the system default will be copied to its "
+                      "location, given by ~/.dtella/${TYPE}_${CONFIG}.cfg",
+        version = "%s-%s" % (build.name, build.version),
     )
 
     # custom optgroup class that doesn't indent option group sections
@@ -267,9 +271,9 @@ def main():
         group = MyOptGroup(parser, "Bridge mode options",
             "In this mode, CONFIG should be the name of a bridge configuration.")
         group.add_option("-b", "--bridge", action="store_true",
-                          help="run Dtella as a bridge")
+                          help="run as a bridge")
         group.add_option("-d", "--dconfigpusher", action="store_true",
-                          help="run Dtella to push seed config data")
+                          help="push seed config data")
         group.add_option("-m", "--makeprivatekey", action="store_true",
                           help="make a keypair to use for a new bridge")
         parser.add_option_group(group)

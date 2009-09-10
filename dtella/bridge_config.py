@@ -44,7 +44,7 @@ max_irc_nick_len = 30
 dconfig_push_interval = 60*60
 
 # Set fields from the config
-file_base = cfgname = load_cfg(__name__, prefix)
+cfgname = load_cfg(__name__, prefix)
 
 # Verify required fields are all there
 
@@ -68,7 +68,7 @@ service_classes = {
 }
 try:
     service_ircd = service_ircd.lower()
-    if service_ircd.endsWith("ircd"):
+    if service_ircd.endswith("ircd"):
         service_ircd = service_ircd[:-4]
     service_class = service_classes[service_ircd]
 except AttributeError, KeyError:
