@@ -43,11 +43,9 @@ from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
 from dtella.common.log import LOG
 from dtella.common.ipv4 import Ad
 
-STATE_FILE = "dtella.db"
-
 class DtellaMain_Client(core.DtellaMain_Base):
 
-    def __init__(self):
+    def __init__(self, STATE_FILE):
         core.DtellaMain_Base.__init__(self)
 
         # Location map: ipp->string, usually only contains 1 entry

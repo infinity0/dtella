@@ -44,11 +44,16 @@ from twisted.internet import reactor
 import sys
 import socket
 import time
-import getopt
+
+try:
+    import dtella.build_config as build
+except ImportError:
+    print 'You need to run "setup.py build" to generate dtella.build_config'
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
 
+STATE_FILE = "dtella.db"
 
 
 def addTwistedErrorCatcher(handler):
@@ -63,9 +68,9 @@ def addTwistedErrorCatcher(handler):
     twisted.python.log.startLoggingWithObserver(logObserver, setStdout=False)
 
 
-def runBridge():
-    import dtella.bridge_config as cfg
-    setLogFile(cfg.file_base + ".log", 4<<20, 4)
+def runBridge(bridge_cfg):
+    import dtella.bridge_config as bcfg
+    setLogFile(bcfg.file_base + ".log", 4<<20, 4)
     LOG.debug("Bridge Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -80,9 +85,9 @@ def runBridge():
     reactor.run()
 
 
-def runDconfigPusher():
-    import dtella.bridge_config as cfg
-    setLogFile(cfg.file_base + ".log", 4<<20, 4)
+def runDconfigPusher(bridge_cfg):
+    import dtella.bridge_config as bcfg
+    setLogFile(bcfg.file_base + ".log", 4<<20, 4)
     LOG.debug("Dconfig Pusher Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -92,16 +97,19 @@ def runDconfigPusher():
     reactor.run()
 
 
-def runClient(dc_port):
+def runClient(dc_port, client_cfg=None):
     #Logging for Dtella Client
     setLogFile("dtella.log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
 
+    from dtella.common.util import set_cfg
+    set_cfg("dtella.local_config", client_cfg)
+
     from dtella.client.main import DtellaMain_Client
-    dtMain = DtellaMain_Client()
+    global STATE_FILE
+    dtMain = DtellaMain_Client(STATE_FILE)
 
     import dtella.local_config as local
-    import dtella.build_config as build
     from dtella.common.util import get_version_string
 
     def botErrorReporter(text):
@@ -189,49 +197,70 @@ def terminate(dc_port, killkey):
 
 
 def main():
-    # Parse command-line arguments
-    allowed_opts = []
-    usage_str = "Usage: %s" % sys.argv[0]
+    from optparse import OptionParser, OptionGroup
+    parser = OptionParser(
+        usage = "Usage: %prog [OPTIONS] [CONFIG]",
+        version = "%s %s" % (build.name, build.version),
+    )
+
+    # custom optgroup class that doesn't indent option group sections
+    class MyOptGroup(OptionGroup):
+        def format_help(self, formatter):
+            formatter.dedent()
+            s = OptionGroup.format_help(self, formatter)
+            formatter.indent()
+            return s
 
     try:
         import dtella.client
     except ImportError:
         pass
     else:
-        usage_str += " [--port=#] [--terminate]"
-        allowed_opts.extend(['port=', 'terminate'])
+        group = MyOptGroup(parser, "Client mode options",
+            "In this mode, CONFIG should be the name of a network configuration.")
+        group.add_option("-p", "--port", type="int",
+                         help="listen for the DC client on localhost:PORT", metavar="PORT")
+        group.add_option("-t", "--terminate", action="store_true",
+                         help="terminate the running Dtella client node")
+        parser.add_option_group(group)
 
     try:
         import dtella.bridge
     except ImportError:
         pass
     else:
-        usage_str += " [--bridge] [--dconfigpusher] [--makeprivatekey]"
-        allowed_opts.extend(['bridge', 'dconfigpusher', 'makeprivatekey'])
+        group = MyOptGroup(parser, "Bridge mode options",
+            "In this mode, CONFIG should be the name of a bridge configuration.")
+        group.add_option("-b", "--bridge", action="store_true",
+                          help="run Dtella as a bridge")
+        group.add_option("-d", "--dconfigpusher", action="store_true",
+                          help="run Dtella to push seed config data")
+        group.add_option("-m", "--makeprivatekey", action="store_true",
+                          help="make a keypair to use for a new bridge")
+        parser.add_option_group(group)
 
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], '', allowed_opts)
-    except getopt.GetoptError:
-        print usage_str
-        return 2
+    (opts, args) = parser.parse_args()
+    #print opts, args
 
-    opts = dict(opts)
+    config = None
+    if len(args) > 0:
+        config = args[0]
 
-    if '--bridge' in opts:
-        return runBridge()
+    if opts.bridge:
+        return runBridge(config)
 
-    if '--dconfigpusher' in opts:
-        return runDconfigPusher()
+    if opts.dconfigpusher:
+        return runDconfigPusher(config)
 
-    if '--makeprivatekey' in opts:
+    if opts.makeprivatekey:
         from dtella.bridge.private_key import makePrivateKey
         return makePrivateKey()
 
     # User-specified TCP port
     dc_port = None
-    if '--port' in opts:
+    if opts.port:
         try:
-            dc_port = int(opts['--port'])
+            dc_port = opts.port
             if not (1 <= dc_port < 65536):
                 raise ValueError
         except ValueError:
@@ -239,7 +268,7 @@ def main():
             return 2
 
     import anydbm, dtella.common.state as state
-    from dtella.client.main import STATE_FILE
+    global STATE_FILE
     try:
         sm = state.StateManager(None, STATE_FILE, flag='r')
     except anydbm.error:
@@ -249,7 +278,7 @@ def main():
         dc_port = sm.clientport
 
     # Try to terminate an existing process
-    if '--terminate' in opts:
+    if opts.terminate:
         if terminate(dc_port, sm.killkey):
             # Give the other process time to exit first
             print "Sleeping..."
@@ -267,7 +296,7 @@ def main():
             print "TCP port %s is still in use." % dc_port
             return 1
 
-    return runClient(dc_port)
+    return runClient(dc_port, config)
 
 
 if __name__=='__main__':

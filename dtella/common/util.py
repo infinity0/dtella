@@ -436,6 +436,53 @@ def word_wrap(line, max_len=80):
     return lines
 
 
+confignames = {}
+
+def set_cfg(modname, cfg):
+    if modname in sys.modules:
+        # Can't think of a better exception, oh well
+        raise ImportError("%s has already been imported; set_cfg will have no effect." % modname)
+
+    global confignames
+    confignames[modname] = cfg
+
+
+def load_cfg(modname, prefix):
+    global confignames
+
+    # These are python 2.6 modules, we can remove them from the dtella source tree
+    # when python 2.5 is obsolete, and delete "dtella.common." from these lines
+    from dtella.common.ast import literal_eval
+    from dtella.common.pkgutil import get_data
+
+    if modname in confignames and confignames[modname]:
+        cfg = "%s_%s.cfg" % (prefix, confignames[modname])
+    else:
+        cfg = prefix + ".cfg"
+
+    cfgfile = get_user_path(cfg)
+    if not os.path.exists(cfgfile):
+        # copy default config if user doesn't have an override
+        fp = open(cfgfile, 'w+')
+        for i in get_data(modname, prefix + ".cfg"):
+            fp.write(i)
+        fp.close()
+
+    import ConfigParser
+    config = ConfigParser.RawConfigParser()
+    config.read(cfgfile)
+    for i in config.sections():
+        for k, v in config.items(i):
+            try:
+                value = literal_eval(v)
+            except (ValueError, SyntaxError):
+                value = v
+            #print "%s = %s %s" % (k, value.__class__, value)
+            setattr(sys.modules[modname], k, value)
+
+    return cfgfile
+
+
 def CHECK(truth):
     if not truth:
         raise AssertionError("CHECK failed")

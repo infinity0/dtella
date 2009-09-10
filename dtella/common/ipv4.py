@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 # Note that there's no IPv6 stuff here.  If Dtella and IPv6 are ever popular
 # at the same time, we'll have to redesign the protocol to handle it.
 
-import dtella.local_config as local
 import bisect
 import struct
 import socket
@@ -62,8 +61,9 @@ class Ad(object):
                 return True
 
         if 's' in kinds:
+            import dtella.local_config as local
             # Static evaluation
-            if not local_matcher.containsIP(int_ip):
+            if not local.ip_matcher.containsIP(int_ip):
                 return False
             if self.isPrivate():
                 return False
@@ -71,11 +71,12 @@ class Ad(object):
         return True
 
     def isPrivate(self):
+        import dtella.local_config as local
         # Return True for an IP in RFC1918 space, except for parts of
         # RFC1918 which have been declared as local.
         int_ip = self.getIntIP()
         return (rfc1918_matcher.containsIP(int_ip)
-                and not not_private_matcher.containsIP(int_ip))
+                and not local.not_private_matcher.containsIP(int_ip))
 
     # Set Stuff
     def setTextIP(self, ip):
@@ -92,11 +93,11 @@ class Ad(object):
     def setAddrTuple(self, addr):
         ip, port = addr
         self.setTextIP(ip)
-       
+
         if not 0 <= port < 65536:
             raise ValueError("Port out of range")
         self.port = port
-        
+
         return self
 
     def setTextIPPort(self, ip):
@@ -284,18 +285,6 @@ class SubnetMatcher(object):
     def clear(self):
         del self.nets[:]
 
-# Create a subnet matcher for locally-configured IPs.
-local_matcher = SubnetMatcher(local.allowed_subnets)
-
 # Create a subnet matcher for RFC1918 addresses.
 rfc1918_matcher = SubnetMatcher(
     ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'])
-
-# If any explicitly-allowed subnets are subsets of RFC1918 space,
-# then IPs in those subnets should NOT be classified as private.
-not_private_matcher = SubnetMatcher()
-for r in local.allowed_subnets:
-    ipmask = CidrStringToIPMask(r)
-    if rfc1918_matcher.containsRange(ipmask):
-        not_private_matcher.addRange(ipmask)
-
