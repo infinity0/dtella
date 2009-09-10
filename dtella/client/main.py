@@ -45,7 +45,7 @@ from dtella.common.ipv4 import Ad
 
 class DtellaMain_Client(core.DtellaMain_Base):
 
-    def __init__(self, STATE_FILE):
+    def __init__(self):
         core.DtellaMain_Base.__init__(self)
 
         # Location map: ipp->string, usually only contains 1 entry
@@ -74,7 +74,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
             self.ph = bridge_client.BridgeClientProtocol(self)
 
         # State Manager
-        self.state = dtella.common.state.StateManager(self, STATE_FILE)
+        self.state = dtella.common.state.StateManager(self, local.cfgname)
         self.state.initLoad()
 
         # DNS Handler

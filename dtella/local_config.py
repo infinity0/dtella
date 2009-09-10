@@ -34,7 +34,7 @@ adc_fcrypto = False
 minshare_cap = str(1024 ** 3) # 1GiB
 
 # Set fields from the config
-cfgfile = load_cfg(__name__, prefix)
+cfgname = load_cfg(__name__, prefix)
 
 # Verify required fields are all there
 

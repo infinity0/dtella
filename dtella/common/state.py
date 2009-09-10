@@ -88,7 +88,7 @@ class State():
 
 class StateManager(State):
 
-    def __init__(self, main, filename, **args):
+    def __init__(self, main, statename, **args):
         defaults = {
             'clientport': 7314,
             'killkey': '',
@@ -112,7 +112,7 @@ class StateManager(State):
         })
 
         # init the persistent fields
-        State.__init__(self, get_user_path(filename), defaults, default_callbacks, **args)
+        State.__init__(self, get_user_path(statename + ".db"), defaults, default_callbacks, **args)
 
 
     def initLoad(self):

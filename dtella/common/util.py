@@ -441,7 +441,7 @@ confignames = {}
 def set_cfg(modname, cfg):
     if modname in sys.modules:
         # Can't think of a better exception, oh well
-        raise ImportError("%s has already been imported; set_cfg will have no effect." % modname)
+        raise ImportError("%s has already been imported; set_cfg() will have no effect." % modname)
 
     global confignames
     confignames[modname] = cfg
@@ -456,11 +456,11 @@ def load_cfg(modname, prefix):
     from dtella.common.pkgutil import get_data
 
     if modname in confignames and confignames[modname]:
-        cfg = "%s_%s.cfg" % (prefix, confignames[modname])
+        cfgname = prefix + "_" +  confignames[modname]
     else:
-        cfg = prefix + ".cfg"
+        cfgname = prefix
 
-    cfgfile = get_user_path(cfg)
+    cfgfile = get_user_path(cfgname + ".cfg")
     if not os.path.exists(cfgfile):
         # copy default config if user doesn't have an override
         fp = open(cfgfile, 'w+')
@@ -480,7 +480,7 @@ def load_cfg(modname, prefix):
             #print "%s = %s %s" % (k, value.__class__, value)
             setattr(sys.modules[modname], k, value)
 
-    return cfgfile
+    return cfgname
 
 
 def CHECK(truth):
