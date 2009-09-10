@@ -115,9 +115,10 @@ def terminate(dc_port, killkey):
             sock.sendall("$KillDtella %s|$KillDtella|" % b32encode(killkey))
         print "Sent Packet of Death on port %d..." % dc_port
         sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
     except socket.error:
         return False
+    finally:
+        sock.close()
 
     return True
 
@@ -152,13 +153,16 @@ def runClient(client_cfg, dc_port=None, terminator=False):
 
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Twisted uses these options so we use it too
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(('127.0.0.1', dc_port))
             print "TCP port %s is free." % dc_port
-            sock.close()
             return 0
-        except:
-            print "TCP port %s is still in use." % dc_port
+        except socket.error, e:
+            print "Failed to terminate on port %s: %s." % (dc_port, e)
             return 1
+        finally:
+            sock.close()
 
     from dtella.client.main import DtellaMain_Client
     dtMain = DtellaMain_Client()
