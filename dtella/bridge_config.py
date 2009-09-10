@@ -90,7 +90,7 @@ dconfig_pushers = {
     'yi': dtella.modules.push_yi.YiUpdater,
 }
 try:
-    dconfig_push_func = dconfig_pushers[dconfig_push_type](dconfig_push_options).update
+    dconfig_push_func = dconfig_pushers[dconfig_push_type](**dconfig_push_options).update
 except NameError, e:
     raise ImportError("Bridge config: no options supplied to the dconfig pusher (%s)" % e)
 except TypeError, e:
