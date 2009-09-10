@@ -44,7 +44,7 @@ max_irc_nick_len = 30
 dconfig_push_interval = 60*60
 
 # Set fields from the config
-cfgname = load_cfg(__name__, prefix)
+file_base = cfgname = load_cfg(__name__, prefix)
 
 # Verify required fields are all there
 
