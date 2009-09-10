@@ -292,16 +292,20 @@ def main():
             print "Port must be between 1-65535"
             return 2
 
-    # bridge mode
-    if opts.bridge:
-        return runBridge(config)
+    try:
+        # bridge mode
+        if opts.bridge:
+            return runBridge(config)
 
-    if opts.dconfigpusher:
-        return runDconfigPusher(config)
+        if opts.dconfigpusher:
+            return runDconfigPusher(config)
 
-    if opts.makeprivatekey:
-        from dtella.bridge.private_key import makePrivateKey
-        return makePrivateKey()
+        if opts.makeprivatekey:
+            from dtella.bridge.private_key import makePrivateKey
+            return makePrivateKey()
+
+    except AttributeError:
+        pass
 
     # client mode
     return runClient(config, dc_port, opts.terminate)

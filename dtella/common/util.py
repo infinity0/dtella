@@ -461,12 +461,15 @@ def load_cfg(modname, prefix):
         cfgname = prefix
 
     cfgfile = get_user_path(cfgname + ".cfg")
+    wrotenew = False
+
     if not os.path.exists(cfgfile):
         # copy default config if user doesn't have an override
         fp = open(cfgfile, 'w+')
         for i in get_data(modname, prefix + ".cfg"):
             fp.write(i)
         fp.close()
+        wrotenew = True
 
     import ConfigParser
     config = ConfigParser.RawConfigParser()
@@ -479,6 +482,12 @@ def load_cfg(modname, prefix):
                 value = v
             #print "%s = %s %s" % (k, value.__class__, value)
             setattr(sys.modules[modname], k, value)
+
+    # if we didn't explicity call set_cfg then don't save the config file.
+    # this means that we can eg. check for the existence of bridge_config by
+    # trying to import it, without any side effects. (reverse_dns does this)
+    if modname not in confignames and wrotenew:
+        os.remove(cfgfile)
 
     return cfgname
 

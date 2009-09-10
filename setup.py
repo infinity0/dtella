@@ -317,7 +317,8 @@ if __name__ == '__main__':
         distclass = MyDist,
         cmdclass = my_commands,
         packages = ['dtella', 'dtella.client', 'dtella.common', 'dtella.modules'],
-        package_data = {'dtella': ['network.cfg']},
+        # FIXME put bridge_config into dtella.bridge so we can exclude it
+        package_data = {'dtella': ['network.cfg', 'bridge.cfg']},
         scripts = ['bin/dtella'],
         **properties
     )
