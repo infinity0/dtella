@@ -30,6 +30,7 @@ prefix = "bridge"
 
 # Set defaults
 
+network = None
 myip_hint = ''
 ip_cache = []
 
@@ -60,6 +61,9 @@ except NameError, e:
     ]))
 
 # Postprocess some fields to the correct types, etc, whatever
+
+from dtella.common.util import set_cfg
+set_cfg("dtella.local_config", network)
 
 # Service config. Supported servers are "InspIRCd" and "UnrealIRCd"
 service_classes = {

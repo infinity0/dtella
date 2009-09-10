@@ -471,6 +471,7 @@ def load_cfg(modname, prefix):
         fp.close()
         wrotenew = True
 
+    #print "loading %s from %s" % (modname, cfgfile)
     import ConfigParser
     config = ConfigParser.RawConfigParser()
     config.read(cfgfile)

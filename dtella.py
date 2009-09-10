@@ -232,7 +232,7 @@ def runClient(client_cfg, dc_port=None, terminator=False):
 
 
 def main():
-    from optparse import OptionParser, OptionGroup
+    from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
     parser = OptionParser(
         usage = "Usage: %prog [OPTIONS] [CONFIG]",
         description = "Run Dtella with the given CONFIG. If none is given, the "
@@ -240,6 +240,7 @@ def main():
                       "does not exist, the system default will be copied to its "
                       "location, given by ~/.dtella/${TYPE}_${CONFIG}.cfg",
         version = "%s-%s" % (build.name, build.version),
+        formatter = IndentedHelpFormatter(max_help_position=25)
     )
 
     # custom optgroup class that doesn't indent option group sections
@@ -274,6 +275,9 @@ def main():
                           help="run as a bridge")
         group.add_option("-d", "--dconfigpusher", action="store_true",
                           help="push seed config data")
+        group.add_option("-n", "--network", metavar="CFG",
+                          help="when creating a new bridge config, initialise it to use "
+                               "the network CFG instead of the default network.")
         group.add_option("-m", "--makeprivatekey", action="store_true",
                           help="make a keypair to use for a new bridge")
         parser.add_option_group(group)
@@ -298,6 +302,10 @@ def main():
 
     try:
         # bridge mode
+        if opts.network:
+            print "--network has not been implemented yet; you'll have to edit the config yourself"
+            return 2
+
         if opts.bridge:
             return runBridge(config)
 
