@@ -44,7 +44,8 @@ class DtellaMain_DconfigPusher(core.DtellaMain_Base):
         self.hide_node = True
 
         # State Manager
-        self.state = dtella.common.state.StateManager(self, cfg.file_base + '.db')
+        self.state = dtella.common.state.StateManager(self, cfg.cfgname)
+        self.state.initLoad()
 
         self.state.persistent = True
         self.state.udp_port = cfg.udp_port

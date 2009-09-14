@@ -43,8 +43,6 @@ from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
 from dtella.common.log import LOG
 from dtella.common.ipv4 import Ad
 
-STATE_FILE = "dtella.db"
-
 class DtellaMain_Client(core.DtellaMain_Base):
 
     def __init__(self):
@@ -76,7 +74,8 @@ class DtellaMain_Client(core.DtellaMain_Base):
             self.ph = bridge_client.BridgeClientProtocol(self)
 
         # State Manager
-        self.state = dtella.common.state.StateManager(self, STATE_FILE)
+        self.state = dtella.common.state.StateManager(self, local.cfgname)
+        self.state.initLoad()
 
         # DNS Handler
         self.dcfg = dtella.client.pull_dconfig.DynamicConfigPuller(self)

@@ -1853,6 +1853,7 @@ class InitialContactManager(DatagramProtocol):
 
 
     class PeerInfo(object):
+        # Keep the latest timestamps at the top of the heap.
         __lt__ = lambda self,other: self.seen >  other.seen
         __le__ = lambda self,other: self.seen >= other.seen
 

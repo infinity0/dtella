@@ -44,11 +44,14 @@ from twisted.internet import reactor
 import sys
 import socket
 import time
-import getopt
+
+try:
+    import dtella.build_config as build
+except ImportError:
+    print 'You need to run "setup.py build" to generate dtella.build_config'
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
-
 
 
 def addTwistedErrorCatcher(handler):
@@ -63,9 +66,12 @@ def addTwistedErrorCatcher(handler):
     twisted.python.log.startLoggingWithObserver(logObserver, setStdout=False)
 
 
-def runBridge():
-    import dtella.bridge_config as cfg
-    setLogFile(cfg.file_base + ".log", 4<<20, 4)
+def runBridge(bridge_cfg):
+    from dtella.common.util import set_cfg
+    set_cfg("dtella.bridge_config", bridge_cfg)
+
+    import dtella.bridge_config as bcfg
+    setLogFile(bcfg.cfgname + ".log", 4<<20, 4)
     LOG.debug("Bridge Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -80,9 +86,12 @@ def runBridge():
     reactor.run()
 
 
-def runDconfigPusher():
-    import dtella.bridge_config as cfg
-    setLogFile(cfg.file_base + ".log", 4<<20, 4)
+def runDconfigPusher(bridge_cfg):
+    from dtella.common.util import set_cfg
+    set_cfg("dtella.bridge_config", bridge_cfg)
+
+    import dtella.bridge_config as bcfg
+    setLogFile(bcfg.cfgname + ".log", 4<<20, 4)
     LOG.debug("Dconfig Pusher Logging Manager Initialized")
 
     addTwistedErrorCatcher(LOG.critical)
@@ -92,25 +101,73 @@ def runDconfigPusher():
     reactor.run()
 
 
-def runClient(dc_port):
-    #Logging for Dtella Client
-    setLogFile("dtella.log", 1<<20, 1)
+def terminate(dc_port, killkey):
+    # Terminate another Dtella process on the local machine
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('127.0.0.1', dc_port))
+        import dtella.local_config as local
+        from base64 import b32encode
+        # the extra |$KillDtella| is so we can kill old nodes during an upgrade
+        if local.adc_mode:
+            sock.sendall("HKILLDTELLA %s\n|$KillDtella|" % b32encode(killkey))
+        else:
+            sock.sendall("$KillDtella %s|$KillDtella|" % b32encode(killkey))
+        print "Sent Packet of Death on port %d..." % dc_port
+        sock.shutdown(socket.SHUT_RDWR)
+    except socket.error:
+        return False
+    finally:
+        sock.close()
+
+    return True
+
+
+def runClient(client_cfg, dc_port=None, terminator=False):
+    # Set and load the network configuration
+    from dtella.common.util import set_cfg
+    set_cfg("dtella.local_config", client_cfg)
+    import dtella.local_config as local
+
+    # Logging for Dtella Client
+    setLogFile(local.cfgname + ".log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
+
+    if not dc_port:
+        import anydbm, dtella.common.state as state
+        try:
+            sm = state.StateManager(None, local.cfgname, flag='r')
+        except anydbm.error:
+            sm = state.StateManager(None, local.cfgname, flag='n')
+
+        dc_port = sm.clientport
+
+    # Try to terminate an existing process
+    if terminator:
+        if terminate(dc_port, sm.killkey):
+            # Give the other process time to exit first
+            print "Sleeping..."
+            time.sleep(2.0)
+        else:
+            print "Nothing to do."
+
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Twisted uses these options so we use it too
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(('127.0.0.1', dc_port))
+            print "TCP port %s is free." % dc_port
+            return 0
+        except socket.error, e:
+            print "Failed to terminate on port %s: %s." % (dc_port, e)
+            return 1
+        finally:
+            sock.close()
 
     from dtella.client.main import DtellaMain_Client
     dtMain = DtellaMain_Client()
 
-    import dtella.local_config as local
-    import dtella.build_config as build
     from dtella.common.util import get_version_string
-
-    bugs_email = "bugs@dtella.org"
-    try:
-        if local.bugs_email:
-            bugs_email = local.bugs_email
-    except AttributeError:
-        pass
-
     def botErrorReporter(text):
         dch = dtMain.dch
         if dch:
@@ -118,7 +175,7 @@ def runClient(dc_port):
                 "Something bad happened.  You might want to email this to "
                 "%s so we'll know about it:\n"
                 "Version: %s %s\n%s" %
-                (bugs_email, local.hub_name, get_version_string()[3:], text))
+                (build.bugs_email, local.hub_name, get_version_string()[3:], text))
 
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
@@ -174,107 +231,96 @@ def runClient(dc_port):
     return exit_code
 
 
-def terminate(dc_port, killkey):
-    # Terminate another Dtella process on the local machine
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('127.0.0.1', dc_port))
-        import dtella.local_config as local
-        from base64 import b32encode
-        # the extra |$KillDtella| is so we can kill old nodes during an upgrade
-        if local.adc_mode:
-            sock.sendall("HKILLDTELLA %s\n|$KillDtella|" % b32encode(killkey))
-        else:
-            sock.sendall("$KillDtella %s|$KillDtella|" % b32encode(killkey))
-        print "Sent Packet of Death on port %d..." % dc_port
-        sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
-    except socket.error:
-        return False
-
-    return True
-
-
 def main():
-    # Parse command-line arguments
-    allowed_opts = []
-    usage_str = "Usage: %s" % sys.argv[0]
+    from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
+    parser = OptionParser(
+        usage = "Usage: %prog [OPTIONS] [CONFIG]",
+        description = "Run Dtella with the given CONFIG. If none is given, the "
+                      "user's default one will be used. If the CONFIG to be used "
+                      "does not exist, the system default will be copied to its "
+                      "location, given by ~/.dtella/${CFGTYPE}_${CONFIG}.cfg",
+        version = "%s-%s" % (build.name, build.version),
+        formatter = IndentedHelpFormatter(max_help_position=25)
+    )
+
+    # custom optgroup class that doesn't indent option group sections
+    class MyOptGroup(OptionGroup):
+        def format_help(self, formatter):
+            formatter.dedent()
+            s = OptionGroup.format_help(self, formatter)
+            formatter.indent()
+            return s
 
     try:
         import dtella.client
     except ImportError:
         pass
     else:
-        usage_str += " [--port=#] [--terminate]"
-        allowed_opts.extend(['port=', 'terminate'])
+        group = MyOptGroup(parser, "Client mode options",
+            "In this mode, CONFIG should be the name of a network configuration.")
+        group.add_option("-p", "--port", type="int",
+                         help="listen for the DC client on localhost:PORT", metavar="PORT")
+        group.add_option("-t", "--terminate", action="store_true",
+                         help="terminate an already-running Dtella client node")
+        parser.add_option_group(group)
 
     try:
         import dtella.bridge
     except ImportError:
         pass
     else:
-        usage_str += " [--bridge] [--dconfigpusher] [--makeprivatekey]"
-        allowed_opts.extend(['bridge', 'dconfigpusher', 'makeprivatekey'])
+        group = MyOptGroup(parser, "Bridge mode options",
+            "In this mode, CONFIG should be the name of a bridge configuration.")
+        group.add_option("-b", "--bridge", action="store_true",
+                          help="run as a bridge")
+        group.add_option("-d", "--dconfigpusher", action="store_true",
+                          help="push seed config data")
+        group.add_option("-n", "--network", metavar="CFG",
+                          help="when creating a new bridge config, initialise it to use "
+                               "the network CFG instead of the default network.")
+        group.add_option("-m", "--makeprivatekey", action="store_true",
+                          help="make a keypair to use for a new bridge")
+        parser.add_option_group(group)
 
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], '', allowed_opts)
-    except getopt.GetoptError:
-        print usage_str
-        return 2
+    (opts, args) = parser.parse_args()
+    #print opts, args
 
-    opts = dict(opts)
-
-    if '--bridge' in opts:
-        return runBridge()
-
-    if '--dconfigpusher' in opts:
-        return runDconfigPusher()
-
-    if '--makeprivatekey' in opts:
-        from dtella.bridge.private_key import makePrivateKey
-        return makePrivateKey()
+    config = None
+    if len(args) > 0:
+        config = args[0]
 
     # User-specified TCP port
     dc_port = None
-    if '--port' in opts:
+    if opts.port:
         try:
-            dc_port = int(opts['--port'])
+            dc_port = opts.port
             if not (1 <= dc_port < 65536):
                 raise ValueError
         except ValueError:
             print "Port must be between 1-65535"
             return 2
 
-    import dtella.common.state as state
-    from dtella.client.main import STATE_FILE
     try:
-        sm = state.StateManager(None, STATE_FILE, flag='r')
-    except Exception:
-        sm = state.StateManager(None, STATE_FILE, flag='n')
+        # bridge mode
+        if opts.network:
+            print "--network has not been implemented yet; you'll have to edit the config yourself"
+            return 2
 
-    if not dc_port:
-        dc_port = sm.clientport
+        if opts.bridge:
+            return runBridge(config)
 
-    # Try to terminate an existing process
-    if '--terminate' in opts:
-        if terminate(dc_port, sm.killkey):
-            # Give the other process time to exit first
-            print "Sleeping..."
-            time.sleep(2.0)
-        else:
-            print "Nothing to do."
+        if opts.dconfigpusher:
+            return runDconfigPusher(config)
 
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('127.0.0.1', dc_port))
-            print "TCP port %s is free." % dc_port
-            sock.close()
-            return 0
-        except:
-            print "TCP port %s is still in use." % dc_port
-            return 1
+        if opts.makeprivatekey:
+            from dtella.bridge.private_key import makePrivateKey
+            return makePrivateKey()
 
-    return runClient(dc_port)
+    except AttributeError:
+        pass
+
+    # client mode
+    return runClient(config, dc_port, opts.terminate)
 
 
 if __name__=='__main__':

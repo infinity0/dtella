@@ -2,8 +2,10 @@
 - windows upgrade from source bug
 - windows restart
 
+- allow Dtella to get dconfig from multiple sources
 
-- get rid of references to local_config in setup.py
+
+
 
 
 new packet:

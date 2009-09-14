@@ -131,7 +131,8 @@ install_prod() {
 }
 
 install_svn() {
-	if ! svn checkout "$SVNR" .
+	# checkout from SVN and also force generation of build_config.py
+	if ! { svn checkout "$SVNR" . && ./setup.py build && ./setup.py clean -a; }
 	then echo "could not complete svn checkout; abort."; exit 2;
 	fi
 }
