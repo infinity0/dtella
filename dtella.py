@@ -238,7 +238,7 @@ def main():
         description = "Run Dtella with the given CONFIG. If none is given, the "
                       "user's default one will be used. If the CONFIG to be used "
                       "does not exist, the system default will be copied to its "
-                      "location, given by ~/.dtella/${TYPE}_${CONFIG}.cfg",
+                      "location, given by ~/.dtella/${CFGTYPE}_${CONFIG}.cfg",
         version = "%s-%s" % (build.name, build.version),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
