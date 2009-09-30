@@ -79,18 +79,12 @@ except AttributeError, KeyError:
     raise ImportError("Bridge config: unsupported IRCd (%s) - need InspIRCd or UnrealIRCd" % service_ircd)
 
 # dconfig pusher
-import dtella.modules.push_textfile
-import dtella.modules.push_gdata
-import dtella.modules.push_dnsupdate
-import dtella.modules.push_yi
-dconfig_pushers = {
-    'textfile': dtella.modules.push_textfile.TextFileUpdater,
-    'gdata': dtella.modules.push_gdata.GDataUpdater,
-    'dns': dtella.modules.push_dnsupdate.DynamicDNSUpdater,
-    'yi': dtella.modules.push_yi.YiUpdater,
-}
+def pusher_textfile(): import dtella.modules.push_textfile; return dtella.modules.push_textfile.TextFileUpdater;
+def pusher_gdata(): import dtella.modules.push_gdata; return dtella.modules.push_gdata.GDataUpdater;
+def pusher_dns(): import dtella.modules.push_dnsupdate; return dtella.modules.push_dnsupdate.DynamicDNSUpdater;
+def pusher_yi(): import dtella.modules.push_yi; return dtella.modules.push_yi.YiUpdater;
 try:
-    dconfig_push_func = dconfig_pushers[dconfig_push_type](**dconfig_push_options).update
+    dconfig_push_func = globals()["pusher_" + dconfig_push_type]()(**dconfig_push_options).update
 except NameError, e:
     raise ImportError("Bridge config: no options supplied to the dconfig pusher (%s)" % e)
 except TypeError, e:
