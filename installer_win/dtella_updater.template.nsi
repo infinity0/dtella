@@ -39,7 +39,25 @@ Section
     
     ;Check the registry
     ReadRegStr $0 HKLM "${PRODUCT_REGKEY}" "InstDir"
-    IfErrors Error_No_Key
+    IfErrors 0 Patch_Done
+    
+        ClearErrors
+        ReadRegStr $0 HKLM "Software\ADtella@Cambridge" "InstDir"
+        IfErrors Error_No_Key
+        
+        WriteRegStr HKLM "${PRODUCT_REGKEY}" "InstDir" $0
+        
+        ReadRegDWORD $0 HKLM "Software\ADtella@Cambridge" "InstProgram"
+        WriteRegDWORD HKLM "${PRODUCT_REGKEY}" "InstProgram" $0
+        
+        ReadRegDWORD $0 HKLM "Software\ADtella@Cambridge" "InstSettings"
+        WriteRegDWORD HKLM "${PRODUCT_REGKEY}" "InstSettings" $0
+        
+        DeleteRegKey HKLM "Software\ADtella@Cambridge"
+        
+        ReadRegStr $0 HKLM "${PRODUCT_REGKEY}" "InstDir"
+    
+    Patch_Done:
     
     ;Terminate the current dtella process
     SetShellVarContext all

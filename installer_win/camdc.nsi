@@ -74,7 +74,7 @@ Section "Dtella (Required)" INST_DTELLA ;Install the main dtella application
     ;Add normal files
     SetOutPath "$INSTDIR\${DTELLA_NAME}"
     File "dtella.exe"
-    File "msvcr71.dll"
+    ;File "msvcr71.dll" Removed as of 01/10/09 as py2exe 2.6 no longer generates this file
     File "readme.txt"
     File "changelog.txt"
     File "changelog_adc.txt"

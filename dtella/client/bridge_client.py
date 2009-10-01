@@ -34,7 +34,7 @@ from dtella.common.core import (BadTimingError, BadPacketError, BadBroadcast,
 
 from dtella.common.util import (RandSet, dcall_discard, parse_incoming_info,
                                 split_info, adc_infostring, CHECK,
-                                get_version_string, SSLHACK_filter_flags)
+                                get_version_string, SSLHACK_filter_flags, md5)
 
 import dtella.common.ipv4 as ipv4
 from dtella.common.ipv4 import Ad
