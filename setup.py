@@ -29,7 +29,7 @@ import sys, os
 
 properties = {
     'name': 'dtella-cambridge',
-    'version': '1.2.4.4',
+    'version': '1.2.4.5',
     'description': 'Client for the Dtella network at Cambridge',
     'author': 'Dtella-Cambridge',
     'author_email': 'cabal@camdc.pcriot.com',
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
     my_commands = {}
 
-    if sys.platform == 'darwin':
+    if 'py2app' in sys.argv:
         build_type = 'dmg'
         import py2app
 
@@ -172,7 +172,7 @@ if __name__ == '__main__':
             "includes": get_includes(),
         }
 
-    elif sys.platform == 'win32':
+    elif 'py2exe' in sys.argv:
         build_type = 'exe'
         import py2exe
 

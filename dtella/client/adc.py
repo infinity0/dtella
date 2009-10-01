@@ -423,7 +423,10 @@ class ADCHandler(BaseADCProtocol):
             self.sendLine("BINF %s %s" % (self.bot.sid, self.bot.dcinfo))
 
             # From ValidateNick
-            reason = validateNick(inf['NI'])
+            try:
+                reason = validateNick(inf['NI'])
+            except KeyError:
+                reason = "No nickname selected"
 
             if reason:
                 self.pushStatus("Your nick is invalid: %s" % reason)
