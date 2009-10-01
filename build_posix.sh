@@ -1,4 +1,4 @@
-#!/bin/dash
+#!/bin/sh
 
 # builds a source distribution of dtella plus a shell script that installs
 # dtella dependencies and dtella from a remote source distribution
