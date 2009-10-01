@@ -29,7 +29,7 @@ import sys, os
 
 properties = {
     'name': 'dtella-cambridge',
-    'version': '1.2.4.4',
+    'version': '1.2.4.5',
     'description': 'Client for the Dtella network at Cambridge',
     'author': 'Dtella-Cambridge',
     'author_email': 'cabal@camdc.pcriot.com',
