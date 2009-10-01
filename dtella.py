@@ -130,7 +130,7 @@ def migrateOldSettings():
     if local.prefix != local.cfgname:
         return None
 
-    import anydbm, os, os.path
+    import anydbm, os, os.path, shutil
     import dtella.common.state as state
     import dtella.common.oldstate as oldstate
     from dtella.common.util import get_user_path
@@ -145,8 +145,12 @@ def migrateOldSettings():
     newlog = get_user_path(local.cfgname + ".log")
     oldlog = get_user_path("dtella.log")
     if not os.path.exists(newlog) and os.path.exists(oldlog):
-        print "--- moving old log"
-        os.rename(oldlog, newlog)
+        print "--- copying old log"
+        shutil.copy(oldlog, newlog)
+        try:
+            os.remove(oldlog)
+        except:
+            pass
 
     newstf = get_user_path(local.cfgname + ".db")
     oldstf = get_user_path("dtella.state")
@@ -155,7 +159,8 @@ def migrateOldSettings():
         os.remove(newstf)
     if os.path.exists(oldstf):
         print "--- converting old state"
-        oldst = oldstate.StateManager(None, "dtella.state", oldstate.client_loadsavers)
+        ldsv = oldstate.client_loadsavers[:-4] + oldstate.client_loadsavers[-3:-2]
+        oldst = oldstate.StateManager(None, "dtella.state", ldsv)
         oldst.initLoad()
         newst = state.StateManager(None, local.cfgname, flag='n')
         # don't newst.initLoad(); it works differently and must not be used here
@@ -166,7 +171,10 @@ def migrateOldSettings():
         newst.suffix = oldst.suffix
         newst.udp_port = oldst.udp_port
         del oldst, newst
-        os.remove(oldstf)
+        try:
+            os.remove(oldstf)
+        except:
+            pass
 
     return (oldlog, oldstf)
 
@@ -249,8 +257,9 @@ def runClient(client_cfg, dc_port=None, terminator=False):
             # remove old state file after old dtella shuts down
             if not first and oldfiles:
                 import os
-                if os.path.exists(oldfiles[1]):
-                    os.remove(oldfiles[1])
+                for oldf in oldfiles:
+                    if os.path.exists(oldf):
+                        os.remove(oldf)
 
             reactor.listenTCP(dc_port, dfactory, interface='127.0.0.1')
 
