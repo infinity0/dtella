@@ -123,23 +123,74 @@ def terminate(dc_port, killkey):
     return True
 
 
+def migrateOldSettings():
+    import dtella.local_config as local
+
+    # Only migrate to the default network
+    if local.prefix != local.cfgname:
+        return None
+
+    import anydbm, os, os.path
+    import dtella.common.state as state
+    import dtella.common.oldstate as oldstate
+    from dtella.common.util import get_user_path
+
+    try:
+        sm = state.StateManager(None, local.cfgname, flag='r')
+        return None
+
+    except anydbm.error:
+        print "--- detected old network config; migrating it to the default network"
+
+    newlog = get_user_path(local.cfgname + ".log")
+    oldlog = get_user_path("dtella.log")
+    if not os.path.exists(newlog) and os.path.exists(oldlog):
+        print "--- moving old log"
+        os.rename(oldlog, newlog)
+
+    newstf = get_user_path(local.cfgname + ".db")
+    oldstf = get_user_path("dtella.state")
+    if os.path.exists(newstf):
+        # if file exists then it must be corrupt; otherwise we would still be in the try block
+        os.remove(newstf)
+    if os.path.exists(oldstf):
+        print "--- converting old state"
+        oldst = oldstate.StateManager(None, "dtella.state", oldstate.client_loadsavers)
+        oldst.initLoad()
+        newst = state.StateManager(None, local.cfgname, flag='n')
+        # don't newst.initLoad(); it works differently and must not be used here
+        newst.clientport = oldst.clientport
+        newst.killkey = oldst.killkey
+        newst.persistent = oldst.persistent
+        newst.localsearch = oldst.localsearch
+        newst.suffix = oldst.suffix
+        newst.udp_port = oldst.udp_port
+        del oldst, newst
+        os.remove(oldstf)
+
+    return (oldlog, oldstf)
+
+
 def runClient(client_cfg, dc_port=None, terminator=False):
     # Set and load the network configuration
     from dtella.common.util import set_cfg
     set_cfg("dtella.local_config", client_cfg)
     import dtella.local_config as local
 
+    oldfiles = migrateOldSettings()
+
     # Logging for Dtella Client
     setLogFile(local.cfgname + ".log", 1<<20, 1)
     LOG.debug("Client Logging Manager Initialized")
 
-    if not dc_port:
+    if not dc_port or terminator:
         import anydbm, dtella.common.state as state
         try:
             sm = state.StateManager(None, local.cfgname, flag='r')
         except anydbm.error:
             sm = state.StateManager(None, local.cfgname, flag='n')
 
+    if not dc_port:
         dc_port = sm.clientport
 
     # Try to terminate an existing process
@@ -195,7 +246,14 @@ def runClient(client_cfg, dc_port=None, terminator=False):
     def cb(first):
         global exit_code
         try:
+            # remove old state file after old dtella shuts down
+            if not first and oldfiles:
+                import os
+                if os.path.exists(oldfiles[1]):
+                    os.remove(oldfiles[1])
+
             reactor.listenTCP(dc_port, dfactory, interface='127.0.0.1')
+
         except twisted.internet.error.CannotListenError:
             if first:
                 LOG.warning("TCP bind failed.  Killing old process...")
@@ -258,8 +316,10 @@ def main():
     else:
         group = MyOptGroup(parser, "Client mode options",
             "In this mode, CONFIG should be the name of a network configuration.")
-        group.add_option("-p", "--port", type="int",
-                         help="listen for the DC client on localhost:PORT", metavar="PORT")
+        group.add_option("-p", "--port", type="int", metavar="PORT",
+                         help="listen for the DC client on localhost:PORT. If none is "
+                              "given, the last one to be used will be used, or port 7314 "
+                              "if this is the first run.")
         group.add_option("-t", "--terminate", action="store_true",
                          help="terminate an already-running Dtella client node")
         parser.add_option_group(group)
