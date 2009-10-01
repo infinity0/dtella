@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     my_commands = {}
 
-    if sys.platform == 'darwin':
+    if 'py2app' in sys.argv:
         build_type = 'dmg'
         import py2app
 
@@ -148,7 +148,7 @@ if __name__ == '__main__':
             "includes": get_includes(),
         }
 
-    elif sys.platform == 'win32':
+    elif 'py2exe' in sys.argv:
         build_type = 'exe'
         import py2exe
 
