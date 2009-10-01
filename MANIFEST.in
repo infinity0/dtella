@@ -1,5 +1,8 @@
 graft docs
+graft bin
 include dtella.py
 include dtella/network.cfg
+include dtella/bridge.cfg
+include dtella/build_config.py.in
 include TODO
 include REAME
