@@ -261,11 +261,7 @@ if __name__ == '__main__':
 
         def run(self):
             try:
-                import dtella.bridge_config as bcfg
-                self.REPO = bcfg.dconfig_fixed_entries['version'].split(' ')[2]
-                i = self.REPO.find('#')
-                if i >= 0:
-                    self.REPO = self.REPO[:i] + self.REPO[i+1:]
+                self.REPO = properties['url'] + "/bin"
             except ImportError:
                 sys.stderr.write("Could not find bridge config; abort.\n")
                 return 1
