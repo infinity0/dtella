@@ -38,6 +38,7 @@ from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
 import dtella.local_config as local
+import dtella.build_config as build
 import struct
 import random
 import re
@@ -398,7 +399,8 @@ class ADCHandler(BaseADCProtocol):
         elif self.state == 'PROTOCOL':
             self.sendLine("ISUP ADBASE ADTIGR")
             self.sendLine("ISID %s" % self.sid)
-            self.sendLine("IINF CT32 NI%s" % adc_escape(local.hub_name))
+            self.sendLine("IINF HU1 HI1 CT32 NI%s DE%s VE%s" %
+                          (adc_escape(local.hub_name), adc_escape(local.hub_desc), adc_escape(build.verstr)))
             self.state = 'IDENTIFY'
 
         else:

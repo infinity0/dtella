@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
 import os.path, re
+import dtella.build_config as build
 from dtella.common.util import (load_cfg, get_user_path, parse_bytes,
                                 hostnameMatch)
 
@@ -50,6 +51,11 @@ except NameError, e:
     ]))
 
 # Postprocess some fields to the correct types, etc, whatever
+
+try:
+    hub_desc;
+except NameError:
+    hub_desc = build.verstr + " on " + hub_name
 
 try:
     minshare_cap = parse_bytes(minshare_cap)
