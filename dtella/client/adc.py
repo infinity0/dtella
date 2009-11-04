@@ -591,10 +591,10 @@ class ADCHandler(BaseADCProtocol):
                     text = text[1:]
 
                 produced_output = [False]
-                def out(text):
-                    if text is not None:
+                def out(out_text):
+                    if out_text is not None:
                         produced_output[0] = True
-                        self.bot.say(text)
+                        self.bot.say(out_text)
 
                 self.bot.commandInput(out, produced_output, text)
                 return
@@ -605,10 +605,9 @@ class ADCHandler(BaseADCProtocol):
                 shorttext = text
 
             def fail_cb(detail):
-                self.pushPrivMsg(
-                    self.nick,
-                    "*** Your message \"%s\" could not be sent: %s"
-                    % (shorttext, detail))
+                self.pushPrivMsg(self.nick,
+                    "*** Your message \"%s\" could not be sent: %s" %
+                    (shorttext, detail))
 
             if not self.isOnline():
                 fail_cb("You're not online.")
@@ -620,7 +619,7 @@ class ADCHandler(BaseADCProtocol):
                 fail_cb("User doesn't seem to exist.")
                 return
 
-            n.event_PrivateMessage(self.main, text, fail_cb )
+            n.event_PrivateMessage(self.main, text, fail_cb)
 
         else:
             # Public message
