@@ -33,13 +33,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 # It will be concatenated with the version number below.
 name = "PATCH_ME"
 
+# Dtella version number.
+version = "PATCH_ME"
+
 # Set this type when building executables and installers. This allows
 # Dtelle to select an appropriate upgrade method.
 # Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
 type = "PATCH_ME"
-
-# Dtella version number.
-version = "PATCH_ME"
 
 # This is the directory where default data files (eg. default network config)
 # are kept. TODO actually use this...
@@ -47,3 +47,6 @@ data_dir = "PATCH_ME"
 
 # This is the email that people are told to send bug reports to
 bugs_email = "PATCH_ME"
+
+# This is the name concatenated with the version
+verstr = name + "-" + version

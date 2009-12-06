@@ -1,7 +1,7 @@
 @echo off
 
 REM ----- DEPENDENCY CHECK ------
-call check_build_deps
+call installer_win\check_build_deps
 
 REM ----- SET FILEBASE -----
 %PYTHON% makevars.py > makevars.bat
@@ -14,12 +14,12 @@ EXIT
 )
 
 REM ------- SOURCE CODE ---------
-call build_source
+call installer_win\build_source
 
 REM ------- EXE -------------
 echo Building Windows binary files...
 
-call build_py2exe camdc
+call installer_win\build_py2exe
 copy dist\dtella.exe %BLDIR%
 copy dist\msvcr71.dll %BLDIR%
 
@@ -34,7 +34,7 @@ REM ------- INSTALLER -------
 echo Building the installer...
 pushd %BLDIR%
 
-IF EXIST %NSIS% (%NSIS% camdc.nsi) ELSE (%NSIS64% camdc.nsi)
+IF EXIST %NSIS% (%NSIS% dtella.nsi) ELSE (%NSIS64% dtella.nsi)
 
 echo The build process is now complete!
 popd
@@ -48,7 +48,6 @@ REM -----CLEAN UP OUTPUT------
 mkdir %OUTDIR%
 
 move %BLDIR%\%FILEBASE%.exe %OUTDIR%
-move %BLDIR%\CamDC*.exe %OUTDIR%
 move %BLDIR%\%FILEBASE%.tar.* %OUTDIR%
 
 
@@ -57,4 +56,4 @@ del %BLDIR%\readme.txt
 del %BLDIR%\changelog.txt
 del %BLDIR%\changelog_adc.txt
 del %BLDIR%\dtella.exe
-del %BLDIR%\camdc.nsh
+del %BLDIR%\dtella.nsi

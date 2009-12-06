@@ -234,7 +234,7 @@ def runClient(client_cfg, dc_port=None, terminator=False):
                 "Something bad happened.  You might want to email this to "
                 "%s so we'll know about it:\n"
                 "Version: %s %s\n%s" %
-                (build.bugs_email, local.hub_name, get_version_string()[3:], text))
+                (build.bugs_email, build.verstr, get_version_string()[3:], text))
 
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
@@ -246,7 +246,7 @@ def runClient(client_cfg, dc_port=None, terminator=False):
         from dtella.client.dc import DCFactory
         dfactory = DCFactory(dtMain, dc_port)
 
-    LOG.info("%s-%s on %s" % (build.name, build.version, local.hub_name))
+    LOG.info("%s on %s" % (build.verstr, local.hub_name))
 
     global exit_code
     exit_code = 0
@@ -306,7 +306,7 @@ def main():
                       "user's default one will be used. If the CONFIG to be used "
                       "does not exist, the system default will be copied to its "
                       "location, given by ~/.dtella/${CFGTYPE}_${CONFIG}.cfg",
-        version = "%s-%s" % (build.name, build.version),
+        version = "%s" % (build.verstr),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
 

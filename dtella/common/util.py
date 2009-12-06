@@ -48,7 +48,7 @@ def randbytes(n):
 def cmpify_version(ver):
     # Given a version string, turn it into something comparable.
 
-    ver_re = re.compile("([0-9]*)(.*)")
+    ver_re = re.compile("([0-9]*)(.*)$")
 
     ver_parts = []
 
@@ -226,7 +226,7 @@ def adc_escape(text):
     return text.replace('\\', '\\\\').replace('\n','\\n').replace(' ', '\\s')
 
 def adc_unescape(text):
-    return text.replace('\\s',' ').replace('\\n','\n').replace('\\\\', '\\')
+    return text.replace('\\\\', '\0').replace('\\n','\n').replace('\\s',' ').replace('\0','\\')
 
 def adc_infostring(infdict):
     return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in infdict.iteritems()])

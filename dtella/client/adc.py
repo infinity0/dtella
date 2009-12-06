@@ -38,6 +38,7 @@ from dtella.client.dtellabot import DtellaBot
 from dtella.common.ipv4 import Ad
 import dtella.common.core as core
 import dtella.local_config as local
+import dtella.build_config as build
 import struct
 import random
 import re
@@ -398,7 +399,8 @@ class ADCHandler(BaseADCProtocol):
         elif self.state == 'PROTOCOL':
             self.sendLine("ISUP ADBASE ADTIGR")
             self.sendLine("ISID %s" % self.sid)
-            self.sendLine("IINF CT32 NI%s" % adc_escape(local.hub_name))
+            self.sendLine("IINF HU1 HI1 CT32 NI%s DE%s VE%s" %
+                          (adc_escape(local.hub_name), adc_escape(local.hub_desc), adc_escape(build.verstr)))
             self.state = 'IDENTIFY'
 
         else:
@@ -589,10 +591,10 @@ class ADCHandler(BaseADCProtocol):
                     text = text[1:]
 
                 produced_output = [False]
-                def out(text):
-                    if text is not None:
+                def out(out_text):
+                    if out_text is not None:
                         produced_output[0] = True
-                        self.bot.say(text)
+                        self.bot.say(out_text)
 
                 self.bot.commandInput(out, produced_output, text)
                 return
@@ -603,10 +605,9 @@ class ADCHandler(BaseADCProtocol):
                 shorttext = text
 
             def fail_cb(detail):
-                self.pushPrivMsg(
-                    self.nick,
-                    "*** Your message \"%s\" could not be sent: %s"
-                    % (shorttext, detail))
+                self.pushPrivMsg(self.nick,
+                    "*** Your message \"%s\" could not be sent: %s" %
+                    (shorttext, detail))
 
             if not self.isOnline():
                 fail_cb("You're not online.")
@@ -618,7 +619,7 @@ class ADCHandler(BaseADCProtocol):
                 fail_cb("User doesn't seem to exist.")
                 return
 
-            n.event_PrivateMessage(self.main, text, fail_cb )
+            n.event_PrivateMessage(self.main, text, fail_cb)
 
         else:
             # Public message

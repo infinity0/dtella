@@ -57,7 +57,7 @@ for i in "$@"; do
 	-h | --help )
 		cat <<-EOF
 		Usage: $0 <option>
-		Install $REPO
+		Installs $PROD
 
 		Options:
 		  -v, --verbose             Show files as they are being extracted / installed.
