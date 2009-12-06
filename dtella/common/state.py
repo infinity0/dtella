@@ -28,7 +28,7 @@ from dtella.common.util import dcall_discard, get_user_path, CHECK
 from dtella.common.ipv4 import Ad
 
 
-class State():
+class State:
     """
     Persistent state class. This class uses shelve to store data; see its
     documentation for details. In particular, note that mutating attributes
