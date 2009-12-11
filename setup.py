@@ -25,7 +25,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import sys, os
+import sys, os, subprocess
 
 properties = {
     'name': 'dtella-cambridge',
@@ -41,6 +41,21 @@ properties = {
 ## FIXME have this empty by default and set only if --format= is set
 build_type = "tar.bz2"
 bugs_email = "cabal@camdc.pcriot.com"
+
+# If we're developing, set the version from `git-describe` if it's available.
+if 'git' in properties['version'] and \
+not subprocess.call(['which', 'git'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT):
+
+    gitver = subprocess.Popen(['git', 'describe', '--always', '--abbrev=4'],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                             )
+    if not gitver.wait():
+        for line in gitver.stdout:
+            properties['version'] = line.strip()
+            sys.stderr.write("set version to %s\n" % properties['version'])
+            break
+    del gitver
 
 
 class Error(Exception):
@@ -79,7 +94,10 @@ def get_includes():
 
 # TODO find a better way of doing this...
 def make_build_config(type, bugs_email, data_dir=None):
-    # Patch the build_config with the correct variables
+    '''
+    Patch the build_config with the correct variables
+    '''
+
     global properties
     props = properties.copy()
     props.update({
@@ -187,7 +205,7 @@ if __name__ == '__main__':
                         full = os.path.join(self.collect_dir, path)
 
                         if os.path.isdir(path):
-                            raise Error("Not implemented yet")
+                            raise Error("Not implemented: multilevel package_data hack for py2exe")
                         else:
                             self.copy_file(path, full)
                             self.compiled_files.append(path)
@@ -221,7 +239,7 @@ if __name__ == '__main__':
 
     class bdist_shinst(bdist):
 
-        description = "Create a shell-installer for posix systems"
+        description = "Create a shell-script installer for POSIX systems"
 
         user_options = [
             ('WGET=', None,

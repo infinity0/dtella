@@ -2,13 +2,9 @@
 - windows upgrade from source bug
 - windows restart
 
-- sort out windows build scripts
-- have system default config override user default config
-  (but keep user non-default config overriding system non-default config)
+- get rid of POSIX !upgrade crap...
 
 - allow Dtella to get dconfig from multiple sources
-
-
 
 
 

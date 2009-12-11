@@ -455,26 +455,36 @@ def load_cfg(modname, prefix):
     from ast import literal_eval
     from pkgutil import get_data
 
-    if modname in confignames and confignames[modname]:
-        cfgname = prefix + "_" +  confignames[modname]
-    else:
-        cfgname = prefix
-
-    cfgfile = get_user_path(cfgname + ".cfg")
     wrotenew = False
 
-    if not os.path.exists(cfgfile):
-        # copy default config if user doesn't have an override
-        fp = open(cfgfile, 'w+')
-        for i in get_data(modname, prefix + ".cfg"):
-            fp.write(i)
-        fp.close()
-        wrotenew = True
+    if modname in confignames and confignames[modname]:
+        cfgname = prefix + "_" +  confignames[modname]
+        cfgfile = get_user_path(cfgname + ".cfg")
+
+        if not os.path.exists(cfgfile):
+            # copy default config if user doesn't have an override
+            fp = open(cfgfile, 'w+')
+            for i in get_data(modname, prefix + ".cfg"):
+                fp.write(i)
+            fp.close()
+            wrotenew = True
+
+        cfgfp = open(cfgfile)
+
+    else:
+        cfgname = prefix
+        cfgfile = get_user_path(cfgname + ".cfg")
+        if os.path.exists(cfgfile):
+            print "--- Note: obsolete config in %s" % cfgfile
+            print "--- You might want to remove it to reduce clutter."
+
+        import StringIO
+        cfgfp = StringIO.StringIO(get_data(modname, prefix + ".cfg"))
 
     #print "loading %s from %s" % (modname, cfgfile)
     import ConfigParser
     config = ConfigParser.RawConfigParser()
-    config.read(cfgfile)
+    config.readfp(cfgfp)
     for i in config.sections():
         for k, v in config.items(i):
             try:

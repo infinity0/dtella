@@ -48,7 +48,8 @@ import time
 try:
     import dtella.build_config as build
 except ImportError:
-    print 'You need to run "setup.py build" to generate dtella.build_config'
+    sys.stderr.write('Dtella has not been set up properly: missing build_config - have you run `setup.py build`?\n')
+    sys.exit(-1)
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
@@ -302,10 +303,11 @@ def main():
     from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
     parser = OptionParser(
         usage = "Usage: %prog [OPTIONS] [CONFIG]",
-        description = "Run Dtella with the given CONFIG. If none is given, the "
-                      "user's default one will be used. If the CONFIG to be used "
-                      "does not exist, the system default will be copied to its "
-                      "location, given by ~/.dtella/${CFGTYPE}_${CONFIG}.cfg",
+        description = "Run Dtella with the given CONFIG. Dtella will attempt to "
+                      "read this from ~/.dtella/${CFGTYPE}_${CONFIG}.cfg; if it "
+                      "doesn't exist, the default config will be copied there. "
+                      "If no CONFIG is given, Dtella will use the default config "
+                      "directly (ie. without copying it to a user directory).",
         version = "%s" % (build.verstr),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
