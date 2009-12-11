@@ -131,10 +131,7 @@ install_prod() {
 }
 
 install_svn() {
-	# checkout from SVN and also force generation of build_config.py
-	if ! { svn checkout "$SVNR" . && ./setup.py build && ./setup.py clean -a; }
-	then echo "could not complete svn checkout; abort."; exit 2;
-	fi
+	if ! svn checkout "$SVNR" . ; then echo "could not complete svn checkout; abort."; exit 2; fi
 }
 
 if [ -n "$WGET" ]; then
@@ -221,6 +218,7 @@ echo "all dependencies satisfied; installing $PROD"
 echo
 
 $INSTALL
+./setup.py --upgrade-type=tar clean -a > /dev/null # enables the !UPGRADE command
 rm -f "$DEPS"
 echo
 echo "$PROD installed successfully into ~/.dtella/"

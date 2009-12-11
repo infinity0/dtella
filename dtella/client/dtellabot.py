@@ -718,15 +718,21 @@ class DtellaBot(object):
 
     def handleCmd_UPGRADE(self, out, args, prefix):
         min_v, new_v, url, repo = self.main.dcfg.version
-        name, cur_v, type = build.name, build.version, build.type
+        name, cur_v, type = build.name, build.version, build.upgrade_type
 
         if cmpify_version(new_v) <= cmpify_version(cur_v) and \
         (not args or args[0] != "FORCE"):
             out("You are already at the newest version.")
             return
 
-        if type not in ["tar.bz2", "tar.gz", "dmg", "exe"]:
-            out("Upgrade not supported for build type %s" % type)
+        if not type:
+            out("Upgrade type is empty. Either this is a custom installation, "
+                "or your distributor has an alternative upgrade method (eg. "
+                "`apt-get`), so use that instead.")
+            return
+        elif type not in ["tar", "dmg", "exe"]:
+            out('Upgrade type "%s" not supported. This should not happen - '
+                'blame your distributor.' % type)
             return
 
         import os, urllib, sys, subprocess
@@ -751,7 +757,7 @@ class DtellaBot(object):
                 return
 
             try:
-                if type == 'tar.bz2' or type == 'tar.gz':
+                if type == 'tar':
                     import sys, time, shutil
 
                     bk_sep = '-'
@@ -760,205 +766,8 @@ class DtellaBot(object):
                         str(int(time.time())) + os.sep
                     blist = os.listdir(basep)
 
-                    '''
-                    if os.name != 'posix':
-                        out("Source upgrade not supported on non-posix platforms.")
-                        return
-
-                    import commands, os.path, tempfile
-
-                    sudoterm = []
-                    terminals = {
-                        'gnome-terminal': '-x',
-                        'konsole': '-e',
-                        'xfce4-terminal': '-x',
-                        'xterm': '-e',
-                        'rxvt': '-e',
-                    }
-
-                    ret, output = commands.getstatusoutput('which x-terminal-emulator')
-                    if ret:
-                        for term in terminals:
-                            if not subprocess.call(['which', term]):
-                                sudoterm.extend([term, terminals[term]])
-                                break
-                        else:
-                            out("Couldn't find a suitable terminal program; abort.")
-                            return
-                    else:
-                        term = os.path.basename(os.path.realpath(output))
-                        if term in terminals:
-                            sudoterm.extend([term, terminals[term]])
-                        elif term.endswith(".wrapper") and term[:-8] in terminals:
-                            sudoterm.extend([term[:-8], terminals[term[:-8]]])
-                        else:
-                            sudoterm.extend(['x-terminal-emulator', '-e'])
-
-                    try:
-                        os.mkdir(basep + bkup)
-                    except Exception, e:
-                        if e.errno == 13: # permission denied
-                            if not subprocess.call(['which', 'gksu']):
-                                sudoterm.extend(['gksu', '--'])
-                            elif not subprocess.call(['which', 'kdesu']):
-                                sudoterm.extend(['kdesu', '--'])
-                            pass # the shell script will attempt to give itself root
-                        else:
-                            out("Error: Couldn't make backup directory: %s", e)
-                            return
-
-                    shp, shpath = tempfile.mkstemp()
-                    script = """\
-#!/bin/sh
-
-BASEDIR=%s
-ARCHIVE=%s
-BKUPDIR=%s
-PRODUCT=%s
-
-perror () {
-    echo "Error: $@" >&2
-    echo -n "press ENTER to continue..."
-    read ENTER
-    exit 1
-}
-
-pwclean () {
-    echo "Warning: could not remove $@" >&2
-    echo "You should do this yourself." >&2
-}
-
-cd "$BASEDIR"
-echo $$ >> "$PRODUCT.pid" 2>/dev/null
-chmod 777 "$PRODUCT.pid"
-
-echo "- make backup directory $BKUPDIR"
-if ! mkdir -p "$BKUPDIR"; then
-    if [ "$(id -u)" -gt 0 ]; then
-        # -S is needed for subprocess.communicate() to work properly in the
-        # case of the user *having* sudo permissions. sudo will read empty
-        # passwords and return exit code 1; if -S is not specified, sudo will
-        # take input from the terminal instead of subprocess.stdin, and hang
-        # when trying to retrieve the password from the user.
-        if sudo -vS >/dev/null; then
-            echo "- using sudo to grant access"
-            sudo "$0";
-        else
-            echo "- using su to grant access"
-            su -c "$0";
-        fi
-        exit
-    fi
-    perror "could not make backup directory; abort"
-fi
-
-echo "- extracting $PRODUCT from $ARCHIVE"
-if ! tar xf "$ARCHIVE" "$PRODUCT"; then
-    perror "could not extract $PRODUCT; abort"
-fi
-
-echo "- move old installation to $BKUPDIR"
-if ! mv docs dtella dtella.py "$BKUPDIR"; then
-    perror "could not move old installation; abort"
-fi
-
-echo "- install $PRODUCT to $BASEDIR"
-if ! mv "$PRODUCT"/* .; then
-    echo "Error: could not install new files; attempting to restore old files"
-    if ! mv "$BKUPDIR"/* .; then
-        perror "could not restore old files. sorry."
-    else
-        echo "- backups restored."
-    fi
-    exit 1
-fi
-
-echo "- cleaning up"
-if ! rm -rf "$PRODUCT"; then pwclean "temporary extraction directory $PRODUCT"; fi
-if ! rm -rf "$BKUPDIR"; then pwclean "temporary backup directory $BKUPDIR"; fi
-if ! rm -rf "$0"; then pwclean "this update script $0"; fi
-
-echo "REMOVE ME" > "$PRODUCT.complete"
-chmod 777 "$PRODUCT.complete"
-
-echo "- Upgrade successful."
-echo -n "Press ENTER to continue... "
-read ENTER
-exit 0
-""" % tuple([commands.mkarg(i)[1:] for i in [basep, fpath, bkup, new_p]])
-                    if 'gksu' in sudoterm:
-                        # This is necessary because of
-                        # http://savannah.nongnu.org/bugs/?13306
-                        script = script.replace(
-                            'echo -n "Press ENTER to continue... "\n'
-                            'read ENTER\n',
-                            'echo -n "You may now close this window."\n'
-                            'sleep 99999\n'
-                            )
-                    os.write(shp, script)
-                    os.close(shp)
-                    os.chmod(shpath, 0755)
-                    sudoterm.append(shpath)
-
-                    updater = subprocess.Popen(sudoterm)
-                    if updater.wait():
-                        out("Warning: could not execute a terminal emulator; running upgrade without one.")
-                        out("Note that sudo and su will be unable to accept passwords.")
-                        updater = subprocess.Popen([shpath],
-                                                   stdin=subprocess.PIPE,
-                                                   stdout=subprocess.PIPE,
-                                                   stderr=subprocess.STDOUT,
-                                                  )
-                        stdout, stderr = updater.communicate()
-                        if updater.returncode:
-                            out("Error: Upgrade failed. Details:")
-                            for line in stdout.split("\n"):
-                                if line:
-                                    out("  " + line)
-                            return
-                        else:
-                            out("- Upgrade complete. Details:")
-                            for line in stdout.split("\n"):
-                                if line:
-                                    out("  - " + line)
-                    else:
-                        import time
-                        pidfile = basep + new_p + ".pid"
-                        cmpfile = basep + new_p + ".complete"
-
-                        while not os.path.exists(pidfile) or \:
-                        os.path.getsize(pidfile) == 0
-                            time.sleep(0.25)
-                        for line in file(pidfile):
-                            pid = int(line)
-                            break
-
-                        while not os.path.exists(cmpfile) or \
-                        os.path.getsize(cmpfile) == 0:
-                            time.sleep(0.25)
-                            try:
-                                os.getpgid(pid)
-                            except OSError, e:
-                                if e.errno == 3: # No such process
-                                    break
-                                else:
-                                    raise
-
-                        if os.path.exists(cmpfile):
-                            try:
-                                file(pidfile, 'w').close()
-                                file(cmpfile, 'w').close()
-                                os.remove(pidfile)
-                                os.remove(cmpfile)
-                            except:
-                                pass
-                            out("- Upgrade complete")
-                        else:
-                            out("Error: Upgrade failed")
-                            return
-                    '''
-
-                    #'''
+                    # TODO: make this NOT backup non-distributed stuff like
+                    # dependencies, config files, etc
                     out("- Backing up current dtella to %s" % bkup)
                     bkup = basep + bkup
                     try:
@@ -1041,7 +850,6 @@ exit 0
                             out("You may want to remove it manually.")
 
                     out("- Install complete. A backup of the old installation is at %s" % bkup)
-                    #'''
 
 
                 elif type == 'dmg':

@@ -31,22 +31,23 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 # Use this prefix for filenames when building executables and installers.
 # It will be concatenated with the version number below.
-name = "PATCH_ME"
+name = PATCH_ME
 
 # Dtella version number.
-version = "PATCH_ME"
+version = PATCH_ME
 
-# Set this type when building executables and installers. This allows
-# Dtelle to select an appropriate upgrade method.
-# Supported values: ["tar.bz2", "tar.gz", "dmg", "exe"]
-type = "PATCH_ME"
+# Set the upgrade type. Some build systems (eg. py2exe) don't have an upgrade
+# system, so we use our own custom integrated !UPGRADE command instead; this
+# setting lets us select the correct type of upgrade to perform. Supported
+# values: [None, "tar", "dmg", "exe"]
+upgrade_type = PATCH_ME
 
 # This is the directory where default data files (eg. default network config)
-# are kept. TODO actually use this...
-data_dir = "PATCH_ME"
+# are kept. TODO atm this is unused, and will always be set to None
+data_dir = PATCH_ME
 
 # This is the email that people are told to send bug reports to
-bugs_email = "PATCH_ME"
+bugs_email = PATCH_ME
 
-# This is the name concatenated with the version
+# The long form of the version string, which includes the name.
 verstr = name + "-" + version
