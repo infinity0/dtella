@@ -23,7 +23,6 @@ deb )
 	py2dsc --workaround-548392=false -d "$BLDDIR/stdeb" -x "setup.cfg" "dist/$FILEBASE.tar.gz"
 	# bug #548392 does not affect us and the workaround restricts the python version, so don't use it
 
-	exit
 	cd "$BLDDIR/stdeb/$FILEBASE"
 	dpkg-buildpackage -rfakeroot
 	cd -
