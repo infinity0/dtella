@@ -234,7 +234,7 @@ def runClient(client_cfg, dc_port=None, terminator=False):
                 "Something bad happened.  You might want to email this to "
                 "%s so we'll know about it:\n"
                 "Version: %s %s\n%s" %
-                (build.bugs_email, build.verstr, get_version_string()[3:], text))
+                (build.bugs_email, local.hub_name, get_version_string()[3:], text))
 
     addTwistedErrorCatcher(botErrorReporter)
     addTwistedErrorCatcher(LOG.critical)
@@ -246,7 +246,7 @@ def runClient(client_cfg, dc_port=None, terminator=False):
         from dtella.client.dc import DCFactory
         dfactory = DCFactory(dtMain, dc_port)
 
-    LOG.info("%s on %s" % (build.verstr, local.hub_name))
+    LOG.info("%s-%s on %s" % (build.name, build.version, local.hub_name))
 
     global exit_code
     exit_code = 0
@@ -301,11 +301,11 @@ def runClient(client_cfg, dc_port=None, terminator=False):
 def main():
     from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
     parser = OptionParser(
-        usage = "Usage: %prog [OPTIONS] [CONFIG]",
-        description = "Run Dtella with the given CONFIG. If none is given, the "
-                      "user's default one will be used. If the CONFIG to be used "
-                      "does not exist, the system default will be copied to its "
-                      "location, given by ~/.dtella/${CFGTYPE}_${CONFIG}.cfg",
+        usage = "Usage: %prog [OPTIONS] [CONFIGURATION]",
+        description = "Run Dtella with the given OPTIONS and CONFIGURATION. If no "
+                      "configuration is given, the default one will be used. If the "
+                      "CONFIGURATION to be used does not exist, the system default "
+                      "will be copied to its location.",
         version = "%s" % (build.verstr),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
@@ -324,7 +324,7 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Client mode options",
-            "In this mode, CONFIG should be the name of a network configuration.")
+            "In this mode the CONFIGURATION will be 'network_CONFIGURATION.cfg'.")
         group.add_option("-p", "--port", type="int", metavar="PORT",
                          help="listen for the DC client on localhost:PORT. If none is "
                               "given, the last one to be used will be used, or port 7314 "
@@ -339,14 +339,17 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Bridge mode options",
-            "In this mode, CONFIG should be the name of a bridge configuration.")
+            "In this mode the CONFIGURATION will be 'bridge_CONFIGURATION.cfg' for the bridge"
+            "settings, and 'network_CONFIGURATION.cfg' for the standard settings")
         group.add_option("-b", "--bridge", action="store_true",
                           help="run as a bridge")
         group.add_option("-d", "--dconfigpusher", action="store_true",
                           help="push seed config data")
-        group.add_option("-n", "--network", metavar="CFG",
-                          help="when creating a new bridge config, initialise it to use "
-                               "the network CFG instead of the default network.")
+        # To Implement if/when we get time.  Commented out so as not to polute the --help screen
+        # with irrelevent information
+        # group.add_option("-n", "--network", metavar="CFG",
+                          # help="when creating a new bridge config, initialise it to use "
+                               # "the network CFG instead of the default network.")
         group.add_option("-m", "--makeprivatekey", action="store_true",
                           help="make a keypair to use for a new bridge")
         parser.add_option_group(group)
