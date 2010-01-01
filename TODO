@@ -2,8 +2,6 @@
 - windows upgrade from source bug
 - windows restart
 
-- get rid of POSIX !upgrade crap...
-
 - allow Dtella to get dconfig from multiple sources
 
 

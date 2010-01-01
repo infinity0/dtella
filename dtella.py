@@ -325,11 +325,11 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Client mode options",
-            "In this mode, CONFIG should be the name of a network configuration.  Dtella will attempt"
-            "to use 'network_CONFIG.cfg'.")
+            "In this mode, CONFIG is a network configuration - Dtella will attempt "
+            "to use `$HOME/.dtella/network_CONFIG.cfg`.")
         group.add_option("-p", "--port", type="int", metavar="PORT",
                          help="listen for the DC client on localhost:PORT. If none is "
-                              "given, the last one to be used will be used, or port 7314 "
+                              "given, the previous setting will be used; or port 7314 "
                               "if this is the first run.")
         group.add_option("-t", "--terminate", action="store_true",
                          help="terminate an already-running Dtella client node")
@@ -341,9 +341,8 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Bridge mode options",
-            "In this mode, CONFIG should be the name of a bridge configuration.  Dtella will attempt "
-            "to use 'bridge_CONFIG.cfg' for the bridge settings and 'network_CONFIG.cfg' for the normal settings "
-            "(unless bridge_CONFIG.cfg states otherwise).")
+            "In this mode, CONFIG is a bridge configuration - Dtella will attempt "
+            "to use `$HOME/.dtella/bridge_CONFIG.cfg`.")
         group.add_option("-b", "--bridge", action="store_true",
                           help="run as a bridge")
         group.add_option("-d", "--dconfigpusher", action="store_true",
