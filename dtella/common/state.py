@@ -180,7 +180,7 @@ class StateManager(State):
             self.ipcache = self.getYoungestPeers(128)
 
         if not self.ipcache_dcall:
-            self.ipcache_dcall = reactor.callLater(1, cb)
+            self.ipcache_dcall = reactor.callLater(60, cb)
 
 
     def setDNSIPCache(self, data):
