@@ -61,12 +61,19 @@ def doWarnings():
         LOG.warning("You should get Twisted 8 or later.  Previous versions "
                     "have some bugs that affect Dtella.")
 
-    import Crypto.PublicKey
     try:
-        import Crypto.PublicKey._fastmath
+        import dtella.bridge
     except ImportError:
-        LOG.warning("Your version of PyCrypto was compiled without "
-                    "GMP (fastmath).  Some stuff will be slower.")
+        # Don't warn about GMP for clients, because verifying a signature
+        # is fast enough without it (~1ms on a Core2)
+        pass
+    else:
+        import Crypto.PublicKey
+        try:
+            import Crypto.PublicKey._fastmath
+        except ImportError:
+            LOG.warning("Your version of PyCrypto was compiled without "
+                        "GMP (fastmath).  Signing messages will be slower.")
 doWarnings()
 
 # Miscellaneous Exceptions
@@ -1916,6 +1923,10 @@ class InitialContactManager(DatagramProtocol):
                 ad = Ad().setRawIPPort(ipp)
                 self.main.state.refreshPeer(ad, age)
 
+        # Add my own IP to the list, even if it's banned.
+        src_ad = Ad().setRawIPPort(src_ipp)
+        self.main.addMyIPReport(src_ad, my_ad)
+
         if code != CODE_IP_OK:
             if not p.bad_code:
                 p.bad_code = True
@@ -1929,10 +1940,6 @@ class InitialContactManager(DatagramProtocol):
                 self.cancelPeerContactTimeout(p)
                 self.checkStatus()
             return
-
-        # Add my own IP to the list
-        src_ad = Ad().setRawIPPort(src_ipp)
-        self.main.addMyIPReport(src_ad, my_ad)
 
         # Add the node who sent this packet to the cache
         self.main.state.refreshPeer(src_ad, 0)
@@ -3935,6 +3942,7 @@ class MessageRoutingManager(object):
             self.tries = tries
 
             self.status_pktnum = None
+            self.create_time = seconds()
 
             # {neighbor ipp -> ack-timeout dcall}
             self.nbs = {}
@@ -3971,10 +3979,24 @@ class MessageRoutingManager(object):
             def cb(tries):
                 # Ack timeout callback
 
+                send_data = data
+
+                # Decrease the hop count by the number of seconds the packet
+                # has been buffered.
+                buffered_time = int(seconds() - self.create_time)
+                if buffered_time > 0:
+                    hops = ord(data[8]) - buffered_time
+                    if hops >= 0:
+                        # Splice in the reduced hop count.
+                        send_data = "%s%c%s" % (data[:8], hops, data[9:])
+                    else:
+                        # Drop packet.
+                        tries = 0
+
                 # Make an attempt now
                 if tries > 0:
                     addr = Ad().setRawIPPort(nb_ipp).getAddrTuple()
-                    ph.sendPacket(data, addr, broadcast=True)
+                    ph.sendPacket(send_data, addr, broadcast=True)
 
                 # Reschedule another attempt
                 if tries-1 > 0:
@@ -4162,7 +4184,7 @@ class MessageRoutingManager(object):
         return me.status_pktnum
 
 
-    def broadcastHeader(self, kind, src_ipp, hops=64, flags=0):
+    def broadcastHeader(self, kind, src_ipp, hops=32, flags=0):
         # Build the header used for all broadcast packets
         packet = [kind]
         packet.append(self.main.osm.me.ipp)
@@ -4754,8 +4776,14 @@ class DtellaMain_Base(object):
                 self.shutdown(reconnect='max')
 
             elif result == 'foreign_ip':
+                try:
+                    my_ip = Ad().setRawIPPort(self.selectMyIP()).getTextIP()
+                except ValueError:
+                    my_ip = "?"
+                
                 self.showLoginStatus(
-                    "Your IP address is not authorized to use this network.")
+                    "Your IP address (%s) is not authorized to use "
+                    "this network." % my_ip)
                 self.shutdown(reconnect='max')
 
             elif result == 'dead_port':
