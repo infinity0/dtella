@@ -1,7 +1,7 @@
 @echo off
 REM This is a unified build script for building multiple "editions" of dtella.
 REM
-REM Usage: installer_win/build_all.cmd %BUILD_NAME% %INSTALL_TEMPLATE% %OUTFILE% [%OUTFILE2%]
+REM Usage: installer_win/build_all.cmd %BUILD_NAME% %INSTALL_TEMPLATE% %OUTTYPE% [%OUTFILE2%]
 
 REM ----- DEPENDENCY CHECK ------
 call installer_win\check_build_deps
@@ -50,8 +50,8 @@ REM -----CLEAN UP OUTPUT------
 
 mkdir %OUTDIR%
 
-move %BLDIR%\%3 %OUTDIR%
-IF EXIST %BLDIR%\%4 (move %BLDIR%\%4 %OUTDIR%)
+move %BLDIR%\%FILEBASE.%3 %OUTDIR%
+IF !%4==! ( ) else ( move %BLDIR%\%4 %OUTDIR% )
 move %BLDIR%\%FILEBASE%.tar.* %OUTDIR%
 
 
