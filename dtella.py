@@ -141,7 +141,7 @@ def migrateOldSettings():
         return None
 
     except anydbm.error:
-        print "--- detected old network config; migrating it to the default network"
+        print "--- migrating old settings to the default network"
 
     newlog = get_user_path(local.cfgname + ".log")
     oldlog = get_user_path("dtella.log")

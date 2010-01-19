@@ -1,10 +1,11 @@
-- twisted.seconds
-- windows upgrade from source bug
-- windows restart
+- twisted.seconds - ??
+- windows restart - ??
 
 - allow Dtella to get dconfig from multiple sources
 
-
+- create all bridge configs with 600 permissions
+- setup gmail account, etc
+- make shell-script installer install to ~/.local/share/dtella and ~/bin/dtella
 
 new packet:
 FF (forward to)
