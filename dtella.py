@@ -48,7 +48,8 @@ import time
 try:
     import dtella.build_config as build
 except ImportError:
-    print 'You need to run "setup.py build" to generate dtella.build_config'
+    sys.stderr.write('Dtella has not been set up properly: missing build_config - have you run `setup.py build`?\n')
+    sys.exit(-1)
 
 from dtella.common.log import setLogFile
 from dtella.common.log import LOG
@@ -301,11 +302,11 @@ def runClient(client_cfg, dc_port=None, terminator=False):
 def main():
     from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
     parser = OptionParser(
-        usage = "Usage: %prog [OPTIONS] [CONFIGURATION]",
-        description = "Run Dtella with the given OPTIONS and CONFIGURATION. If no "
-                      "configuration is given, the default one will be used. If the "
-                      "CONFIGURATION to be used does not exist, the system default "
-                      "will be copied to its location.",
+        usage = "Usage: %prog [OPTIONS] [CONFIG]",
+        description = "Run Dtella with the given CONFIG. If it doesn't exist, the "
+                      "default config will be copied there. If no CONFIG is given, "
+                      "Dtella will use the default config directly (ie. without "
+                      "copying it to a user directory).",
         version = "%s" % (build.verstr),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
@@ -324,10 +325,11 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Client mode options",
-            "In this mode the CONFIGURATION will be 'network_CONFIGURATION.cfg'.")
+            "In this mode, CONFIG is a network configuration - Dtella will attempt "
+            "to use `$HOME/.dtella/network_CONFIG.cfg`.")
         group.add_option("-p", "--port", type="int", metavar="PORT",
                          help="listen for the DC client on localhost:PORT. If none is "
-                              "given, the last one to be used will be used, or port 7314 "
+                              "given, the previous setting will be used; or port 7314 "
                               "if this is the first run.")
         group.add_option("-t", "--terminate", action="store_true",
                          help="terminate an already-running Dtella client node")
@@ -339,17 +341,12 @@ def main():
         pass
     else:
         group = MyOptGroup(parser, "Bridge mode options",
-            "In this mode the CONFIGURATION will be 'bridge_CONFIGURATION.cfg' for the bridge"
-            "settings, and 'network_CONFIGURATION.cfg' for the standard settings")
+            "In this mode, CONFIG is a bridge configuration - Dtella will attempt "
+            "to use `$HOME/.dtella/bridge_CONFIG.cfg`.")
         group.add_option("-b", "--bridge", action="store_true",
                           help="run as a bridge")
         group.add_option("-d", "--dconfigpusher", action="store_true",
                           help="push seed config data")
-        # To Implement if/when we get time.  Commented out so as not to polute the --help screen
-        # with irrelevent information
-        # group.add_option("-n", "--network", metavar="CFG",
-                          # help="when creating a new bridge config, initialise it to use "
-                               # "the network CFG instead of the default network.")
         group.add_option("-m", "--makeprivatekey", action="store_true",
                           help="make a keypair to use for a new bridge")
         parser.add_option_group(group)
@@ -374,9 +371,6 @@ def main():
 
     try:
         # bridge mode
-        if opts.network:
-            print "--network has not been implemented yet; you'll have to edit the config yourself"
-            return 2
 
         if opts.bridge:
             return runBridge(config)

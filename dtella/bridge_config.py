@@ -30,7 +30,6 @@ prefix = "bridge"
 
 # Set defaults
 
-network = None
 myip_hint = ''
 ip_cache = []
 
@@ -61,6 +60,11 @@ except NameError, e:
     ]))
 
 # Postprocess some fields to the correct types, etc, whatever
+
+try:
+    network;
+except NameError:
+    network = cfgname
 
 from dtella.common.util import set_cfg
 set_cfg("dtella.local_config", network)

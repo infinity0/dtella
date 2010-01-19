@@ -28,7 +28,7 @@ from dtella.common.util import dcall_discard, get_user_path, CHECK
 from dtella.common.ipv4 import Ad
 
 
-class State():
+class State:
     """
     Persistent state class. This class uses shelve to store data; see its
     documentation for details. In particular, note that mutating attributes
@@ -183,7 +183,7 @@ class StateManager(State):
             self.ipcache = self.getYoungestPeers(128)
 
         if not self.ipcache_dcall:
-            self.ipcache_dcall = reactor.callLater(1, cb)
+            self.ipcache_dcall = reactor.callLater(60, cb)
 
 
     def setDNSIPCache(self, data):

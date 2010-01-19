@@ -25,11 +25,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import sys, os
+import sys, os, subprocess
 
 properties = {
     'name': 'dtella-cambridge',
-    'version': '1.2.4.5',
+    'version': '1.2.4.5+git',
     'description': 'Client for the Dtella network at Cambridge',
     'author': 'Dtella-Cambridge',
     'author_email': 'cabal@camdc.pcriot.com',
@@ -38,9 +38,22 @@ properties = {
     'platforms': ['posix', 'win32', 'darwin'],
     'options': {},
 }
-## FIXME have this empty by default and set only if --format= is set
-build_type = "tar.bz2"
+upgrade_type = None
 bugs_email = "cabal@camdc.pcriot.com"
+
+# If we're developing, set the version from `git-describe` if it's available.
+if 'git' in properties['version'] and \
+not subprocess.call(['which', 'git'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT):
+
+    gitver = subprocess.Popen(['git', 'describe', '--always', '--abbrev=4'],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                             )
+    if not gitver.wait():
+        for line in gitver.stdout:
+            properties['version'] = line.strip()
+            break
+    del gitver
 
 
 class Error(Exception):
@@ -78,27 +91,25 @@ def get_includes():
 
 
 # TODO find a better way of doing this...
-def make_build_config(type, bugs_email, data_dir=None):
-    # Patch the build_config with the correct variables
-    global properties
-    props = properties.copy()
-    props.update({
-        'type': type,
-        'bugs_email': bugs_email,
-        'data_dir': data_dir,
-    })
+def make_build_config(bugs_email, upgrade_type=None, data_dir=None):
+    '''
+    Patch the build_config with the correct variables
+    '''
 
-    lines = []
+    props = properties.copy()
+    props.update(locals())
+
+    wfile = file("dtella/build_config.py", "w")
+
     for line in file("dtella/build_config.py.in").readlines():
         i = line.find(' = ')
         if i >= 0:
             key = line[:i]
             if key in props:
-                line = line.replace('PATCH_ME', str(props[key]))
-        lines.append(line)
-
-    file("dtella/build_config.py", "w").writelines(lines)
-    print "wrote build config to dtella/build_config.py"
+                line = line.replace('PATCH_ME', repr(props[key]))
+                print "build_config: set %s to %s" % (key, repr(props[key]))
+        wfile.write(line)
+    wfile.close()
 
 
 def patch_nsi_template(suffix=''):
@@ -151,15 +162,15 @@ def patch_camdc_nsi_template():
     wfile.close()
 
 
-if __name__ == '__main__':
+def main(argv):
 
     from distutils.core import setup
     from distutils.command.bdist import bdist
 
     my_commands = {}
 
-    if 'py2app' in sys.argv:
-        build_type = 'dmg'
+    if 'py2app' in argv:
+        upgrade_type = 'dmg'
         import py2app
 
         properties['app'] = ["dtella.py"]
@@ -172,18 +183,18 @@ if __name__ == '__main__':
             "includes": get_includes(),
         }
 
-    elif 'py2exe' in sys.argv:
-        build_type = 'exe'
+    elif 'py2exe' in argv:
+        upgrade_type = 'exe'
         import py2exe
 
-        if len(sys.argv) <= 2:
+        if len(argv) <= 2:
             patch_nsi_template()
-        elif sys.argv[2] == 'camdc':
+        elif argv[2] == 'camdc':
             patch_camdc_nsi_template()
             del sys.argv[2]
-        elif sys.argv[2] == 'updater':
+        elif argv[2] == 'updater':
             patch_nsi_template('updater')
-            del sys.argv[2]
+            del argv[2]
         else:
             patch_nsi_template()
 
@@ -214,7 +225,7 @@ if __name__ == '__main__':
                         full = os.path.join(self.collect_dir, path)
 
                         if os.path.isdir(path):
-                            raise Error("Not implemented yet")
+                            raise Error("Not implemented: multilevel package_data hack for py2exe")
                         else:
                             self.copy_file(path, full)
                             self.compiled_files.append(path)
@@ -234,21 +245,25 @@ if __name__ == '__main__':
         def __init__(self, attrs=None):
             _Distribution.__init__(self, attrs)
             self.global_options.append(('bridge', 'b', "include the bridge modules in the build"))
+            self.global_options.append(('upgrade-type=', 'u', "set the upgrade type (only if unset)"))
 
         def run_commands(self):
-            global build_type, bugs_email
-            make_build_config(build_type, bugs_email)
-            try:
-                getattr(self, "bridge")
+            global upgrade_type, bugs_email
+
+            if hasattr(self, "upgrade_type") and not upgrade_type:
+                upgrade_type = self.upgrade_type
+
+            make_build_config(bugs_email, upgrade_type)
+
+            if hasattr(self, "bridge"):
                 self.packages.append('dtella.bridge')
-            except AttributeError:
-                pass
+
             _Distribution.run_commands(self)
 
 
     class bdist_shinst(bdist):
 
-        description = "Create a shell-installer for posix systems"
+        description = "Create a shell-script installer for POSIX systems"
 
         user_options = [
             ('WGET=', None,
@@ -345,3 +360,8 @@ if __name__ == '__main__':
         scripts = ['bin/dtella'],
         **properties
     )
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
+
