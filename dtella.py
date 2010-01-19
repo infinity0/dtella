@@ -303,10 +303,10 @@ def main():
     from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
     parser = OptionParser(
         usage = "Usage: %prog [OPTIONS] [CONFIG]",
-        description = "Run Dtella with the given CONFIG. If it "
-                      "doesn't exist, the default config will be copied there. "
-                      "If no CONFIG is given, Dtella will use the default config "
-                      "directly (ie. without copying it to a user directory).",
+        description = "Run Dtella with the given CONFIG. If it doesn't exist, the "
+                      "default config will be copied there. If no CONFIG is given, "
+                      "Dtella will use the default config directly (ie. without "
+                      "copying it to a user directory).",
         version = "%s" % (build.verstr),
         formatter = IndentedHelpFormatter(max_help_position=25)
     )
