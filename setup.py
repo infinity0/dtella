@@ -33,13 +33,16 @@ properties = {
     'description': 'Client for the Dtella network at Cambridge',
     'author': 'Dtella-Cambridge',
     'author_email': 'cabal@camdc.pcriot.com',
-    'url': 'http://camdc.pcriot.com',
+    'url': 'http://ate.anonnet.org/dc/',
     'license': 'GPL v3',
     'platforms': ['posix', 'win32', 'darwin'],
     'options': {},
 }
 upgrade_type = None
 bugs_email = "cabal@camdc.pcriot.com"
+repo_path = "bin"
+
+# All build constants should go in the section above
 
 # If we're developing, set the version from `git-describe` if it's available.
 if 'git' in properties['version'] and \
@@ -275,15 +278,8 @@ def main(argv):
             bdist.finalize_options(self)
 
         def run(self):
-            try:
-                self.REPO = properties['url'] + "/bin"
-            except ImportError:
-                sys.stderr.write("Could not find bridge config; abort.\n")
-                return 1
-            except ValueError:
-                sys.stderr.write("Could not extract repository URL from bridge config; abort.\n")
-                return 1
-
+            global repo_path
+            self.REPO = properties['url'] + repo_path
             self.PROD = properties['name'] + '-' + properties['version']
 
             if not self.DEPS:
