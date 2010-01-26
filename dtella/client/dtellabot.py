@@ -948,11 +948,10 @@ class DtellaBot(object):
             self.debug_neighbors(out)
 
         elif args[0] == "nodes":
-            try:
-                sortkey = int(args[1])
-            except (IndexError, ValueError):
-                sortkey = 0
-            self.debug_nodes(out, sortkey)
+            if len(args) < 2:
+                self.debug_nodes(out)
+            else:
+                self.debug_nodes(out, args[1])
 
         elif args[0] == "packets":
             if len(args) < 2:
@@ -1001,7 +1000,7 @@ class DtellaBot(object):
             out(' '.join(info))
 
 
-    def debug_nodes(self, out, sortkey):
+    def debug_nodes(self, out, sortkey=0):
 
         osm = self.main.osm
         if not (osm and osm.syncd):
@@ -1009,40 +1008,56 @@ class DtellaBot(object):
             return
 
         me = osm.me
-
         now = seconds()
-
-        out("Online Nodes: {ipp, nb, persist, expire, uptime, dttag, nick}")
-
+        header = ["ipp", "nb", "ps", "exp", "uptime", "dttag", "nick"]
+        width = [0, 0, 0, 4, 8, 8, 0]
         lines = []
 
+        try:
+            skey = int(sortkey)
+        except ValueError:
+            if sortkey in header:
+                skey = header.index(sortkey)+1
+            else:
+                skey = 0
+
+        header[0] = "ipp         "
+        border = ["------------", "--", "--", "----", "--------", "--------", "--------"]
+
         for n in ([me] + osm.nodes):
-            info = []
-            info.append(binascii.hexlify(n.ipp).upper())
 
             if n.ipp in osm.pgm.pnbs:
-                info.append("Y")
+                nb = " Y"
             else:
-                info.append("N")
+                nb = " N"
 
             if n.persist:
-                info.append("Y")
+                ps = " Y"
             else:
-                info.append("N")
+                ps = " N"
 
             if n is me:
-                info.append("%4d" % dcall_timeleft(osm.sendStatus_dcall))
+                exp = "%d" % dcall_timeleft(osm.sendStatus_dcall)
             else:
-                info.append("%4d" % dcall_timeleft(n.expire_dcall))
+                exp = "%d" % dcall_timeleft(n.expire_dcall)
 
-            info.append("%8d" % (now - n.uptime))
-            info.append("%8s" % n.dttag[3:])
-            info.append("(%s)" % n.nick)
+            info = (binascii.hexlify(n.ipp).upper(), nb, ps, exp, "%d" % (now - n.uptime), n.dttag[3:], n.nick)
+
+            for i in range(0, len(header)):
+                if width[i] > 0 and len(info[i]) > width[i]:
+                    width[i] = len(info[i])
+                    border[i] = "-" * width[i]
 
             lines.append(info)
 
-        if 1 <= sortkey <= 7:
-            lines.sort(key=lambda l: l[sortkey-1])
+        if 0 < skey <= len(header):
+            lines.sort(key=lambda l: l[skey-1])
 
+        fmt = "%%%ds|%%%ds|%%%ds|%%%ds|%%%ds|%%%ds|%%%ds" % tuple(width)
+        fmb = "%%%ds+%%%ds+%%%ds+%%%ds+%%%ds+%%%ds+%%%ds" % tuple(width)
+
+        out(fmb % tuple(border))
+        out(fmt % tuple(header))
+        out(fmb % tuple(border))
         for line in lines:
-            out(' '.join(line))
+            out(fmt % line)

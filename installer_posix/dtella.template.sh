@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # Dtella - Installer for POSIX (GNU, BSD) systems
-# Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
-# Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
+# Copyright (C) 2009-2010  Dtella Cambridge (http://camdc.pcriot.com/)
+# Copyright (C) 2009-2010  Ximin Luo <xl269@cam.ac.uk>
 #
 # $Id$
 #
