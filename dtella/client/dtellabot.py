@@ -770,13 +770,11 @@ class DtellaBot(object):
             if args[0] == 'ON':
                 out("Set notifications to ON.")
                 self.main.state.newitems_notify = True
-                self.main.state.saveState()
                 return
 
             elif args[0] == 'OFF':
                 out("Set notifications to OFF.")
                 self.main.state.newitems_notify = False
-                self.main.state.saveState()
                 return
 
         self.syntaxHelp(out, 'NOTIFY', prefix)
