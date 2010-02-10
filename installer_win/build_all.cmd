@@ -55,7 +55,7 @@ REM -----CLEAN UP OUTPUT------
 mkdir %OUTDIR%
 
 move %BLDIR%\%FILEBASE%.%3 %OUTDIR%
-if not !%4==! move %BLDIR%\%4 %OUTDIR%
+if not !%5==! move %BLDIR%\%5 %OUTDIR%
 move %BLDIR%\%FILEBASE%.tar.* %OUTDIR%
 
 del %BLDIR%\msvcr71.dll
@@ -63,4 +63,4 @@ del %BLDIR%\readme.txt
 del %BLDIR%\changelog.txt
 del %BLDIR%\changelog_adc.txt
 del %BLDIR%\dtella.exe
-del %BLDIR%\%2
+if !%4==! ( del %BLDIR%\%2 ) else ( del %BLDIR%\%4 )
