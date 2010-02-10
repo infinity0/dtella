@@ -475,7 +475,7 @@ def load_cfg(modname, prefix):
         cfgname = prefix
         cfgfile = get_user_path(cfgname + ".cfg")
         if os.path.exists(cfgfile):
-            print "--- Note: obsolete config in %s" % cfgfile
+            print "--- Note: unused obsolete config in %s" % cfgfile
             print "--- You might want to remove it to reduce clutter."
 
         import StringIO

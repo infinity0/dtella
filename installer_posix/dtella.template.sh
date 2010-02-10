@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # Dtella - Installer for POSIX (GNU, BSD) systems
-# Copyright (C) 2009  Dtella Cambridge (http://camdc.pcriot.com/)
-# Copyright (C) 2009  Ximin Luo <xl269@cam.ac.uk>
+# Copyright (C) 2009-2010  Dtella Cambridge (http://camdc.pcriot.com/)
+# Copyright (C) 2009-2010  Ximin Luo <xl269@cam.ac.uk>
 #
 # $Id$
 #
@@ -51,21 +51,18 @@ SVNR=""                                     # svn repository address
 EXTRACT=$EXT_CMD
 INSTALL=install_prod
 VERBOSE=
+ACTION="install"
+
+DIR_BASE="$HOME/.local/share/dtella"
+DIR_CFG="$HOME/.dtella"
+DIR_BIN="$HOME/bin"
+
+PDIR_BASE="~/.local/share/dtella"
+PDIR_CFG="~/.dtella"
+PDIR_BIN="~/bin"
 
 for i in "$@"; do
 	case "$i" in
-	-h | --help )
-		cat <<-EOF
-		Usage: $0 <option>
-		Installs $PROD
-
-		Options:
-		  -v, --verbose             Show files as they are being extracted / installed.
-		  -s, --svn                 Install the latest develpment version from SVN.
-
-		EOF
-		exit 0
-		;;
 	-s | --svn )
 		if [ -z "$SVNR" ]; then echo "SVN install is not supported on this build."; exit 6; fi
 		INSTALL=install_svn
@@ -75,17 +72,72 @@ for i in "$@"; do
 		VERBOSE=--verbose
 		EXTRACT=$EXT_VRB
 		;;
+	-u | --uninstall )
+		ACTION="uninstall"
+		;;
+	-o | --uninstall-old )
+		ACTION="uninstall-old"
+		;;
+	-h | --help | * )
+		cat <<-EOF
+		Usage: $0 [OPTIONS]
+		Install or uninstall $PROD
+
+		Options:
+		  -v, --verbose             Show files as they are being extracted / installed.
+		  -s, --svn                 Install the latest develpment version from SVN.
+		  -u, --uninstall           Uninstall dtella
+		  -o, --uninstall-old       Uninstall dtella (old structure, in $PDIR_CFG)
+
+		Files:
+		  Base program files        $PDIR_BASE/
+		  Run script                $PDIR_BIN/dtella
+		  User (data) files         $PDIR_CFG/
+
+		EOF
+		exit 0
+		;;
 	esac
 done
 
-echo "This will install $PROD to your home directory."
-echo "This script will overwrite ~/dtella and things in ~/.dtella/"
-echo "Press enter to continue, or Ctrl-C at any time to abort..."
+echo ">>> $PROD: \033[1m$ACTION\033[0m (see --help for options)"
 
+uninstall_end() {
+	if $1; then echo "$PROD \033[1msuccessfully uninstalled\033[0m."; X=0;
+	else echo "$PROD \033[1mpartially uninstalled\033[0m; see output for details."; X=5; fi
+	echo "There may still be user files in $PDIR_CFG; you may remove these yourself."
+	exit $X
+}
+
+case $ACTION in
+uninstall )
+	echo "This will remove $PDIR_BIN/dtella, and $PDIR_BASE and its contents. "
+	echo "Press enter to continue, or Ctrl-C to abort..."
+	read ENTER
+	rm -rf $VERBOSE "$DIR_BIN/dtella" "$DIR_BASE" || SUC=false
+	rmdir -p $VERBOSE "$DIR_BIN" $(dirname "$DIR_BASE")
+	uninstall_end $SUC
+	;;
+uninstall-old )
+	echo "This will remove ~/dtella, and the contents of $PDIR_CFG. User files will be "
+	echo "spared (*.db, *.log, *.cfg files in the top-level directory)."
+	echo "Press enter to continue, or Ctrl-C to abort..."
+	read ENTER
+	EXC='^[^/]*\.\(db\|log\|cfg\)$'
+	cd "$DIR_CFG"
+	find * ! -type d | grep -v $EXC | sort -r | xargs rm -f $VERBOSE || SUC=false
+	rm -f $VERBOSE setup.cfg ~/dtella || SUC=false
+	find *           | grep -v $EXC | sort -r | xargs rmdir $VERBOSE || SUC=false
+	uninstall_end $SUC
+	;;
+esac
+
+echo "This will overwrite $PDIR_BIN/dtella and completely replace $PDIR_BASE "
+echo "Press enter to continue, or Ctrl-C at any time to abort..."
 read ENTER
 
-test -d ~/.dtella || mkdir ~/.dtella || { echo "Could not make ~/.dtella; abort" && exit 5; }
-cd ~/.dtella
+test -d "$DIR_BASE" || mkdir -p "$DIR_BASE" || { echo "Could not make $PDIR_BASE; abort" && exit 5; }
+cd "$DIR_BASE"
 
 compile_warn() {
 	echo
@@ -221,18 +273,18 @@ $INSTALL
 ./setup.py --upgrade-type=tar clean -a > /dev/null # enables the !UPGRADE command
 rm -f "$DEPS"
 echo
-echo "$PROD installed successfully into ~/.dtella/"
+echo "$PROD \033[1msuccessfully installed\033[0m into $PDIR_BASE"
 
 cd
-cat > dtella << 'EOF'
+mkdir -p "$DIR_BIN" && cat > "$DIR_BIN/dtella" << EOF
 #!/bin/sh
-python -O ~/.dtella/dtella.py "$@" &
+exec python -O $PDIR_BASE/dtella.py "\$@"
 EOF
 
 if [ $? -gt 0 ]; then
-	echo "However, could not install ~/dtella run script."
+	echo "However, could not install $PDIR_BIN/dtella run script."
 else
-	chmod +x dtella
-	echo "You can run it with ~/dtella"
+	chmod +x "$DIR_BIN/dtella"
+	echo "You can run it with $PDIR_BIN/dtella"
 fi
 exit 0
