@@ -25,8 +25,8 @@ copy docs\gpl.txt             %BLDIR%\%FILEBASE%\docs
 
 pushd %BLDIR%
 
-IF EXIST %ARC% (%ARC% a -ttar %FILEBASE%.tar %FILEBASE%) ELSE (%ARC64% a -ttar %FILEBASE%.tar %FILEBASE%)
-IF EXIST %ARC% (%ARC% a -tbzip2 %FILEBASE%.tar.bz2 %FILEBASE%.tar) ELSE (%ARC64% a -tbzip2 %FILEBASE%.tar.bz2 %FILEBASE%.tar)
+if exist %ARC% (%ARC% a -ttar %FILEBASE%.tar %FILEBASE%) else (%ARC64% a -ttar %FILEBASE%.tar %FILEBASE%)
+if exist %ARC% (%ARC% a -tbzip2 %FILEBASE%.tar.bz2 %FILEBASE%.tar) else (%ARC64% a -tbzip2 %FILEBASE%.tar.bz2 %FILEBASE%.tar)
 
 del %FILEBASE%.tar
 rmdir /s /q %FILEBASE%
