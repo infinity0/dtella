@@ -2,7 +2,7 @@
 
 REM This is a unified build script for building multiple "editions" of dtella.
 REM
-REM Usage: installer_win\build_all.cmd %BUILD_NAME% %INSTALL_TEMPLATE% %OUTTYPE% [%OUTFILE2%]
+REM Usage: installer_win\build_all.cmd %BUILD_NAME% %BUILD_TPL% %OUT_TYPE% [%OUT_BUILD_TPL% [%OUT_DISTFILE%]]
 
 
 REM ----- DEPENDENCY CHECK ------
