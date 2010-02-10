@@ -51,7 +51,7 @@ pause
 
 
 REM -----CLEAN UP OUTPUT------
-
+echo Cleaning up temporary files...
 mkdir %OUTDIR%
 
 move %BLDIR%\%FILEBASE%.%3 %OUTDIR%
