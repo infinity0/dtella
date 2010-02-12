@@ -284,7 +284,7 @@ class NickManager(object):
         # Look for this node in the nickmap
         try:
             if self.nickmap[n.nick.lower()] is not n:
-                raise KeyError
+                return
         except KeyError:
             return
 
@@ -2400,7 +2400,10 @@ class Node(object):
                 raise BadPacketError("This node does not accept NMDC infostrings")
 
             self.dcinfo = adc_infostring(adc_locdes(self.info))
-            if 'LO' in self.info:
+            loc = local.IPToLocation(Ad().setRawIPPort(self.ipp).getIntIP())
+            if loc:
+                self.location = loc
+            elif 'LO' in self.info:
                 i = self.info['LO'].find('|')
                 if i >= 0:
                     self.location = self.info['LO'][:i]

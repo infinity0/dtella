@@ -35,9 +35,6 @@ import dtella.common.core as core
 import dtella.common.state
 import dtella.client.pull_dconfig
 
-if local.use_locations:
-    from dtella.common.reverse_dns import ipToHostname
-
 from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
                                 CHECK)
 from dtella.common.log import LOG
@@ -236,12 +233,7 @@ class DtellaMain_Client(core.DtellaMain_Base):
         # A location of None indicates that a lookup is in progress
         self.location[my_ip] = None
 
-        def cb(hostname):
-
-            # Use local_config to transform this hostname into a
-            # human-readable location
-            loc = local.hostnameToLocation(hostname)
-
+        def update_loc(loc):
             # If we got a location, save it, otherwise dump the
             # dictionary entry
             if loc:
@@ -253,8 +245,14 @@ class DtellaMain_Client(core.DtellaMain_Base):
             if self.osm:
                 self.osm.updateMyInfo()
 
-        # Start lookup
-        ipToHostname(ad).addCallback(cb)
+        location = local.IPToLocation(ad.getIntIP())
+        if location:
+            update_loc(location)
+        else:
+            def cb(hostname):
+                loc = hostnameToLocation(hostname)
+                update_loc(loc)
+            ipToHostname(ad).addCallback(cb)
 
 
     def logPacket(self, text):

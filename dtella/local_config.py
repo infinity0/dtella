@@ -34,10 +34,8 @@ prefix = "network"
 adc_mode = False
 adc_fcrypto = False
 minshare_cap = str(1024 ** 3) # 1GiB
-#''' BEGIN NEWITEMS MOD #
 newitems_daylim = 7
 newitems_numlim = 16
-# END NEWITEMS MOD '''#
 
 # Set fields from the config
 cfgname = load_cfg(__name__, prefix)
@@ -93,11 +91,22 @@ for r in allowed_subnets:
     if rfc1918_matcher.containsRange(ipmask):
         not_private_matcher.addRange(ipmask)
 
+ip_matchers = []
+for ip_range in ip_ranges:
+    name = ip_range[0]
+    matcher = SubnetMatcher()
+    for cidr in ip_range[1:]:
+        ipmask = CidrStringToIPMask(cidr)
+        matcher.addRange(ipmask)
+    ip_matchers.append((matcher, name))
+
 if use_locations:
     if rdns_servers:
         def hostnameToLocation(hostname):
             # Convert a hostname into a human-readable location name.
             return hostnameMatch(hostname, host_regex)
-    else:
-        def hostnameToLocation(hostname):
-            return "TODO implement IP locator"
+
+    def IPToLocation(ip):
+        for ip_matcher, name in ip_matchers:
+            if ip_matcher.containsIP(ip):
+                return name
