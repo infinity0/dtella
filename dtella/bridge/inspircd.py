@@ -717,7 +717,7 @@ class InspIRCdServer(LineOnlyReceiver):
             if local.use_locations:
                 self.pushWhoisReply(
                     320, src, who, "Location: %s"
-                    % local.hostnameToLocation(n.hostname)) # will be IPToLocation not hostnameToLocation
+                    % local.hostnameToLocation(n.hostname))
 
         self.pushWhoisReply(
             318, src, who, "End of /WHOIS list.")

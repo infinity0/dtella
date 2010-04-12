@@ -463,13 +463,9 @@ class UnrealIRCServer(LineOnlyReceiver):
                 319, src, who, scfg.channel)
 
             if local.use_locations:
-                local.hostnameToLocation(n.hostname)
-                location = local.IPToLocation(Ad().setRawIPPort(n.ipp).getIntIP())
-                if not location:
-                    location = local.hostnameToLocation(n.hostname)
                 self.pushWhoisReply(
                     320, src, who, "Location: %s"
-                    % location)
+                    % local.hostnameToLocation(n.hostname))
 
         self.pushWhoisReply(
             318, src, who, "End of /WHOIS list.")
