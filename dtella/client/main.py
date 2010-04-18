@@ -35,7 +35,7 @@ import dtella.common.core as core
 import dtella.common.state
 import dtella.client.pull_dconfig
 
-if local.use_locations:
+if local.use_locations and local.rdns_servers:
     from dtella.common.reverse_dns import ipToHostname
 
 from dtella.common.util import (dcall_discard, word_wrap, get_user_path,
@@ -233,8 +233,12 @@ class DtellaMain_Client(core.DtellaMain_Base):
         if skip:
             return
 
-        # A location of None indicates that a lookup is in progress
-        self.location[my_ip] = None
+        # Set a preliminary value from the location-IP table, or "???"
+        # This may get overridden by the DNS matcher
+        self.location[my_ip] = local.locations[my_ip] if my_ip in local.locations else "???"
+
+        if not local.rdns_servers:
+            return
 
         def cb(hostname):
 
@@ -242,12 +246,9 @@ class DtellaMain_Client(core.DtellaMain_Base):
             # human-readable location
             loc = local.hostnameToLocation(hostname)
 
-            # If we got a location, save it, otherwise dump the
-            # dictionary entry
+            # If we got a location, save it.
             if loc:
                 self.location[my_ip] = loc
-            else:
-                del self.location[my_ip]
 
             # Maybe send an info update
             if self.osm:

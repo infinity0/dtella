@@ -62,6 +62,17 @@ try:
 except ValueError, e:
     raise ImportError("Network config: bad value for minshare_cap (%s)" % e)
 
+try:
+    location_ips;
+except NameError:
+    location_ips = {}
+
+try:
+    rdns_servers;
+except NameError:
+    rdns_servers = []
+
+
 # dconfig puller
 import dtella.modules.pull_dns
 import dtella.modules.pull_gdata
@@ -89,11 +100,17 @@ for r in allowed_subnets:
     if rfc1918_matcher.containsRange(ipmask):
         not_private_matcher.addRange(ipmask)
 
+locations = {}
 if use_locations:
+
+    if location_ips:
+        from SubnetTree import SubnetTree
+        locations = SubnetTree()
+        for name, ranges in location_ips.iteritems():
+            for range in ranges:
+                locations[range] = name
+
     if rdns_servers:
         def hostnameToLocation(hostname):
             # Convert a hostname into a human-readable location name.
             return hostnameMatch(hostname, host_regex)
-    else:
-        def hostnameToLocation(hostname):
-            return "TODO implement IP locator"

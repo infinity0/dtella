@@ -75,7 +75,7 @@ def hostnameMatch(hostname, regexes):
                     return vals[s.group(1)]
                 except KeyError:
                     pass
-    return "???"
+    return None
 
 
 def validateNick(nick):
@@ -231,15 +231,11 @@ def adc_unescape(text):
 def adc_infostring(infdict):
     return ' '.join(["%s%s" % (i, adc_escape(d)) for (i,d) in infdict.iteritems()])
 
-def adc_locdes(infdict):
+def adc_locdes(infdict, location_override=None):
     if 'LO' not in infdict:
         return infdict
 
-    loc = infdict['LO']
-    i = loc.find('|')
-    if i >= 0:
-        loc = loc[:i] + loc[i+1:]
-
+    loc = parse_location_override(infdict['LO'], location_override)[0]
     infd = dict(infdict)
     if 'DE' in infd:
         infd['DE'] = "[%s] %s" % (loc, infd['DE'])
@@ -292,7 +288,7 @@ def parse_dtella_tag(info):
     return ""
 
 
-def parse_incoming_info(info):
+def parse_incoming_info(info, location_override=None):
     # Pull the location and share size out of an info string
     # Returns dcinfo, location, shared
 
@@ -304,16 +300,9 @@ def parse_incoming_info(info):
     except ValueError:
         return ("", "", 0)
 
-    # Check if the location has a user-specified suffix
-    try:
-        location, suffix = info[2][:-1].split('|', 1)
-        suffix = suffix[:8]
-    except ValueError:
-        # No separator, use entire connection field as location name
-        location = info[2][:-1]
-    else:
-        # Keep location, and splice out the separator
-        info[2] = location + suffix + info[2][-1:]
+    # If necessary, splice out suffix separator and override location
+    location, loc_claim = parse_location_override(info[2][:-1], location_override)
+    info[2] = location + info[2][-1:]
 
     # Get share size
     try:
@@ -321,7 +310,16 @@ def parse_incoming_info(info):
     except ValueError:
         shared = 0
 
-    return ('$'.join(info), location, shared)
+    return ('$'.join(info), loc_claim, shared)
+
+
+def parse_location_override(loc, override=None):
+    # parse a location in dtella packet format into a (location, loc_claim)
+    # tuple, with the given override. <location> should be sent to the client,
+    # and <loc_claim> should be stored in Node.loc_claim
+    i = loc.find('|')
+    loc_claim, suffix = (loc, "") if i < 0 else (loc[:i], loc[i+1:])
+    return (override or loc_claim) + suffix, loc_claim
 
 
 def split_tag(desc):
@@ -475,8 +473,8 @@ def load_cfg(modname, prefix):
         cfgname = prefix
         cfgfile = get_user_path(cfgname + ".cfg")
         if os.path.exists(cfgfile):
-            print "--- Note: unused obsolete config in %s" % cfgfile
-            print "--- You might want to remove it to reduce clutter."
+            print >>sys.stderr, "--- Note: unused obsolete config in %s" % cfgfile
+            print >>sys.stderr, "--- You might want to remove it to reduce clutter."
 
         import StringIO
         cfgfp = StringIO.StringIO(get_data(modname, prefix + ".cfg"))
