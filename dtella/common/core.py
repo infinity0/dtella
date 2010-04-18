@@ -2216,12 +2216,21 @@ class Node(object):
         # General Info
         self.nick = ''
         self.sid = None
-        self.dcinfo = ''
+        self.dcinfo = '' # infostring that gets sent to the client
         self.info = {}
-        self.location = ''
         self.shared = 0
-
         self.dttag = ""
+
+        # Base location with no suffix, claimed by the peer node. There is also
+        # an entry 'LO' in self.info which is not part of the ADC specs, but is
+        # used internally in dtella to pass location info around with the rest
+        # of the node info. It is of the form "%s|%s" % (location, suffix) and
+        # this field will be updated with it when necessary.
+        self.loc_claim = ''
+
+        # Location inferred by our IP range definitions in local_config
+        self.location = local.locations[ipp[0:4]] if ipp[0:4] in local.locations else None
+
         '''
         NMDC-BACK-COMPAT:
         This allows the ADC client frontend of Dtella to see which nodes are
@@ -2335,7 +2344,7 @@ class Node(object):
                 messages from them). Apart from this, the CID never leaves our
                 own Dtella node. So, we can just generate any random one.
                 '''
-                info, self.location, self.shared = (
+                info, self.loc_claim, self.shared = (
                     parse_incoming_info(SSLHACK_filter_flags(info)))
 
                 try:
@@ -2366,7 +2375,7 @@ class Node(object):
                         else:
                             # NMDC node, so generate a throwaway CID that will never be used
                             self.info['ID'] = b32encode(treehash(self.nick))
-                            self.info['LO'] = self.location + '|' + location[len(self.location):]
+                            self.info['LO'] = self.loc_claim + '|' + location[len(self.loc_claim):] # location|suffix
 
                     self.info['VE'], rest = rest.split(' ') # as per standard clients
                     tags = {}
@@ -2399,20 +2408,20 @@ class Node(object):
             else:
                 raise BadPacketError("This node does not accept NMDC infostrings")
 
-            self.dcinfo = adc_infostring(adc_locdes(self.info))
+            self.dcinfo = adc_infostring(adc_locdes(self.info, self.location))
             if 'LO' in self.info:
                 i = self.info['LO'].find('|')
                 if i >= 0:
-                    self.location = self.info['LO'][:i]
+                    self.loc_claim = self.info['LO'][:i]
                 else:
-                    self.location = self.info['LO']
+                    self.loc_claim = self.info['LO']
 
         else:
             if adc:
                 raise BadPacketError("This node does not accept ADC infostrings")
 
-            self.dcinfo, self.location, self.shared = (
-                parse_incoming_info(SSLHACK_filter_flags(info)))
+            self.dcinfo, self.loc_claim, self.shared = (
+                parse_incoming_info(SSLHACK_filter_flags(info), self.location))
 
         if self.sesid is None:
             # Node is uninitialized
@@ -3299,7 +3308,7 @@ class OnlineStateManager(object):
         me.persist = self.main.state.persistent
         me.dttag = get_version_string()
 
-        if dch: # TODO: andy, wtf is this: "TTTTT"
+        if dch:
             me.info_out = dch.formatMyInfo()
             nick = dch.nick
         else:
