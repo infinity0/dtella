@@ -947,6 +947,13 @@ class DtellaBot(object):
         if args[0] == "nbs":
             self.debug_neighbors(out)
 
+        elif args[0] == "dcfg":
+            from time import ctime
+            when, ipps = self.main.state.dns_ipcache
+            out("%s dynamic config:" % local.hub_name)
+            out("Updated: %s" % ctime(when))
+            out("IPPs: %s" % (' '.join([Ad().setRawIPPort(ipp).getTextIPPort() for ipp in ipps])))
+
         elif args[0] == "nodes":
             if len(args) < 2:
                 self.debug_nodes(out)
