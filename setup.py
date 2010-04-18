@@ -30,7 +30,7 @@ import sys, os, subprocess
 
 properties = {
     'name': 'dtella-cambridge',
-    'version': '1.2.4.5+git',
+    'version': '1.2.6.1',
     'description': 'Client for the Dtella network at Cambridge',
     'author': 'Dtella-Cambridge',
     'author_email': 'cabal@camdc.pcriot.com',
